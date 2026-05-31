@@ -1,0 +1,71 @@
+# PoliticOS — stack de ingesta y vector store
+# Levanta Qdrant + Redis + el servicio Python de ingesta
+#
+# Uso:
+#   docker compose up -d
+#
+# Qdrant queda en localhost:6333 (HTTP) y :6334 (gRPC).
+# El servicio de ingesta queda en localhost:8001.
+
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.10.1
+    container_name: politicos-qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:-}
+
+  redis:
+    image: redis:7-alpine
+    container_name: politicos-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
+  ingest:
+    build: .
+    container_name: politicos-ingest
+    restart: unless-stopped
+    depends_on:
+      - qdrant
+      - redis
+    ports:
+      - "8001:8001"
+    env_file: .env
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      REDIS_URL: redis://redis:6379
+
+  ingest-worker:
+    build: .
+    container_name: politicos-ingest-worker
+    restart: unless-stopped
+    depends_on:
+      - redis
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379
+    command: python -m celery -A app.celery_app worker --loglevel=info --concurrency=4
+
+  ingest-beat:
+    build: .
+    container_name: politicos-ingest-beat
+    restart: unless-stopped
+    depends_on:
+      - redis
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379
+    command: python -m celery -A app.celery_app beat --loglevel=info
+
+volumes:
+  qdrant_data:
+  redis_data:

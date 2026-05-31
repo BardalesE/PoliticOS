@@ -1,0 +1,274 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+    /* shadcn semantic tokens — used by ui/hero-with-video and future shadcn components */
+    --background:        255 255 255;
+    --foreground:        26 26 26;
+    --card:              255 255 255;
+    --card-foreground:   26 26 26;
+    --muted:             245 245 245;
+    --muted-foreground:  92 88 82;
+    --border:            229 229 229;
+    --ring:              217 16 35;
+    --radius:            0.75rem;
+    --primary-red:       #D91023;
+    --primary-red-dark:  #B30D1C;
+    --black-main:        #1A1A1A;
+    --white-main:        #FFFFFF;
+    --gray-bg:           #F5F5F5;
+    --gray-border:       #E5E5E5;
+    --text-gray:         #5C5852;
+    --success:           #25D366;
+    /* Brand dinámico (sobrescritos por CandidateContext en runtime) */
+    --brand-primary:     #D91023;
+    --brand-dark:        #B30D1C;
+    --brand-accent:      #C9A84C;
+    --brand-primary-rgb: 217 16 35;
+    --brand-dark-rgb:    179 13 28;
+  }
+
+  .dark {
+    color-scheme: dark;
+    --background:        18 18 18;
+    --foreground:        245 245 245;
+    --card:              26 26 26;
+    --card-foreground:   245 245 245;
+    --muted:             38 38 38;
+    --muted-foreground:  163 163 163;
+    --border:            51 51 51;
+    --ring:              217 16 35;
+  }
+
+  html, body {
+    @apply bg-white text-gray-900 antialiased;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    /* Compensa el navbar sticky al hacer scroll a secciones */
+    scroll-padding-top: 100px;
+  }
+
+  /* Toda sección con id respeta el offset del navbar sticky */
+  section[id], div[id] {
+    scroll-margin-top: 100px;
+  }
+
+  ::selection { @apply bg-brand-500/20 text-brand-700; }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { @apply bg-gray-100; }
+  ::-webkit-scrollbar-thumb { @apply bg-gray-300 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-gray-400; }
+}
+
+@layer components {
+
+  /* ─── Buttons (legacy, mantenidos para compatibilidad admin) ─── */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl
+           bg-brand-500 hover:bg-brand-600 text-white font-semibold
+           transition-all duration-300 shadow-lg shadow-brand-500/25
+           hover:shadow-xl hover:shadow-brand-500/30 hover:scale-105
+           active:scale-[0.98];
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl
+           bg-white hover:bg-brand-50 text-brand-600 font-semibold
+           transition-all duration-300 border-2 border-brand-500
+           hover:scale-105 active:scale-[0.98];
+  }
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl
+           bg-white hover:bg-gray-50 text-gray-700 font-medium
+           transition-all duration-300 border border-gray-300
+           hover:border-brand-500 hover:text-brand-600;
+  }
+
+  /* ─── Cards ─── */
+  .card {
+    @apply bg-white rounded-2xl border border-gray-200 shadow-sm
+           transition-all duration-300 hover:-translate-y-1 hover:shadow-xl
+           hover:border-brand-500/30;
+  }
+
+  /* ─── Glass (kept for compat) ─── */
+  .glass       { @apply bg-white/80 backdrop-blur-xl border border-gray-200; }
+  .glass-strong{ @apply bg-white/95 backdrop-blur-2xl border border-gray-200 shadow-sm; }
+
+  /* ─── Text gradients ─── */
+  .text-gradient       { @apply bg-clip-text text-transparent bg-gradient-to-br from-gray-900 via-gray-700 to-gray-600; }
+  .text-gradient-brand { @apply bg-clip-text text-transparent bg-gradient-to-br from-brand-500 via-brand-600 to-brand-700; }
+
+  /* ─── Form inputs ─── */
+  .input-field {
+    @apply w-full px-4 py-3 rounded-xl border border-gray-300 bg-white
+           text-gray-900 text-sm transition-all duration-200 outline-none
+           focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15
+           placeholder:text-gray-400;
+  }
+
+  /* ─── Section badge ─── */
+  .section-badge {
+    @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-full
+           bg-brand-500/10 border border-brand-500/20
+           text-xs font-semibold text-brand-600 uppercase tracking-wider;
+  }
+
+  /* ─── Institutional stripe ─── */
+  .inst-stripe {
+    @apply h-1 bg-gradient-to-r from-brand-700 via-brand-500 to-brand-700;
+  }
+
+  /* ─── Table styles (admin) ─── */
+  .table-inst thead tr {
+    @apply bg-brand-500 text-white;
+  }
+  .table-inst tbody tr {
+    @apply border-b border-gray-100 hover:bg-gray-50 transition-colors;
+  }
+  .table-inst th {
+    @apply px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider;
+  }
+  .table-inst td {
+    @apply px-4 py-3 text-sm text-gray-700;
+  }
+
+  /* ─── Grid pattern ─── */
+  .grid-pattern {
+    background-image: radial-gradient(circle at 1px 1px, rgba(0,0,0,0.05) 1px, transparent 0);
+    background-size: 24px 24px;
+  }
+
+  /* === EYEBROWS INSTITUCIONALES === */
+  .eyebrow-red {
+    @apply inline-block text-[11px] font-extrabold uppercase text-brand-500
+           tracking-[1.5px] pb-[6px] border-b-[3px] border-brand-500;
+  }
+
+  .eyebrow-on-dark {
+    @apply inline-block text-[11px] font-extrabold uppercase text-white
+           tracking-[1.5px];
+  }
+
+  /* === TÍTULOS EDITORIALES === */
+  .h2-serif {
+    @apply font-serif text-2xl md:text-3xl font-semibold text-ink-800
+           leading-tight tracking-tight mt-2;
+  }
+
+  .h1-hero {
+    @apply font-serif text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-ink-800
+           leading-[1.05] tracking-tight;
+  }
+
+  .h1-hero em {
+    @apply not-italic md:italic text-brand-500 font-bold;
+  }
+
+  /* === BOTONES INSTITUCIONALES === */
+  .btn-pp-primary {
+    @apply inline-flex items-center justify-center gap-2
+           bg-brand-500 hover:bg-brand-600 text-white
+           px-6 py-3.5 rounded text-sm font-extrabold uppercase
+           tracking-wider transition-all duration-200
+           shadow-sm hover:shadow-md active:scale-[0.98];
+  }
+
+  .btn-pp-secondary {
+    @apply inline-flex items-center justify-center gap-2
+           bg-white hover:bg-ink-100 text-ink-800
+           px-6 py-3.5 rounded text-sm font-extrabold uppercase
+           tracking-wider transition-all duration-200
+           border-[2.5px] border-ink-800 active:scale-[0.98];
+  }
+
+  /* === CARDS INSTITUCIONALES === */
+  .card-pp {
+    @apply bg-white border-2 border-ink-800 rounded
+           p-4 transition-all duration-200
+           hover:shadow-md;
+  }
+
+  .card-pp-chat {
+    @apply bg-chat-500 border-2 border-chat-600 rounded
+           p-4 transition-all duration-200 text-white
+           hover:bg-chat-600;
+  }
+
+  /* === BANNER ROJIBLANCO (50/50) === */
+  .banner-rojiblanco {
+    @apply h-1.5 w-full;
+    background: linear-gradient(90deg, var(--brand-primary) 0%, var(--brand-primary) 50%, #FFFFFF 50%, #FFFFFF 100%);
+  }
+}
+
+/* ─── Orbs y partículas CSS (compositor thread, sin JS) ──────────────── */
+@keyframes orbFloat {
+  0%, 100% { transform: scale(1)   translateY(0px);   opacity: 0.7; }
+  50%       { transform: scale(1.08) translateY(-12px); opacity: 1; }
+}
+@keyframes orbFloat2 {
+  0%, 100% { transform: scale(1)    translateY(0px);  opacity: 0.5; }
+  50%       { transform: scale(1.05) translateY(10px); opacity: 0.85; }
+}
+@keyframes orbFloat3 {
+  0%, 100% { transform: scale(1)    translateY(0px);   opacity: 0.4; }
+  50%       { transform: scale(1.1)  translateY(-8px);  opacity: 0.7; }
+}
+@keyframes ringPulse {
+  0%, 100% { transform: translate(-50%,-50%) scale(1);    opacity: 0.3; }
+  50%       { transform: translate(-50%,-50%) scale(1.04); opacity: 0.7; }
+}
+@keyframes particleDrift {
+  0%, 100% { transform: translateY(0px);  opacity: 0.3; }
+  50%       { transform: translateY(-10px); opacity: 0.65; }
+}
+.anim-orb-1 { animation: orbFloat  10s ease-in-out infinite; }
+.anim-orb-2 { animation: orbFloat2 12s ease-in-out infinite 1.5s; }
+.anim-orb-3 { animation: orbFloat3  8s ease-in-out infinite 3s; }
+.anim-ring-1 { animation: ringPulse  4s ease-in-out infinite; }
+.anim-ring-2 { animation: ringPulse  5.5s ease-in-out infinite 1.2s; }
+.anim-ring-3 { animation: ringPulse  7s ease-in-out infinite 2.4s; }
+
+/* ─── Marquee infinito ────────────────────────────────────────────────── */
+@keyframes marqueeLeft {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+@keyframes marqueeRight {
+  from { transform: translateX(-50%); }
+  to   { transform: translateX(0); }
+}
+.animate-marquee-left  { animation: marqueeLeft  var(--marquee-dur, 35s) linear infinite; }
+.animate-marquee-right { animation: marqueeRight var(--marquee-dur, 35s) linear infinite; }
+.group:hover .animate-marquee-left,
+.group:hover .animate-marquee-right { animation-play-state: paused; }
+
+@layer utilities {
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0); }
+  .safe-top    { padding-top: env(safe-area-inset-top, 0); }
+
+  /* Gradiente de texto reutilizable */
+  .text-gradient-blue {
+    background: linear-gradient(135deg, #DC2626 0%, #EF4444 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Transición suave para todos los elementos interactivos */
+  .transition-smooth {
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Sombra azul suave para cards */
+  .shadow-blue-soft {
+    box-shadow: 0 4px 24px rgba(30, 64, 175, 0.10);
+  }
+  .shadow-blue-soft:hover {
+    box-shadow: 0 12px 40px rgba(30, 64, 175, 0.18);
+  }
+}
