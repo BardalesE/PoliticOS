@@ -15,6 +15,16 @@ return Application::configure(basePath: dirname(__DIR__))
         // CORS aplicado a todas las rutas (necesario para Next.js en puerto 3000)
         $middleware->prepend(\Illuminate\Http\Middleware\HandleCors::class);
 
+        // ResolveTenant must run before auth:sanctum so the DB is switched before
+        // Sanctum looks up the Bearer token. appendToGroup alone is insufficient:
+        // SortedMiddleware reorders auth:sanctum (AuthenticatesRequests, priority 6)
+        // ahead of anything not in the priority list. prependToPriorityList fixes that.
+        $middleware->appendToGroup('api', \App\Http\Middleware\ResolveTenant::class);
+        $middleware->prependToPriorityList(
+            \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            \App\Http\Middleware\ResolveTenant::class
+        );
+
         $middleware->alias([
             'admin'       => \App\Http\Middleware\EnsureIsAdmin::class,
             'tenant'      => \App\Http\Middleware\ResolveTenant::class,
@@ -22,5 +32,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        $exceptions->render(function (\Illuminate\Auth\AuthenticationException $e, $request) {
+            if ($request->expectsJson() || $request->is('api/*')) {
+                return response()->json(['message' => 'Unauthenticated.'], 401);
+            }
+        });
     })->create();

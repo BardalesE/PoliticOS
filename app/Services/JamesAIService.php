@@ -38,14 +38,14 @@ use Illuminate\Support\Facades\Log;
 class JamesAIService
 {
     private AiSetting $config;
-    private CandidateProfile $candidate;
+    private ?CandidateProfile $candidate;
     private EmbeddingsServiceInterface $embeddings;
     private string $systemPromptTemplate;
 
     public function __construct(EmbeddingsServiceInterface $embeddings)
     {
         $this->config       = AiSetting::current();
-        $this->candidate    = CandidateProfile::query()->firstOrFail();
+        $this->candidate    = CandidateProfile::query()->first();
         $this->embeddings   = $embeddings;
         $this->systemPromptTemplate = $this->config->system_prompt ?: $this->defaultPrompt();
     }
@@ -53,6 +53,15 @@ class JamesAIService
     // ─── Punto de entrada (sincrónico) ────────────────────────────────────
     public function respond(string $userMessage, ChatSession $session): array
     {
+        if (! $this->candidate) {
+            return [
+                'reply'  => 'El asistente no está disponible en este momento. Intenta más tarde.',
+                'topic'  => null,
+                'media'  => [],
+                'source' => 'fallback',
+            ];
+        }
+
         $userMessage = $this->sanitize($userMessage);
 
         $identity = $this->detectIdentityQuestion($userMessage);
@@ -102,6 +111,12 @@ class JamesAIService
     // ─── Punto de entrada (streaming SSE) ─────────────────────────────────
     public function respondStream(string $userMessage, ChatSession $session, callable $onChunk): array
     {
+        if (! $this->candidate) {
+            $fallback = 'El asistente no está disponible en este momento. Intenta más tarde.';
+            $onChunk($fallback);
+            return ['topic' => null, 'media' => [], 'attack_detected' => false, 'pepa_metadata' => null];
+        }
+
         $userMessage = $this->sanitize($userMessage);
 
         $identity = $this->detectIdentityQuestion($userMessage);
