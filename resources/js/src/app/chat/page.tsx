@@ -33,46 +33,33 @@ interface ChatMessage {
   quickReplies?: QuickReply[];
 }
 
-interface OnboardingData {
-  nombre: string;
-  region: string;
-  distrito: string;
-  ocupacion: string;
-  preocupacion: string;
-  intencion_voto: string;
-}
-
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
-const REGIONES = [
-  "Amazonas", "Áncash", "Apurímac", "Arequipa", "Ayacucho",
-  "Cajamarca", "Callao", "Cusco", "Huancavelica", "Huánuco",
-  "Ica", "Junín", "La Libertad", "Lambayeque", "Lima",
-  "Loreto", "Madre de Dios", "Moquegua", "Pasco", "Piura",
-  "Puno", "San Martín", "Tacna", "Tumbes", "Ucayali", "Extranjero",
-];
+// Fases del flujo de registro conversacional
+type RegPhase =
+  | "offered"     // esperando que el usuario acepte/decline la rifa
+  | "name"        // esperando nombre
+  | "dni"         // esperando DNI
+  | "validating"  // verificando DNI duplicado vía API
+  | "dni_taken"   // DNI ya registrado, esperando respuesta
+  | "phone"       // esperando WhatsApp
+  | "email"       // esperando correo
+  | "registering" // POST /api/citizen/register en progreso
+  | "done";       // chat desbloqueado
 
-const OCUPACIONES = [
-  "Agricultor/a", "Comerciante", "Docente / Profesor/a",
-  "Profesional independiente", "Empleado/a público/a",
-  "Estudiante", "Ama/o de casa", "Emprendedor/a", "Otro",
-];
+interface RegData { name: string; dni: string; phone: string; email: string; }
 
-const PREOCUPACIONES = [
-  "Agua y saneamiento", "Vías y carreteras", "Salud pública",
-  "Educación", "Empleo y economía", "Seguridad ciudadana", "Agricultura",
-];
-
-function buildIntenciones(candidateName: string) {
-  return [
-    `Voto seguro por ${candidateName}`,
-    "Aún evaluando opciones",
-    "Tengo dudas sobre mi voto",
-    "Prefiero no decir",
-  ];
+// Detecta si el usuario acepta la rifa
+function acceptedRaffle(text: string): boolean {
+  const t = text.toLowerCase().trim();
+  return ["sí","si","s","yes","claro","dale","ok","quiero","acepto","de una","ya","seguro","obvio","participar","cuenta conmigo"].some(w => t.includes(w));
 }
+
+// Validaciones
+const isDniValid   = (v: string) => /^\d{8}$/.test(v.trim());
+const isSkipWord   = (v: string) => ["omitir","omit","skip","no","no tengo","paso"].includes(v.toLowerCase().trim());
 
 const THINKING_STEPS = [
   "Analizando tu pregunta",
@@ -107,11 +94,8 @@ function NonsenseAlert({ onClose }: { onClose: () => void }) {
           onClick={(e) => e.stopPropagation()}
           className="relative w-full max-w-sm bg-zinc-950 border border-red-500/60 rounded-2xl shadow-2xl shadow-red-900/40 overflow-hidden"
         >
-          {/* Barra roja superior pulsante */}
           <div className="h-1 bg-red-600 animate-pulse" />
-
           <div className="px-6 py-6 flex flex-col items-center text-center gap-4">
-            {/* Icono animado */}
             <motion.div
               animate={{ rotate: [0, -8, 8, -8, 8, 0] }}
               transition={{ duration: 0.6, delay: 0.2 }}
@@ -119,36 +103,28 @@ function NonsenseAlert({ onClose }: { onClose: () => void }) {
             >
               <ShieldAlert size={32} className="text-red-500" />
             </motion.div>
-
             <div>
               <p className="text-red-400 text-[10px] font-bold uppercase tracking-[0.2em] mb-1">
                 Sistema de monitoreo activo
               </p>
-              <h2 className="text-white text-lg font-bold mb-2">
-                Mensaje inusual detectado
-              </h2>
+              <h2 className="text-white text-lg font-bold mb-2">Mensaje inusual detectado</h2>
               <p className="text-zinc-400 text-sm leading-relaxed">
                 Se registró un mensaje con caracteres ininteligibles. Esta actividad queda registrada junto a tu dirección IP para revisión.
               </p>
             </div>
-
             <div className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 flex items-center gap-3">
               <AlertTriangle size={14} className="text-amber-500 shrink-0" />
               <p className="text-zinc-400 text-xs text-left">
                 Los mensajes spam o maliciosos pueden resultar en bloqueo permanente.
               </p>
             </div>
-
             <button
               onClick={onClose}
               className="w-full bg-red-600 hover:bg-red-500 text-white font-semibold text-sm py-3 rounded-xl transition-colors"
             >
               Entendido, continuaré correctamente
             </button>
-
-            <p className="text-zinc-600 text-[10px]">
-              Este modal se cerrará automáticamente en unos segundos.
-            </p>
+            <p className="text-zinc-600 text-[10px]">Este modal se cerrará automáticamente en unos segundos.</p>
           </div>
         </motion.div>
       </motion.div>
@@ -187,6 +163,12 @@ function getYoutubeId(url: string): string | null {
   return m ? m[1] : null;
 }
 
+function getCookieValue(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp("(^|;\\s*)" + name + "=([^;]*)"));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
 // ─── Badge / preview de media ─────────────────────────────────────────────────
 
 function MediaBadge({ item }: { item: MediaItem }) {
@@ -212,37 +194,23 @@ function MediaBadge({ item }: { item: MediaItem }) {
             <span className="text-[10px] text-zinc-400 shrink-0">Ver imagen</span>
           </div>
         </button>
-
         <AnimatePresence>
           {previewOpen && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={(e) => { if (e.target === e.currentTarget) setPreviewOpen(false); }}
               className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
             >
               <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
+                initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
                 className="relative flex flex-col items-center max-w-3xl w-full"
               >
-                <button
-                  onClick={() => setPreviewOpen(false)}
-                  className="absolute -top-10 right-0 p-2 rounded-full bg-white/20 text-white hover:bg-white/30"
-                >
+                <button onClick={() => setPreviewOpen(false)} className="absolute -top-10 right-0 p-2 rounded-full bg-white/20 text-white hover:bg-white/30">
                   <X size={16} />
                 </button>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={item.url}
-                  alt={item.title}
-                  className="max-w-full max-h-[85vh] rounded-xl object-contain shadow-2xl"
-                />
-                {item.title && (
-                  <p className="text-white/80 text-sm mt-3 text-center">{item.title}</p>
-                )}
+                <img src={item.url} alt={item.title} className="max-w-full max-h-[85vh] rounded-xl object-contain shadow-2xl" />
+                {item.title && <p className="text-white/80 text-sm mt-3 text-center">{item.title}</p>}
               </motion.div>
             </motion.div>
           )}
@@ -266,27 +234,20 @@ function MediaBadge({ item }: { item: MediaItem }) {
             <p className="text-[10px] text-blue-500 font-medium">Documento PDF · Toca para ver</p>
           </div>
         </button>
-
         <AnimatePresence>
           {previewOpen && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={(e) => { if (e.target === e.currentTarget) setPreviewOpen(false); }}
               className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
             >
               <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
+                initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
                 className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
               >
                 <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
                   <p className="text-sm font-semibold text-gray-900 truncate max-w-[75%]">{item.title}</p>
-                  <button onClick={() => setPreviewOpen(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100">
-                    <X size={16} />
-                  </button>
+                  <button onClick={() => setPreviewOpen(false)} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100"><X size={16} /></button>
                 </div>
                 <iframe src={item.url} title={item.title} className="flex-1 w-full" style={{ minHeight: "70vh" }} />
               </motion.div>
@@ -331,26 +292,18 @@ function MediaBadge({ item }: { item: MediaItem }) {
             <span className="text-[10px] text-zinc-400 shrink-0">Reproducir</span>
           </div>
         </button>
-
         <AnimatePresence>
           {previewOpen && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={(e) => { if (e.target === e.currentTarget) setPreviewOpen(false); }}
               className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm"
             >
               <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
+                initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
                 className="relative w-full max-w-3xl"
               >
-                <button
-                  onClick={() => setPreviewOpen(false)}
-                  className="absolute -top-10 right-0 p-2 rounded-full bg-white/20 text-white hover:bg-white/30"
-                >
+                <button onClick={() => setPreviewOpen(false)} className="absolute -top-10 right-0 p-2 rounded-full bg-white/20 text-white hover:bg-white/30">
                   <X size={16} />
                 </button>
                 <div className="bg-black rounded-2xl overflow-hidden shadow-2xl">
@@ -358,8 +311,7 @@ function MediaBadge({ item }: { item: MediaItem }) {
                   {embedUrl ? (
                     <div className="relative" style={{ paddingTop: "56.25%" }}>
                       <iframe
-                        src={embedUrl}
-                        title={item.title}
+                        src={embedUrl} title={item.title}
                         className="absolute inset-0 w-full h-full"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen
@@ -368,14 +320,9 @@ function MediaBadge({ item }: { item: MediaItem }) {
                   ) : (
                     <div className="p-8 text-center">
                       <p className="text-white/60 text-sm mb-4">No se puede reproducir aquí directamente.</p>
-                      <a
-                        href={item.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-2 bg-red-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-red-500 transition-colors"
-                      >
-                        <Play size={14} className="fill-white" />
-                        Ver video
+                      <a href={item.url} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 bg-red-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-red-500 transition-colors">
+                        <Play size={14} className="fill-white" /> Ver video
                       </a>
                     </div>
                   )}
@@ -389,12 +336,8 @@ function MediaBadge({ item }: { item: MediaItem }) {
   }
 
   return (
-    <a
-      href={item.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="flex items-center gap-2 px-3 py-2 bg-zinc-100 border border-zinc-200 rounded-xl hover:bg-zinc-200 transition-colors"
-    >
+    <a href={item.url} target="_blank" rel="noopener noreferrer"
+      className="flex items-center gap-2 px-3 py-2 bg-zinc-100 border border-zinc-200 rounded-xl hover:bg-zinc-200 transition-colors">
       <LinkIcon size={14} className="text-zinc-500 shrink-0" />
       <p className="text-xs text-zinc-700 truncate max-w-[200px]">{item.title}</p>
     </a>
@@ -439,367 +382,277 @@ function BlockedBanner() {
   );
 }
 
-// ─── Helper: leer cookie ────────────────────────────────────────────────
-
-function getCookieValue(name: string): string | null {
-  if (typeof document === "undefined") return null;
-  const match = document.cookie.match(new RegExp("(^|;\\s*)" + name + "=([^;]*)"));
-  return match ? decodeURIComponent(match[2]) : null;
-}
-
-function mapVotingIntention(label: string): string {
-  if (/seguro/i.test(label)) return "alta";
-  if (/evaluando|opciones/i.test(label)) return "indeciso";
-  if (/dud/i.test(label)) return "media";
-  return "indeciso";
-}
-
-// ─── Tarjeta de registro ciudadano (aparece tras el onboarding) ──────────
-
-type RegistrationResult = { points: number; referral_code: string; share_url: string; status: string };
-
-function RegistrationCard({
-  prefillName,
-  prefillDistrict,
-  occupation,
-  votingIntention,
-  visitorUuid,
-  onDone,
-}: {
-  prefillName: string;
-  prefillDistrict: string;
-  occupation: string;
-  votingIntention: string;
-  visitorUuid: string | null;
-  onDone: (result: RegistrationResult | null) => void;
-}) {
-  const [name, setName]     = useState(prefillName);
-  const [phone, setPhone]   = useState("");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<RegistrationResult | null>(null);
-  const [error, setError]   = useState("");
-  const [copied, setCopied] = useState(false);
-
-  const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
-
-  async function submit() {
-    if (!phone.trim() || !name.trim()) { setError("Ingresa tu nombre y WhatsApp."); return; }
-    setLoading(true);
-    setError("");
-    try {
-      const tenant = resolveTenantSlug();
-      const r = await fetch(`${API}/citizen/register`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(tenant ? { "X-Tenant": tenant } : {}),
-        },
-        body: JSON.stringify({
-          name,
-          phone_whatsapp: phone.trim(),
-          district:          prefillDistrict || null,
-          occupation:        occupation || null,
-          voting_intention:  mapVotingIntention(votingIntention),
-          visitor_uuid:      visitorUuid,
-          source:            "chat",
-          consent:           true,
-        }),
-      });
-      const data = await r.json();
-      if (!r.ok) {
-        setError(data.message ?? "Error al registrar. Intenta de nuevo.");
-        return;
-      }
-      setResult({ points: data.points, referral_code: data.referral_code, share_url: data.share_url, status: data.status });
-    } catch {
-      setError("No se pudo conectar. Intenta más tarde.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function copyCode() {
-    if (!result?.referral_code) return;
-    navigator.clipboard.writeText(result.referral_code).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
-  }
-
-  if (result) {
-    const isNew = result.status === "registered";
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-white border border-emerald-200 rounded-2xl shadow-sm p-5 my-3"
-      >
-        <div className="flex items-center gap-2 mb-3">
-          <div className="h-9 w-9 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-            <span className="text-emerald-600 text-lg">✓</span>
-          </div>
-          <div>
-            <p className="text-sm font-bold text-zinc-900">
-              {isNew ? "¡Registro exitoso!" : "¡Bienvenido de nuevo!"}
-            </p>
-            <p className="text-xs text-zinc-500">
-              {isNew ? `Ganaste ${result.points} puntos de participación` : "Tu perfil fue actualizado."}
-            </p>
-          </div>
-        </div>
-        {result.referral_code && (
-          <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-3 mb-3">
-            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
-              Tu código de referido
-            </p>
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-mono font-bold text-zinc-900 tracking-widest">{result.referral_code}</span>
-              <button
-                onClick={copyCode}
-                className="ml-auto flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-800 transition-colors px-2 py-1 rounded-lg border border-zinc-200 hover:border-zinc-400"
-              >
-                {copied ? "¡Copiado!" : "Copiar"}
-              </button>
-            </div>
-            <p className="text-[11px] text-zinc-500 mt-1">
-              Comparte este código y gana <strong>100 puntos</strong> por cada persona que se registre.
-            </p>
-          </div>
-        )}
-        <button
-          onClick={() => onDone(result)}
-          className="w-full bg-zinc-900 text-white text-sm font-semibold py-2.5 rounded-xl hover:bg-zinc-800 transition-colors"
-        >
-          Continuar al chat →
-        </button>
-      </motion.div>
-    );
-  }
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white border border-zinc-200 rounded-2xl shadow-sm p-5 my-3"
-    >
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <p className="text-sm font-bold text-zinc-900">Regístrate y gana puntos</p>
-          <p className="text-xs text-zinc-500">Únete como ciudadano activo de la campaña.</p>
-        </div>
-        <div className="h-9 w-9 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-          <span className="text-amber-600 font-bold text-sm">50</span>
-        </div>
-      </div>
-
-      <div className="space-y-2 mb-3">
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Tu nombre completo"
-          className="w-full px-4 py-2.5 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 placeholder-zinc-400"
-        />
-        <input
-          type="tel"
-          value={phone}
-          onChange={(e) => setPhone(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && submit()}
-          placeholder="WhatsApp (Ej: 51987654321)"
-          className="w-full px-4 py-2.5 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 placeholder-zinc-400"
-        />
-        {error && <p className="text-xs text-red-600">{error}</p>}
-      </div>
-
-      <div className="flex gap-2">
-        <button
-          onClick={submit}
-          disabled={loading || !phone.trim() || !name.trim()}
-          className="flex-1 bg-zinc-900 text-white text-sm font-semibold py-2.5 rounded-xl hover:bg-zinc-800 disabled:opacity-40 transition-colors"
-        >
-          {loading ? "Registrando..." : "Registrarme →"}
-        </button>
-        <button
-          onClick={() => onDone(null)}
-          className="px-4 py-2.5 text-sm text-zinc-500 hover:text-zinc-700 transition-colors"
-        >
-          Omitir
-        </button>
-      </div>
-
-      <p className="text-[10px] text-zinc-400 mt-2 text-center">
-        Tu WhatsApp solo se usa para comunicaciones de campaña. Ley 29733 aplicable.
-      </p>
-    </motion.div>
-  );
-}
-
-// ─── Formulario de onboarding inicial ────────────────────────────────────────
-
-function OnboardingCard({ onSubmit, candidateName }: { onSubmit: (data: OnboardingData) => void; candidateName: string }) {
-  const [form, setForm] = useState<OnboardingData>({
-    nombre: "", region: "", distrito: "", ocupacion: "", preocupacion: "", intencion_voto: "",
-  });
-  const [step, setStep] = useState(0); // 0=nombre, 1=resto, 2=done
-
-  const FIELDS: Array<{ key: keyof OnboardingData; label: string; placeholder?: string; options?: string[] }> = [
-    { key: "nombre",        label: "¿Cuál es tu nombre?",                  placeholder: "Tu nombre completo" },
-    { key: "region",        label: "¿De qué región del Perú eres?",        options: REGIONES      },
-    { key: "distrito",      label: "¿En qué ciudad o distrito vives?",     placeholder: "Ej: Lima, Cajamarca, Niepos…" },
-    { key: "ocupacion",     label: "¿A qué te dedicas?",                   options: OCUPACIONES   },
-    { key: "preocupacion",  label: "¿Qué tema te preocupa más?",           options: PREOCUPACIONES },
-    { key: "intencion_voto",label: "¿Cómo está tu intención de voto?",     options: buildIntenciones(candidateName) },
-  ];
-
-  const current = FIELDS[step];
-  const isLast  = step === FIELDS.length - 1;
-
-  function next() {
-    if (!form[current.key]) return;
-    if (isLast) { onSubmit(form); return; }
-    setStep((s) => s + 1);
-  }
-
-  function selectOption(val: string) {
-    setForm((f) => ({ ...f, [current.key]: val }));
-    // auto-advance on click for option lists
-    setTimeout(() => {
-      if (isLast) { onSubmit({ ...form, [current.key]: val }); }
-      else setStep((s) => s + 1);
-    }, 180);
-  }
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white border border-zinc-200 rounded-2xl shadow-sm p-5 my-3"
-    >
-      {/* Progreso */}
-      <div className="flex gap-1 mb-4">
-        {FIELDS.map((_, i) => (
-          <div key={i} className={`h-1 flex-1 rounded-full transition-colors duration-300 ${i <= step ? "bg-zinc-900" : "bg-zinc-100"}`} />
-        ))}
-      </div>
-
-      <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">
-        Pregunta {step + 1} de {FIELDS.length}
-      </p>
-      <p className="text-sm font-semibold text-zinc-900 mb-3">{current.label}</p>
-
-      {current.options ? (
-        <div className="flex flex-wrap gap-2">
-          {current.options.map((opt) => (
-            <button
-              key={opt}
-              onClick={() => selectOption(opt)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                form[current.key] === opt
-                  ? "bg-zinc-900 text-white border-zinc-900"
-                  : "bg-white text-zinc-700 border-zinc-200 hover:border-zinc-400"
-              }`}
-            >
-              {opt}
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={form[current.key]}
-            onChange={(e) => setForm((f) => ({ ...f, [current.key]: e.target.value }))}
-            onKeyDown={(e) => e.key === "Enter" && next()}
-            placeholder={current.placeholder}
-            autoFocus
-            className="flex-1 px-4 py-2.5 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 placeholder-zinc-400"
-          />
-          <button
-            onClick={next}
-            disabled={!form[current.key].trim()}
-            className="px-4 py-2.5 bg-zinc-900 text-white text-sm rounded-xl disabled:opacity-40 hover:bg-zinc-800 transition-colors font-medium"
-          >
-            {isLast ? "Comenzar" : "Siguiente"}
-          </button>
-        </div>
-      )}
-
-      <button
-        onClick={() => {
-          if (isLast) onSubmit(form);
-          else setStep((s) => s + 1);
-        }}
-        className="mt-3 text-[11px] text-zinc-400 hover:text-zinc-600 transition-colors"
-      >
-        Omitir esta pregunta →
-      </button>
-    </motion.div>
-  );
-}
-
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function ChatPage() {
-  const { profile }                   = useCandidate();
-  const shortName                     = profile.name.split(" ")[0];
-  const [messages, setMessages]       = useState<ChatMessage[]>([]);
-  const [input, setInput]             = useState("");
-  const [streaming, setStreaming]     = useState(false);
-  const [sessionId, setSessionId]     = useState<string | null>(null);
-  const [consent, setConsent]         = useState<boolean | null>(null);
-  const [declared, setDeclared]       = useState<Record<string, string>>({});
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showNonsense, setShowNonsense] = useState(false);
-  const [blocked, setBlocked]         = useState(false);
-  const [showRegister, setShowRegister]   = useState(false);
-  const [onboardingData, setOnboardingData] = useState<OnboardingData | null>(null);
-  const endRef = useRef<HTMLDivElement>(null);
+  const { profile }              = useCandidate();
+  const shortName                = profile.name.split(" ")[0];
 
+  // ── Chat state ──────────────────────────────────────────────────────────────
+  const [messages, setMessages]  = useState<ChatMessage[]>([]);
+  const [input, setInput]        = useState("");
+  const [streaming, setStreaming]= useState(false);
+  const [sessionId, setSessionId]= useState<string | null>(null);
+  const [consent, setConsent]    = useState<boolean | null>(null);
+  const [showNonsense, setShowNonsense] = useState(false);
+  const [blocked, setBlocked]    = useState(false);
+  const endRef                   = useRef<HTMLDivElement>(null);
+
+  // ── Flujo de registro conversacional ────────────────────────────────────────
+  const [regPhase, setRegPhase]   = useState<RegPhase | null>(null); // null = no iniciado
+  const [regData, setRegData]     = useState<RegData>({ name: "", dni: "", phone: "", email: "" });
+  const [chatInitialized, setChatInitialized] = useState(false); // se pasó initialized:true al backend
+
+  // ── Init ────────────────────────────────────────────────────────────────────
   useEffect(() => {
     const hasConsent = ConsentModal.hasConsent();
     setConsent(hasConsent);
     const stored = localStorage.getItem("politicos_session_id");
     if (stored) setSessionId(stored);
 
-    // Mostrar onboarding si: aceptó consentimiento Y no lo completó antes
-    const doneOnboarding = localStorage.getItem("politicos_onboarding_v1") === "done";
-    if (hasConsent && !doneOnboarding) setShowOnboarding(true);
+    if (hasConsent) {
+      const regDone = localStorage.getItem("politicos_reg_done");
+      if (regDone) {
+        // Usuario ya pasó por el flujo → chat libre directo
+        setChatInitialized(true);
+        setRegPhase("done");
+      } else {
+        // Primera vez → iniciar flujo de registro
+        startRegistrationFlow();
+        setRegPhase("offered");
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, showOnboarding]);
+  }, [messages]);
 
+  // ── Consent result ──────────────────────────────────────────────────────────
   const onConsentResult = (accepted: boolean) => {
     setConsent(accepted);
     if (accepted) {
-      const doneOnboarding = localStorage.getItem("politicos_onboarding_v1") === "done";
-      if (!doneOnboarding) setShowOnboarding(true);
+      const regDone = localStorage.getItem("politicos_reg_done");
+      if (regDone) {
+        setChatInitialized(true);
+        setRegPhase("done");
+      } else {
+        startRegistrationFlow();
+        setRegPhase("offered");
+      }
     }
   };
 
-  const handleOnboardingSubmit = (data: OnboardingData) => {
-    const filled: Record<string, string> = {};
-    Object.entries(data).forEach(([k, v]) => { if (v) filled[k] = v; });
-    setDeclared(filled);
-    localStorage.setItem("politicos_onboarding_v1", "done");
-    setShowOnboarding(false);
-    setOnboardingData(data);
+  // ── Helpers de mensajes ─────────────────────────────────────────────────────
 
-    const name = data.nombre ? data.nombre.split(" ")[0] : "ciudadano/a";
-    const lugar = data.distrito || data.region || null;
-    const greet: ChatMessage = {
-      id: `greet-${Date.now()}`,
+  function addBotMsg(content: string, quickReplies?: QuickReply[], pending = false) {
+    const msg: ChatMessage = {
+      id: `b-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       role: "james",
-      content: `¡Mucho gusto, ${name}${lugar ? ` desde ${lugar}` : ""}! Para personalizarte mejor la experiencia, puedes registrarte con tu WhatsApp y ganar puntos de participación. O si prefieres, omite este paso y empieza a chatear directamente.`,
+      content,
+      quickReplies,
+      pending,
     };
-    setMessages([greet]);
-    setShowRegister(true);
-  };
+    setMessages((m) => [...m, msg]);
+    return msg.id;
+  }
+
+  function addUserMsg(content: string) {
+    setMessages((m) => [...m, {
+      id: `u-${Date.now()}`,
+      role: "user",
+      content,
+      timestamp: Date.now(),
+    }]);
+  }
+
+  // ── Paso 1+2: bienvenida + invitación a la rifa ──────────────────────────────
+
+  function startRegistrationFlow() {
+    const name  = profile.name || "el candidato";
+    const cargo = profile.title || "la alcaldía";
+    const party = profile.party || "su partido";
+
+    setMessages([{
+      id: `welcome-${Date.now()}`,
+      role: "james",
+      content: `¡Hola! 👋 Soy el asistente de ${name}, candidato a ${cargo} por ${party}.\n\nTenemos una rifa especial para los vecinos que se registren hoy. 🎁 ¿Te animas a participar? Solo necesito tu nombre, DNI, WhatsApp y correo — te lleva menos de un minuto.`,
+      quickReplies: [
+        { label: "✅ Sí, quiero participar", value: "Sí, quiero participar en la rifa" },
+        { label: "❌ Ahora no, chatear",     value: "Ahora no, prefiero chatear" },
+      ],
+    }]);
+  }
+
+  // ── Paso 3-5: motor de registro conversacional ────────────────────────────────
+
+  async function handleRegistrationInput(text: string) {
+    addUserMsg(text);
+
+    switch (regPhase) {
+
+      // ── Respuesta a la invitación ──────────────────────────────────────────
+      case "offered": {
+        if (acceptedRaffle(text)) {
+          addBotMsg("¡Genial! ¿Cómo te llamas? 😊");
+          setRegPhase("name");
+        } else {
+          finishWithoutReg();
+        }
+        break;
+      }
+
+      // ── Nombre ────────────────────────────────────────────────────────────
+      case "name": {
+        const name = text.trim();
+        if (name.length < 2) {
+          addBotMsg("Escribe tu nombre completo, por favor. 👇");
+          return;
+        }
+        setRegData((d) => ({ ...d, name }));
+        addBotMsg(`Mucho gusto, ${name.split(" ")[0]}! Ahora escribe tu DNI (8 dígitos) 👇`);
+        setRegPhase("dni");
+        break;
+      }
+
+      // ── DNI ───────────────────────────────────────────────────────────────
+      case "dni": {
+        const dni = text.trim();
+        if (!isDniValid(dni)) {
+          addBotMsg("El DNI debe tener exactamente 8 dígitos numéricos. ¿Puedes revisarlo? 👇");
+          return;
+        }
+        // Validar en tiempo real
+        setRegPhase("validating");
+        addBotMsg("Verificando...", undefined, true);
+        try {
+          const tenant = resolveTenantSlug();
+          const r = await fetch(`${API}/citizen/check-dni/${dni}`, {
+            headers: { ...(tenant ? { "X-Tenant": tenant } : {}) },
+          });
+          const data = await r.json();
+          // Quitar el mensaje "Verificando..."
+          setMessages((m) => m.filter((x) => !x.pending));
+
+          if (data.exists) {
+            addBotMsg(
+              "Este DNI ya está registrado en nuestra campaña. ¿Quieres continuar de todas formas?",
+              [
+                { label: "Usar otro DNI",          value: "Quiero usar otro DNI" },
+                { label: "Continuar sin registrarme", value: "Prefiero continuar sin registrarme" },
+              ]
+            );
+            setRegPhase("dni_taken");
+          } else {
+            setRegData((d) => ({ ...d, dni }));
+            addBotMsg("Perfecto. Ahora tu número de WhatsApp (ej: 51987654321) 📱");
+            setRegPhase("phone");
+          }
+        } catch {
+          setMessages((m) => m.filter((x) => !x.pending));
+          addBotMsg("No pude verificar el DNI en este momento. ¿Lo intentamos de nuevo? 👇");
+          setRegPhase("dni");
+        }
+        break;
+      }
+
+      // ── DNI duplicado ─────────────────────────────────────────────────────
+      case "dni_taken": {
+        if (text.toLowerCase().includes("otro")) {
+          addBotMsg("Escribe tu DNI (8 dígitos) 👇");
+          setRegPhase("dni");
+        } else {
+          finishWithoutReg();
+        }
+        break;
+      }
+
+      // ── WhatsApp ─────────────────────────────────────────────────────────
+      case "phone": {
+        const phone = text.trim();
+        setRegData((d) => ({ ...d, phone }));
+        addBotMsg("¡Casi listo! ¿Tu correo electrónico? Si no quieres darlo, escribe \"omitir\". 📧");
+        setRegPhase("email");
+        break;
+      }
+
+      // ── Correo ────────────────────────────────────────────────────────────
+      case "email": {
+        const email = isSkipWord(text) ? "" : text.trim();
+        setRegData((d) => ({ ...d, email }));
+        // Registrar
+        setRegPhase("registering");
+        const pendingId = addBotMsg("Registrando...", undefined, true);
+        try {
+          const tenant = resolveTenantSlug();
+          const r = await fetch(`${API}/citizen/register`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(tenant ? { "X-Tenant": tenant } : {}),
+            },
+            body: JSON.stringify({
+              name:            regData.name,
+              dni:             regData.dni,
+              phone_whatsapp:  regData.phone,
+              email:           email || null,
+              visitor_uuid:    getCookieValue("politicos_visitor_id"),
+              source:          "chat",
+              consent:         true,
+            }),
+          });
+          const result = await r.json();
+          setMessages((m) => m.filter((x) => x.id !== pendingId));
+
+          if (!r.ok) {
+            addBotMsg(`Hubo un problema al registrarte: ${result.message ?? "error desconocido"}. Puedes intentarlo más tarde.`);
+            finishWithoutReg();
+          } else {
+            const pts  = result.points ?? 50;
+            const code = result.referral_code ?? "";
+            addBotMsg(
+              `🎉 ¡Listo, ${regData.name.split(" ")[0]}! Quedaste registrado/a y ganaste **${pts} puntos** de participación.\n\nTu código de referido es **${code}** — compártelo y gana 100 puntos más por cada vecino que se registre.`,
+              [
+                { label: "📋 Ver propuestas",  value: "Muéstrame las propuestas del candidato" },
+                { label: "🗺️ Mi distrito",     value: "¿Qué propuestas hay para mi zona?" },
+              ]
+            );
+            localStorage.setItem("politicos_reg_done", "done");
+            setChatInitialized(true);
+            setRegPhase("done");
+          }
+        } catch {
+          setMessages((m) => m.filter((x) => x.id !== pendingId));
+          addBotMsg("No pude completar el registro ahora. Continuemos con el chat.");
+          finishWithoutReg();
+        }
+        break;
+      }
+    }
+  }
+
+  // ── Finalizar sin registrar ─────────────────────────────────────────────────
+
+  function finishWithoutReg() {
+    addBotMsg(
+      `No hay problema. ¿De qué zona eres y qué problema ves en tu comunidad que más te preocupa? Cuéntame y te explico qué propone ${shortName} para resolverlo. 👇`
+    );
+    localStorage.setItem("politicos_reg_done", "skipped");
+    setChatInitialized(true);
+    setRegPhase("done");
+  }
+
+  // ── Payload para el backend ──────────────────────────────────────────────────
 
   const buildPayload = (text: string) => ({
-    message: text,
-    session_id: sessionId,
-    consent: consent ?? false,
-    declared,
+    message:     text,
+    session_id:  sessionId,
+    consent:     consent ?? false,
+    initialized: chatInitialized,
   });
+
+  // ── Streaming ─────────────────────────────────────────────────────────────────
 
   const sendStreaming = async (text: string, aiId: string): Promise<boolean> => {
     try {
@@ -852,9 +705,7 @@ export default function ChatPage() {
                 );
               }
               setBlocked(payload.blocked ?? false);
-              if (payload.nonsense || payload.attackDetected) {
-                setShowNonsense(true);
-              }
+              if (payload.nonsense || payload.attackDetected) setShowNonsense(true);
             }
           } catch {}
         }
@@ -885,13 +736,7 @@ export default function ChatPage() {
       setMessages((m) =>
         m.map((x) =>
           x.id === aiId
-            ? {
-                ...x,
-                content: data.reply ?? "Sin respuesta.",
-                media: data.media ?? [],
-                quickReplies: data.quickReplies ?? [],
-                pending: false,
-              }
+            ? { ...x, content: data.reply ?? "Sin respuesta.", media: data.media ?? [], quickReplies: data.quickReplies ?? [], pending: false }
             : x
         )
       );
@@ -903,58 +748,85 @@ export default function ChatPage() {
     }
   };
 
+  // ── Quick replies ─────────────────────────────────────────────────────────────
+
   const sendQuickReply = (value: string) => {
     setInput(value);
-    // pequeño delay para que el input se actualice visualmente antes de enviar
     setTimeout(() => {
       setInput("");
+      if (regPhase !== "done") {
+        handleRegistrationInput(value);
+        return;
+      }
       if (streaming) return;
-      setStreaming(true);
-      const userMsg: ChatMessage = { id: `u-${Date.now()}`, role: "user", content: value, timestamp: Date.now() };
-      setMessages((m) => [...m, userMsg]);
-      const aiId = `a-${Date.now()}`;
-      setMessages((m) => [...m, { id: aiId, role: "james", content: "", pending: true }]);
-      (async () => {
-        try {
-          const streamed = await sendStreaming(value, aiId);
-          if (!streamed) await sendFallback(value, aiId);
-        } finally {
-          setStreaming(false);
-        }
-      })();
+      dispatchToAI(value);
     }, 80);
   };
+
+  // ── Enviar al AI (flujo normal post-registro) ─────────────────────────────────
+
+  function dispatchToAI(text: string) {
+    setStreaming(true);
+    const userMsg: ChatMessage = { id: `u-${Date.now()}`, role: "user", content: text, timestamp: Date.now() };
+    setMessages((m) => [...m, userMsg]);
+    const aiId = `a-${Date.now()}`;
+    setMessages((m) => [...m, { id: aiId, role: "james", content: "", pending: true }]);
+    (async () => {
+      try {
+        const streamed = await sendStreaming(text, aiId);
+        if (!streamed) {
+          const ok = await sendFallback(text, aiId);
+          if (!ok) {
+            setMessages((m) =>
+              m.map((x) =>
+                x.id === aiId
+                  ? { ...x, content: "En este momento no puedo responder. Por favor intenta de nuevo.", pending: false }
+                  : x
+              )
+            );
+          }
+        }
+      } finally {
+        setStreaming(false);
+      }
+    })();
+  }
+
+  // ── Send (input del usuario) ──────────────────────────────────────────────────
 
   const send = async () => {
     const text = input.trim();
     if (!text || streaming) return;
     setInput("");
-    setStreaming(true);
 
-    const userMsg: ChatMessage = { id: `u-${Date.now()}`, role: "user", content: text, timestamp: Date.now() };
-    setMessages((m) => [...m, userMsg]);
-
-    const aiId = `a-${Date.now()}`;
-    setMessages((m) => [...m, { id: aiId, role: "james", content: "", pending: true }]);
-
-    try {
-      const streamed = await sendStreaming(text, aiId);
-      if (!streamed) {
-        const fallback = await sendFallback(text, aiId);
-        if (!fallback) {
-          setMessages((m) =>
-            m.map((x) =>
-              x.id === aiId
-                ? { ...x, content: "En este momento no puedo responder. El servicio estará disponible pronto.", pending: false }
-                : x
-            )
-          );
-        }
-      }
-    } finally {
-      setStreaming(false);
+    // Durante el flujo de registro: interceptar
+    if (regPhase !== null && regPhase !== "done") {
+      handleRegistrationInput(text);
+      return;
     }
+
+    // Chat normal
+    dispatchToAI(text);
   };
+
+  // ── Placeholder del input según fase ─────────────────────────────────────────
+
+  const inputPlaceholder = () => {
+    if (regPhase === "offered")    return "Escribe sí o no...";
+    if (regPhase === "name")       return "Tu nombre completo...";
+    if (regPhase === "dni")        return "Tu DNI (8 dígitos)...";
+    if (regPhase === "validating") return "Verificando...";
+    if (regPhase === "dni_taken")  return "Responde con una opción...";
+    if (regPhase === "phone")      return "Tu WhatsApp (ej: 51987654321)...";
+    if (regPhase === "email")      return "Tu correo o escribe 'omitir'...";
+    if (regPhase === "registering")return "Registrando...";
+    if (blocked)                   return "Escribe 'hola', 'menú' o 'inicio' para continuar...";
+    return "Escribe tu pregunta...";
+  };
+
+  const inputDisabled = streaming || regPhase === "validating" || regPhase === "registering";
+
+  // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white flex flex-col">
@@ -973,59 +845,15 @@ export default function ChatPage() {
 
       {/* Chat */}
       <main className="flex-1 max-w-3xl w-full mx-auto px-4 py-5">
-        {/* Estado vacío antes del onboarding */}
-        {messages.length === 0 && !showOnboarding && (
+        {messages.length === 0 && regPhase === null && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="text-center py-10 text-zinc-500"
           >
-            <p className="text-base font-medium">Hazme una pregunta sobre el plan de gobierno.</p>
+            <p className="text-base font-medium">Acepta las condiciones para comenzar a chatear.</p>
             <p className="text-xs mt-2 text-zinc-400">Soy un asistente entrenado con propuestas oficiales públicas.</p>
           </motion.div>
-        )}
-
-        {/* Mensaje de bienvenida con onboarding */}
-        {showOnboarding && (
-          <div className="mb-3">
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex justify-start mb-2"
-            >
-              <div className="max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed bg-white border border-zinc-200 text-zinc-800 shadow-sm">
-                Hola, soy el asistente virtual oficial de <strong>{profile.name}</strong>, {profile.title ? `${profile.title} · ` : ""}{profile.location}. Antes de comenzar, me gustaría conocerte un poco para personalizar mejor mis respuestas.
-              </div>
-            </motion.div>
-            <OnboardingCard onSubmit={handleOnboardingSubmit} candidateName={shortName} />
-          </div>
-        )}
-
-        {/* Registro ciudadano (tras onboarding) */}
-        {showRegister && onboardingData && (
-          <RegistrationCard
-            prefillName={onboardingData.nombre}
-            prefillDistrict={onboardingData.distrito || onboardingData.region}
-            occupation={onboardingData.ocupacion}
-            votingIntention={onboardingData.intencion_voto}
-            visitorUuid={getCookieValue("politicos_visitor_id")}
-            onDone={(result) => {
-              setShowRegister(false);
-              if (result) {
-                const pts = result.points;
-                const successMsg: ChatMessage = {
-                  id: `reg-ok-${Date.now()}`,
-                  role: "james",
-                  content: `🎉 ¡Registro confirmado! Tienes ${pts} puntos de participación. Tu código de referido es **${result.referral_code}** — compártelo y gana 100 puntos extra por cada persona que se registre. ¿Qué te gustaría saber sobre las propuestas?`,
-                  quickReplies: [
-                    { label: "📋 Ver propuestas", value: "Muéstrame las propuestas de gobierno" },
-                    { label: "🗺️ Por distrito",   value: "¿Qué propuestas hay para mi distrito?" },
-                  ],
-                };
-                setMessages((m) => [...m, successMsg]);
-              }
-            }}
-          />
         )}
 
         {/* Mensajes */}
@@ -1088,21 +916,13 @@ export default function ChatPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}
-            placeholder={
-              showOnboarding
-                ? "Completa el formulario para comenzar..."
-                : showRegister
-                ? "Completa o salta el registro para chatear..."
-                : blocked
-                ? "Escribe 'hola', 'menú' o 'inicio' para continuar..."
-                : "Escribe tu pregunta..."
-            }
-            disabled={streaming || showOnboarding || showRegister}
+            placeholder={inputPlaceholder()}
+            disabled={inputDisabled}
             className="flex-1 px-4 py-3 border border-zinc-300 rounded-full focus:outline-none focus:ring-2 focus:ring-zinc-900 text-sm disabled:opacity-50"
           />
           <button
             onClick={send}
-            disabled={streaming || !input.trim() || showOnboarding || showRegister}
+            disabled={inputDisabled || !input.trim()}
             className="bg-zinc-900 text-white font-medium px-5 rounded-full hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
           >
             {streaming ? "..." : "Enviar"}

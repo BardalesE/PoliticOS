@@ -59,6 +59,7 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
     Route::post('/citizen/register',        [CitizenController::class, 'register']);
     Route::get ('/citizen/profile/{uuid}',  [CitizenController::class, 'showByUuid']);
     Route::get ('/citizen/referral/{code}', [CitizenController::class, 'referralInfo']);
+    Route::get ('/citizen/check-dni/{dni}', [CitizenController::class, 'checkDni']);
 
     // ─── Perfil del candidato (público) ──────────────────────────────
     Route::get('/candidate', [CandidateProfileController::class, 'show']);

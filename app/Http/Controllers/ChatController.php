@@ -26,10 +26,11 @@ class ChatController extends Controller
     public function send(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'message'    => ['required','string','min:1','max:2000'],
-            'session_id' => ['nullable','string','max:64'],
-            'consent'    => ['nullable','boolean'],
-            'declared'   => ['nullable','array'],
+            'message'     => ['required','string','min:1','max:2000'],
+            'session_id'  => ['nullable','string','max:64'],
+            'consent'     => ['nullable','boolean'],
+            'declared'    => ['nullable','array'],
+            'initialized' => ['nullable','boolean'],
         ]);
 
         $session = $this->resolveSession($request, $data['session_id'] ?? null, $data['consent'] ?? null);
@@ -68,9 +69,10 @@ class ChatController extends Controller
             return $this->jsonChatResponse($welcome, $session, $request);
         }
 
-        // ── 2. Primer mensaje → bienvenida ────────────────────────────────
+        // ── 2. Primer mensaje → bienvenida (solo si el chat NO fue inicializado
+        //       por el flujo de registro en el frontend)
         $priorCount = ChatMessage::where('session_id', $session->id)->count();
-        if ($priorCount === 0) {
+        if ($priorCount === 0 && !($data['initialized'] ?? false)) {
             $welcome = $this->ai->buildWelcomeResponse();
             $this->saveExchange($session, $data['message'], $welcome);
             $this->capturePotentialDeclaredData($session, $data['declared'] ?? []);
@@ -134,10 +136,11 @@ class ChatController extends Controller
     public function stream(Request $request): StreamedResponse
     {
         $data = $request->validate([
-            'message'    => ['required','string','min:1','max:2000'],
-            'session_id' => ['nullable','string','max:64'],
-            'consent'    => ['nullable','boolean'],
-            'declared'   => ['nullable','array'],
+            'message'     => ['required','string','min:1','max:2000'],
+            'session_id'  => ['nullable','string','max:64'],
+            'consent'     => ['nullable','boolean'],
+            'declared'    => ['nullable','array'],
+            'initialized' => ['nullable','boolean'],
         ]);
 
         $session = $this->resolveSession($request, $data['session_id'] ?? null, $data['consent'] ?? null);
@@ -176,9 +179,10 @@ class ChatController extends Controller
             return $this->streamPrebuilt($welcome, $session);
         }
 
-        // ── 2. Primer mensaje → bienvenida ────────────────────────────────
+        // ── 2. Primer mensaje → bienvenida (solo si no fue inicializado
+        //       por el flujo de registro del frontend)
         $priorCount = ChatMessage::where('session_id', $session->id)->count();
-        if ($priorCount === 0) {
+        if ($priorCount === 0 && !($data['initialized'] ?? false)) {
             $welcome = $this->ai->buildWelcomeResponse();
             $this->saveExchange($session, $data['message'], $welcome);
             $this->capturePotentialDeclaredData($session, $data['declared'] ?? []);

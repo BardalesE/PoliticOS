@@ -245,6 +245,17 @@ class CitizenController extends Controller
         }, 'ciudadanos.csv', $headers);
     }
 
+    // ─── GET /api/citizen/check-dni/{dni} ────────────────────────────────────
+    // Verifica si un DNI ya está registrado (validación en tiempo real durante el chat)
+    public function checkDni(string $dni): JsonResponse
+    {
+        if (!preg_match('/^\d{8}$/', $dni)) {
+            return response()->json(['exists' => false, 'valid' => false]);
+        }
+        $exists = CitizenProfile::where('dni', $dni)->exists();
+        return response()->json(['exists' => $exists, 'valid' => true]);
+    }
+
     // ─── POST /api/citizen/chat-award ─────────────────────────────────────
     // Llamado internamente desde ChatController para dar puntos por conversación
     public function awardChatPoints(string $visitorUuid, string $action = 'conversacion'): void
