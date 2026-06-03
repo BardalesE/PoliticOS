@@ -1,12 +1,15 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { Menu } from "lucide-react";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { useCandidate } from "@/context/CandidateContext";
+import { PlanProvider } from "@/context/PlanContext";
 import { AdminSidebar } from "@/components/admin/Sidebar";
 
 function AdminGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
+  const { profile } = useCandidate();
   const router   = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -20,6 +23,14 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
   // Close sidebar on route change
   useEffect(() => { setSidebarOpen(false); }, [pathname]);
 
+  // Browser tab title: "[Candidato] — PoliticOS"
+  useEffect(() => {
+    const hasReal = profile?.name && profile.name !== "Candidato";
+    if (hasReal && pathname !== "/admin/login") {
+      document.title = `${profile.name} — PoliticOS`;
+    }
+  }, [profile?.name, pathname]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -31,6 +42,9 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
   if (!isAuthenticated && pathname !== "/admin/login") return null;
 
   if (pathname === "/admin/login") return <>{children}</>;
+
+  const hasRealCandidate = profile?.name && profile.name !== "Candidato";
+  const firstName        = hasRealCandidate ? profile.name.split(" ")[0] : null;
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -64,10 +78,22 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
             <Menu size={20} />
           </button>
           <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-brand-500 flex items-center justify-center">
-              <span className="font-serif text-sm font-bold text-white leading-none">1</span>
-            </div>
-            <span className="font-serif text-base font-bold text-gray-900">Panel Admin</span>
+            {profile?.logo_url ? (
+              <img
+                src={profile.logo_url}
+                alt={profile.name}
+                className="h-7 w-auto max-w-[28px] object-contain"
+              />
+            ) : (
+              <div className="h-7 w-7 rounded-lg bg-brand-500 flex items-center justify-center">
+                <span className="font-serif text-sm font-bold text-white leading-none">
+                  {firstName?.[0] ?? "P"}
+                </span>
+              </div>
+            )}
+            <span className="font-serif text-base font-bold text-gray-900">
+              Panel de {firstName ?? "Admin"}
+            </span>
           </div>
         </div>
 
@@ -82,7 +108,9 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
-      <AdminGuard>{children}</AdminGuard>
+      <PlanProvider>
+        <AdminGuard>{children}</AdminGuard>
+      </PlanProvider>
     </AuthProvider>
   );
 }

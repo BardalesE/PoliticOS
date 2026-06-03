@@ -61,11 +61,11 @@ export function OpinionSection() {
   };
 
   return (
-    <section id="opiniones" className="relative bg-white py-20 md:py-28 px-5 overflow-hidden">
+    <section id="opiniones" className="relative py-20 md:py-28 px-5 overflow-hidden" style={{ background: "var(--page-soft)" }}>
       {/* Fondo decorativo */}
       <div
         className="absolute inset-0 pointer-events-none"
-        style={{ background: "radial-gradient(ellipse 70% 60% at 0% 100%, #FEF2F2 0%, transparent 55%)" }}
+        style={{ background: "radial-gradient(ellipse 70% 60% at 0% 100%, var(--brand-soft-bg) 0%, transparent 55%)" }}
       />
 
       <div className="max-w-5xl mx-auto relative z-10">
@@ -87,7 +87,7 @@ export function OpinionSection() {
               Dile a {shortName}{" "}
               <span
                 style={{
-                  background: "linear-gradient(135deg,#DC2626,#EF4444)",
+                  background: "var(--brand-grad)",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                   backgroundClip: "text",
@@ -118,7 +118,7 @@ export function OpinionSection() {
                 >
                   <div
                     className="w-6 h-6 rounded-full flex-shrink-0 grid place-items-center"
-                    style={{ background: "linear-gradient(135deg,#DC2626,#EF4444)" }}
+                    style={{ background: "var(--brand-grad)" }}
                   >
                     <CheckCircle2 size={13} className="text-white" />
                   </div>
@@ -137,7 +137,7 @@ export function OpinionSection() {
           >
             <div
               className="bg-white rounded-2xl border border-ink-200 p-6 sm:p-8"
-              style={{ boxShadow: "0 8px 40px rgba(220,38,38,0.09)" }}
+              style={{ boxShadow: "0 8px 40px var(--brand-glow-10)" }}
             >
               <AnimatePresence mode="wait">
                 {!sent ? (
@@ -231,8 +231,8 @@ export function OpinionSection() {
                       whileTap={{ scale: 0.98 }}
                       className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl text-sm font-extrabold uppercase tracking-wider text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                       style={{
-                        background: "linear-gradient(135deg,#DC2626,#EF4444)",
-                        boxShadow: "0 6px 20px rgba(220,38,38,0.30)",
+                        background: "var(--brand-grad)",
+                        boxShadow: "0 6px 20px var(--brand-glow-30)",
                       }}
                     >
                       {loading ? (
@@ -265,7 +265,7 @@ export function OpinionSection() {
                       animate={{ scale: 1 }}
                       transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.1 }}
                       className="w-16 h-16 rounded-full grid place-items-center mb-5"
-                      style={{ background: "linear-gradient(135deg,#DC2626,#EF4444)", boxShadow: "0 8px 24px rgba(220,38,38,0.35)" }}
+                      style={{ background: "var(--brand-grad)", boxShadow: "0 8px 24px var(--brand-glow-35)" }}
                     >
                       <CheckCircle2 size={30} className="text-white" />
                     </motion.div>

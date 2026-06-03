@@ -33,6 +33,7 @@ class HeroSettingController extends Controller
             'video_url'       => ['nullable', 'string', 'max:500'],
             'image_url'       => ['nullable', 'string', 'max:500'],
             'overlay_opacity' => ['nullable', 'numeric', 'min:0', 'max:1'],
+            'overlay_color'   => ['nullable', 'string', 'max:20'],
             'btn1_label'      => ['nullable', 'string', 'max:100'],
             'btn1_url'        => ['nullable', 'string', 'max:300'],
             'btn2_label'      => ['nullable', 'string', 'max:100'],

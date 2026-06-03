@@ -151,10 +151,9 @@ class TenantProvision extends Command
         try {
             $conn = DB::connection('tenant_provision');
             $now  = now()->toDateTimeString();
-            // Si el nombre empieza con "Campaña" o "Campaña de", usar el resto
-        $words = explode(' ', $name);
-        $skip  = ['campaña', 'campaign', 'candidatura', 'de', 'del'];
-        $candidateName = implode(' ', array_filter($words, fn($w) => !in_array(mb_strtolower($w), $skip))) ?: $words[0];
+            // Nombre del candidato = el argumento {name} que recibe el comando.
+            // Ej: "Maria Garcia", "Keiko Fujimori", "Roberto Sanchez"
+            $candidateName = $name;
 
             // Admin user
             $conn->table('users')->insert([
@@ -167,19 +166,21 @@ class TenantProvision extends Command
                 'updated_at'        => $now,
             ]);
 
-            // Candidate profile (placeholder)
+            // Candidate profile (placeholder) — is_active=true so it's picked up immediately
             $conn->table('candidate_profiles')->insert([
                 'name'          => $candidateName,
                 'title'         => 'Candidato a la Alcaldía',
                 'location'      => 'Por definir',
                 'party'         => 'Por definir',
                 'list_number'   => '1',
-                'bio'           => "Perfil del candidato {$candidateName}. Editar desde el panel de administración.",
+                'bio'           => "Perfil de {$candidateName}. Editar desde el panel de administración.",
                 'tagline'       => 'Por el bien de todos',
                 'election_date' => '4 de octubre de 2026',
                 'color_primary' => '#0F52BA',
                 'color_dark'    => '#1A365D',
                 'color_accent'  => '#C9A84C',
+                'is_active'     => true,
+                'preset_name'   => 'Candidato principal',
                 'created_at'    => $now,
                 'updated_at'    => $now,
             ]);
@@ -200,10 +201,12 @@ class TenantProvision extends Command
             ]);
 
             // Hero settings
+            $firstName = explode(' ', trim($candidateName))[0];
             $conn->table('hero_settings')->insert([
-                'title'           => "Bienvenido a la campaña de {$candidateName}",
-                'subtitle'        => 'Conoce nuestras propuestas y únete al cambio',
+                'title'           => "Habla con {$firstName}",
+                'subtitle'        => "Conoce las propuestas de {$candidateName} y lo que hará por tu distrito.",
                 'overlay_opacity' => 0.70,
+                'overlay_color'   => '#DC2626',
                 'is_active'       => true,
                 'created_at'      => $now,
                 'updated_at'      => $now,
@@ -228,15 +231,19 @@ class TenantProvision extends Command
 
         try {
             $tenant = Tenant::create([
-                'slug'        => $slug,
-                'name'        => $name,
-                'db_name'     => $dbName,
-                'db_host'     => $dbHost,
-                'db_port'     => $dbPort,
-                'db_user'     => $dbUser,
-                'db_password' => $dbPass,
-                'plan'        => $plan,
-                'is_active'   => true,
+                'slug'                => $slug,
+                'name'                => $name,
+                'db_name'             => $dbName,
+                'db_host'             => $dbHost,
+                'db_port'             => $dbPort,
+                'db_user'             => $dbUser,
+                'db_password'         => $dbPass,
+                'plan'                => $plan,
+                'is_active'           => true,
+                'admin_email'         => $email,
+                'admin_password_hint' => \Illuminate\Support\Facades\Crypt::encrypt($password),
+                'password_changed_at' => null,
+                'credential_log'      => '[]',
             ]);
         } catch (\Throwable $e) {
             $this->cleanupDb($dbName, $dbHost, $dbPort, $dbUser, $dbPass);

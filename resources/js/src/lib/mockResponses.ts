@@ -23,7 +23,7 @@ const responses: MockResponse[] = [
     reply: "Hola compadre. El agua en San Miguel es mi prioridad uno. Tengo proyectos concretos: ampliar la red en Niepos para 600 familias, llevar agua a los caseríos altos de Calquis, y reparar las tuberías viejas de Pallaques. En total cerca de 625 mil soles del presupuesto participativo en el primer año. ¿Quieres que te cuente más de algún distrito en específico?",
     media: [
       { type: "pdf", url: "#", title: "Plan de Agua y Saneamiento" },
-      { type: "video", url: "https://www.tiktok.com/@james.cueva6", title: "Video: Recorrido por Niepos" },
+      { type: "video", url: "#", title: "Video: Recorrido por el distrito" },
     ],
   },
   {
@@ -39,8 +39,8 @@ const responses: MockResponse[] = [
     media: [{ type: "pdf", url: "#", title: "Propuesta Agrícola Completa" }],
   },
   {
-    match: [/quien (eres|es james)/i, /quien soy/i, /quien es james/i, /presenta/i],
-    reply: "Soy James Cueva, hijo de San Miguel. Crecí en estos cerros, conozco cada distrito porque los he caminado. No vengo de la política limeña, vengo del pueblo. Mi compromiso es trabajar de la mano con la gente, no desde un escritorio. ¿Qué quieres saber sobre mi propuesta?",
+    match: [/quien eres|qui[eé]n soy|preséntate|presenta/i],
+    reply: "Soy el asistente virtual del candidato. Estoy aquí para contarte su plan de gobierno y responder tus preguntas. ¿Sobre qué tema quieres saber más?",
   },
   {
     match: [/por qu[eé] (quieres|quiere) ser alcalde/i, /por qu[eé] postul/i],

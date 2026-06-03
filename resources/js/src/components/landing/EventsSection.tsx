@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { CalendarDays, MapPin, Clock, ArrowRight, Radio, Zap } from "lucide-react";
@@ -7,13 +7,13 @@ import Link from "next/link";
 import { homeApi, type CampaignEvent } from "@/lib/api";
 import { useCandidate } from "@/context/CandidateContext";
 
-const ELECTION_DATE = new Date("2026-10-04T08:00:00-05:00");
+const DEFAULT_ELECTION_ISO = "2026-10-04";
 
 interface TimeLeft { days: number; hours: number; minutes: number; seconds: number; }
 
 function getTimeLeft(target: Date): TimeLeft | null {
   const diff = target.getTime() - Date.now();
-  if (diff <= 0) return null;
+  if (isNaN(diff) || diff <= 0) return null;
   return {
     days:    Math.floor(diff / 86_400_000),
     hours:   Math.floor((diff % 86_400_000) / 3_600_000),
@@ -37,6 +37,7 @@ const WEEKDAYS     = ["domingo","lunes","martes","miércoles","jueves","viernes"
 
 function formatEventDate(dateStr: string) {
   const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return { day: "—", month: "---", weekday: "---", full: "---" };
   return {
     day:     d.getDate(),
     month:   MONTHS_SHORT[d.getMonth()],
@@ -54,8 +55,8 @@ function Digit({ value, label }: { value: number; label: string }) {
       <div
         className="relative w-14 sm:w-[72px] h-14 sm:h-[72px] rounded-xl sm:rounded-2xl overflow-hidden flex items-center justify-center"
         style={{
-          background: "linear-gradient(145deg, #991B1B 0%, #DC2626 60%, #EF4444 100%)",
-          boxShadow: "0 8px 24px rgba(220,38,38,0.40), inset 0 1px 0 rgba(255,255,255,0.15)",
+          background: "linear-gradient(145deg, color-mix(in srgb, rgb(var(--brand-dark-rgb)) 55%, black) 0%, rgb(var(--brand-primary-rgb)) 60%, color-mix(in srgb, rgb(var(--brand-primary-rgb)) 75%, white) 100%)",
+          boxShadow: "0 8px 24px var(--brand-glow-40), inset 0 1px 0 rgba(255,255,255,0.15)",
         }}
       >
         <div className="absolute inset-x-0 top-1/2 h-px bg-black/20 z-10" />
@@ -118,12 +119,12 @@ function EventMiniCard({ event, index }: { event: CampaignEvent; index: number }
         <div
           className="flex-shrink-0 w-14 h-14 rounded-xl flex flex-col items-center justify-center"
           style={{
-            background: "linear-gradient(145deg, #DC2626, #EF4444)",
-            boxShadow: "0 4px 14px rgba(220,38,38,0.35)",
+            background: "var(--brand-grad)",
+            boxShadow: "0 4px 14px var(--brand-glow-35)",
           }}
         >
           <span className="text-white font-serif font-extrabold text-xl leading-none">{df.day}</span>
-          <span className="text-red-200 text-[9px] font-extrabold tracking-wider mt-0.5">{df.month}</span>
+          <span className="text-white/70 text-[9px] font-extrabold tracking-wider mt-0.5">{df.month}</span>
         </div>
 
         {/* Info */}
@@ -151,23 +152,44 @@ function EventMiniCard({ event, index }: { event: CampaignEvent; index: number }
 export function EventsSection({
   initialEvents   = [],
   initialFeatured = null,
+  title           = "Próximos encuentros con el pueblo.",
+  badge           = "Agenda",
+  electionDateIso = DEFAULT_ELECTION_ISO,
 }: {
   initialEvents?:   CampaignEvent[];
   initialFeatured?: CampaignEvent | null;
+  title?:           string;
+  badge?:           string;
+  electionDateIso?: string;
 }) {
   const { profile } = useCandidate();
+  const electionDate = useMemo(() => {
+    if (electionDateIso) {
+      const d = new Date(electionDateIso + "T08:00:00");
+      if (!isNaN(d.getTime())) return d;
+    }
+    return new Date(DEFAULT_ELECTION_ISO + "T08:00:00");
+  }, [electionDateIso]);
+
   const [events,   setEvents]   = useState<CampaignEvent[]>(initialEvents);
   const [featured, setFeatured] = useState<CampaignEvent | null>(initialFeatured);
   const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null);
-  const [countdownTarget, setCountdownTarget] = useState<Date>(() =>
-    initialFeatured ? new Date(initialFeatured.event_date) : ELECTION_DATE
-  );
+  const [countdownTarget, setCountdownTarget] = useState<Date>(() => {
+    if (initialFeatured?.event_date) {
+      const d = new Date(initialFeatured.event_date);
+      if (!isNaN(d.getTime())) return d;
+    }
+    return new Date((electionDateIso ?? DEFAULT_ELECTION_ISO) + "T08:00:00");
+  });
 
   useEffect(() => {
     if (initialEvents.length || initialFeatured) return;
     homeApi.events().then(setEvents).catch(() => {});
     homeApi.featuredEvent().then((data) => {
-      if (data) { setFeatured(data); setCountdownTarget(new Date(data.event_date)); }
+      if (data?.event_date) {
+        const d = new Date(data.event_date);
+        if (!isNaN(d.getTime())) { setFeatured(data); setCountdownTarget(d); }
+      }
     }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -178,17 +200,18 @@ export function EventsSection({
     return () => clearInterval(id);
   }, [countdownTarget]);
 
-  const displayEvent = featured ?? events.find((e) => new Date(e.event_date) >= new Date()) ?? null;
+  const validFeatured = featured?.event_date ? featured : null;
+  const displayEvent = validFeatured ?? events.find((e) => new Date(e.event_date) >= new Date()) ?? null;
   const upcomingEvents = events.filter((e) => e !== displayEvent).slice(0, 3);
   const df = displayEvent ? formatEventDate(displayEvent.event_date) : null;
   const eventTime = displayEvent ? formatEventTime(displayEvent.event_date) : null;
 
   return (
-    <section id="eventos" className="relative bg-white py-20 md:py-28 px-5 overflow-hidden">
+    <section id="eventos" className="relative py-20 md:py-28 px-5 overflow-hidden" style={{ background: "var(--page-bg)" }}>
       {/* Fondo decorativo */}
       <div
         className="absolute top-0 left-0 w-full h-full pointer-events-none"
-        style={{ background: "radial-gradient(ellipse 80% 50% at 0% 50%, #FEF2F2 0%, transparent 60%)" }}
+        style={{ background: "radial-gradient(ellipse 80% 50% at 0% 50%, var(--brand-soft-bg) 0%, transparent 60%)" }}
       />
 
       <div className="max-w-5xl mx-auto relative z-10">
@@ -203,13 +226,17 @@ export function EventsSection({
         >
           <span className="inline-flex items-center gap-2 bg-brand-50 border border-brand-200 text-brand-700 text-[10px] font-extrabold uppercase tracking-[2px] px-4 py-2 rounded-full mb-4">
             <Zap size={11} />
-            Agenda
+            {badge}
           </span>
           <h2 className="font-serif text-3xl md:text-4xl font-bold text-ink-900 mt-2">
-            Próximos encuentros{" "}
-            <span style={{ background: "linear-gradient(135deg,#DC2626,#EF4444)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
-              con el pueblo.
-            </span>
+            {title.includes("*")
+              ? title.split(/(\*[^*]+\*)/).map((p, i) =>
+                  p.startsWith("*") && p.endsWith("*")
+                    ? <span key={i} style={{ background: "var(--brand-grad)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>{p.slice(1,-1)}</span>
+                    : <span key={i}>{p}</span>
+                )
+              : title
+            }
           </h2>
         </motion.div>
 
@@ -223,104 +250,78 @@ export function EventsSection({
             transition={{ duration: 0.5 }}
             className="lg:col-span-2"
           >
-            {/* Label cuenta regresiva */}
-            <p className="text-[10px] uppercase tracking-[0.2em] text-brand-600 font-extrabold mb-5 flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500" />
-              </span>
-              {displayEvent ? `Faltan para: ${displayEvent.title}` : "Cuenta regresiva · Elecciones 2026"}
-            </p>
-
-            {timeLeft ? (
-              <div className="flex gap-1.5 sm:gap-2 items-end flex-nowrap overflow-x-auto pb-1">
-                <Digit value={timeLeft.days}    label="días" />
-                <Sep />
-                <Digit value={timeLeft.hours}   label="horas" />
-                <Sep />
-                <Digit value={timeLeft.minutes} label="min" />
-                <Sep />
-                <Digit value={timeLeft.seconds} label="seg" />
-              </div>
-            ) : (
-              <motion.p
-                animate={{ scale: [1, 1.04, 1] }}
-                transition={{ duration: 1.5, repeat: Infinity }}
-                className="font-serif text-3xl font-bold"
-                style={{ background: "linear-gradient(135deg,#DC2626,#EF4444)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}
-              >
-                ¡Es hoy! 🗳️
-              </motion.p>
-            )}
-
-            {/* Detalles del evento */}
-            <div className="mt-8 space-y-3">
-              {df && (
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-brand-50 border border-brand-100">
-                  <div className="w-8 h-8 rounded-lg bg-brand-100 grid place-items-center shrink-0">
-                    <CalendarDays size={15} className="text-brand-600" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-brand-500 font-bold uppercase tracking-wider">Fecha</p>
-                    <p className="text-sm font-semibold text-ink-800">{df.full}</p>
-                  </div>
+            <div
+              className="rounded-2xl overflow-hidden border border-brand-200"
+              style={{ boxShadow: "0 8px 32px var(--brand-glow-15)" }}
+            >
+              {/* Header */}
+              <div className="px-5 py-4" style={{ background: "var(--brand-grad)" }}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="relative flex h-2 w-2 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+                  </span>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-white/90 font-extrabold truncate">
+                    {displayEvent ? displayEvent.title : "Elecciones 2026"}
+                  </p>
                 </div>
-              )}
-              {eventTime && (
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-brand-50 border border-brand-100">
-                  <div className="w-8 h-8 rounded-lg bg-brand-100 grid place-items-center shrink-0">
-                    <Clock size={15} className="text-brand-600" />
+                <p className="text-white/60 text-[11px] font-semibold pl-4">Cuenta regresiva</p>
+              </div>
+
+              {/* Dígitos */}
+              <div className="px-5 py-6 bg-white">
+                {timeLeft ? (
+                  <div className="flex gap-1.5 sm:gap-2 items-end flex-wrap">
+                    <Digit value={timeLeft.days}    label="días" />
+                    <Sep />
+                    <Digit value={timeLeft.hours}   label="horas" />
+                    <Sep />
+                    <Digit value={timeLeft.minutes} label="min" />
+                    <Sep />
+                    <Digit value={timeLeft.seconds} label="seg" />
                   </div>
+                ) : (
+                  <motion.p
+                    animate={{ scale: [1, 1.04, 1] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                    className="font-serif text-3xl font-bold"
+                    style={{ background: "var(--brand-grad)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}
+                  >
+                    ¡Es hoy! 🗳️
+                  </motion.p>
+                )}
+              </div>
+
+              {/* Filas de info */}
+              <div className="border-t border-ink-100 divide-y divide-ink-50 bg-white">
+                <div className="flex items-center gap-3 px-5 py-3.5">
+                  <CalendarDays size={15} className="text-brand-500 shrink-0" />
                   <div>
-                    <p className="text-[10px] text-brand-500 font-bold uppercase tracking-wider">Hora</p>
-                    <p className="text-2xl font-extrabold text-ink-900 leading-none tracking-tight">
-                      {eventTime}
+                    <p className="text-[9px] text-brand-500 font-bold uppercase tracking-wider">Fecha</p>
+                    <p className="text-sm font-semibold text-ink-800">
+                      {df?.full ?? (profile.election_date || electionDate.toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" }))}
                     </p>
                   </div>
                 </div>
-              )}
-              {displayEvent?.location && (
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-brand-50 border border-brand-100">
-                  <div className="w-8 h-8 rounded-lg bg-brand-100 grid place-items-center shrink-0">
-                    <MapPin size={15} className="text-brand-600" />
-                  </div>
+                <div className="flex items-center gap-3 px-5 py-3.5">
+                  <Clock size={15} className="text-brand-500 shrink-0" />
                   <div>
-                    <p className="text-[10px] text-brand-500 font-bold uppercase tracking-wider">Lugar</p>
-                    <p className="text-sm font-semibold text-ink-800">{displayEvent.location}</p>
+                    <p className="text-[9px] text-brand-500 font-bold uppercase tracking-wider">Hora</p>
+                    <p className="text-xl font-extrabold text-ink-900 leading-none tracking-tight">
+                      {eventTime ?? "8:00 AM"}
+                    </p>
                   </div>
                 </div>
-              )}
-              {!displayEvent && (
-                <>
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-brand-50 border border-brand-100">
-                    <div className="w-8 h-8 rounded-lg bg-brand-100 grid place-items-center shrink-0">
-                      <CalendarDays size={15} className="text-brand-600" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-brand-500 font-bold uppercase tracking-wider">Fecha</p>
-                      <p className="text-sm font-semibold text-ink-800">4 de octubre de 2026</p>
-                    </div>
+                <div className="flex items-center gap-3 px-5 py-3.5">
+                  <MapPin size={15} className="text-brand-500 shrink-0" />
+                  <div>
+                    <p className="text-[9px] text-brand-500 font-bold uppercase tracking-wider">Lugar</p>
+                    <p className="text-sm font-semibold text-ink-800">
+                      {displayEvent?.location ?? (profile.location || "Cajamarca, Perú")}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-brand-50 border border-brand-100">
-                    <div className="w-8 h-8 rounded-lg bg-brand-100 grid place-items-center shrink-0">
-                      <Clock size={15} className="text-brand-600" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-brand-500 font-bold uppercase tracking-wider">Hora</p>
-                      <p className="text-2xl font-extrabold text-ink-900 leading-none tracking-tight">8:00 AM</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 rounded-xl bg-brand-50 border border-brand-100">
-                    <div className="w-8 h-8 rounded-lg bg-brand-100 grid place-items-center shrink-0">
-                      <MapPin size={15} className="text-brand-600" />
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-brand-500 font-bold uppercase tracking-wider">Lugar</p>
-                      <p className="text-sm font-semibold text-ink-800">{profile.location || "Cajamarca, Perú"}</p>
-                    </div>
-                  </div>
-                </>
-              )}
+                </div>
+              </div>
             </div>
           </motion.div>
 
@@ -337,7 +338,7 @@ export function EventsSection({
                 whileHover={{ y: -4 }}
                 transition={{ type: "spring", stiffness: 200, damping: 20 }}
                 className="rounded-2xl overflow-hidden border border-ink-200 bg-white"
-                style={{ boxShadow: "0 8px 40px rgba(220,38,38,0.12)" }}
+                style={{ boxShadow: "0 8px 40px var(--brand-glow-10)" }}
               >
                 {/* Imagen */}
                 <div className="relative aspect-video bg-brand-50 overflow-hidden">
@@ -379,10 +380,10 @@ export function EventsSection({
                     <div className="absolute bottom-3 left-3 flex items-center gap-2">
                       <div
                         className="w-11 h-11 rounded-xl flex flex-col items-center justify-center"
-                        style={{ background: "linear-gradient(145deg,#DC2626,#EF4444)", boxShadow: "0 4px 12px rgba(220,38,38,0.4)" }}
+                        style={{ background: "var(--brand-grad)", boxShadow: "0 4px 12px var(--brand-glow-40)" }}
                       >
                         <span className="text-white font-serif font-extrabold text-base leading-none">{df.day}</span>
-                        <span className="text-red-200 text-[8px] font-extrabold tracking-wider">{df.month}</span>
+                        <span className="text-white/70 text-[8px] font-extrabold tracking-wider">{df.month}</span>
                       </div>
                       <div>
                         <p className="text-white text-xs font-extrabold capitalize">{df.weekday}</p>
@@ -428,7 +429,7 @@ export function EventsSection({
               <div className="rounded-2xl border border-brand-100 bg-brand-50 p-10 text-center">
                 <div
                   className="inline-flex items-center justify-center h-16 w-16 rounded-2xl mb-4 mx-auto"
-                  style={{ background: "linear-gradient(145deg,#DC2626,#EF4444)", boxShadow: "0 8px 24px rgba(220,38,38,0.30)" }}
+                  style={{ background: "var(--brand-grad)", boxShadow: "0 8px 24px var(--brand-glow-30)" }}
                 >
                   <CalendarDays size={28} className="text-white" />
                 </div>

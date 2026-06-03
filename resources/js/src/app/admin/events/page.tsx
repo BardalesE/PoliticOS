@@ -1,6 +1,6 @@
 ﻿"use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Trash2, Loader2, Pencil, CalendarOff, CalendarDays, Star } from "lucide-react";
+import { Trash2, Loader2, Pencil, CalendarOff, CalendarDays, Star, Timer } from "lucide-react";
 import { adminApi, type CampaignEvent } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader, SearchBar } from "@/components/admin/PageHeader";
@@ -135,6 +135,19 @@ export default function EventsPage() {
         <SearchBar value={search} onChange={setSearch} placeholder="Buscar evento..." className="w-52" />
       </PageHeader>
 
+      {/* Callout cronómetro */}
+      <div className="mb-6 flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl">
+        <Timer size={18} className="text-amber-600 shrink-0 mt-0.5" />
+        <div className="text-sm text-amber-800">
+          <span className="font-bold">Cronómetro en portada:</span> el evento marcado como{" "}
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-300 text-amber-900 text-xs font-bold">
+            <Star size={9} /> Destacado
+          </span>{" "}
+          es el que aparece como cuenta regresiva en la página principal. Si no hay ninguno destacado, el cronómetro cuenta hacia la fecha de elecciones configurada en{" "}
+          <a href="/admin/home-settings" className="underline font-semibold">Configuración de Home</a>.
+        </div>
+      </div>
+
       {loading ? (
         <div className="flex justify-center py-20">
           <Loader2 size={24} className="animate-spin text-brand-400" />
@@ -260,7 +273,7 @@ export default function EventsPage() {
           <div className="flex gap-3">
             {[
               { key: "is_active", label: "Activo", desc: "Visible al público" },
-              { key: "is_featured", label: "Destacado", desc: "Aparece en Home" },
+              { key: "is_featured", label: "★ Destacado", desc: "Cronómetro en portada" },
             ].map(({ key, label, desc }) => (
               <button
                 key={key}

@@ -1,206 +1,218 @@
 "use client";
 import Link from "next/link";
-import { Shield, Facebook, MessageCircle, Instagram, ExternalLink, MapPin, ChevronRight, ArrowUpRight } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCandidate } from "@/context/CandidateContext";
 
-const navLinks = [
+const contentLinks = [
   { href: "/propuestas", label: "Propuestas" },
-  { href: "/distritos",  label: "Distritos" },
-  { href: "/videos",     label: "Videos" },
+  { href: "/distritos",  label: "Caseríos" },
   { href: "/galeria",    label: "Galería" },
-  { href: "/en-vivo",    label: "En vivo" },
+  { href: "/videos",     label: "Videos" },
   { href: "/documentos", label: "Documentos" },
-  { href: "/chat",       label: "Chatbot IA", highlight: true },
+];
+
+const participaLinks = [
+  { href: "/#agenda",         label: "Agenda" },
+  { href: "/#servicios",      label: "Servicios" },
+  { href: "/#opinion",        label: "Tu voz" },
+  { href: "/en-vivo",         label: "En vivo" },
+  { href: "/chat",            label: "Chatbot IA" },
 ];
 
 export function Footer() {
   const { profile } = useCandidate();
   const shortName = profile.name.split(" ")[0];
 
-  const socials = [
-    profile.facebook_url && {
-      href: profile.facebook_url, icon: Facebook,
-      label: "Facebook", bg: "hover:bg-[#1877F2] hover:border-[#1877F2]",
-    },
-    profile.whatsapp_number && {
-      href: `https://wa.me/${profile.whatsapp_number.replace(/[^0-9]/g, "")}`,
-      icon: MessageCircle, label: "WhatsApp",
-      bg: "hover:bg-[#25D366] hover:border-[#25D366]",
-    },
-    profile.instagram_url && {
-      href: profile.instagram_url, icon: Instagram,
-      label: "Instagram", bg: "hover:bg-[#E1306C] hover:border-[#E1306C]",
-    },
-    profile.tiktok_url && {
-      href: profile.tiktok_url, icon: ExternalLink,
-      label: "TikTok", bg: "hover:bg-ink-700 hover:border-ink-700",
-    },
-  ].filter(Boolean) as { href: string; icon: React.ElementType; label: string; bg: string }[];
-
   return (
-    <footer className="relative bg-white border-t border-ink-200">
+    <footer style={{ background: "var(--page-ink, #0f1a12)", color: "#cfe0d3" }}>
 
-      {/* Franja azul top */}
-      <div
-        className="h-1"
-        style={{ background: "linear-gradient(90deg,#DC2626,#EF4444,#DC2626)" }}
-      />
+      {/* Franja tricolor */}
+      <div className="flex h-[5px]">
+        <div className="flex-1" style={{ background: "rgb(var(--brand-dark-rgb))" }} />
+        <div className="flex-1 bg-white" />
+        <div className="flex-1" style={{ background: "rgb(var(--brand-primary-rgb))" }} />
+      </div>
 
-      {/* Fondo muy sutil */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: "radial-gradient(ellipse 80% 60% at 100% 100%, #FEF2F2 0%, transparent 60%)" }}
-      />
+      {/* Grid principal */}
+      <div className="max-w-5xl mx-auto px-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-9 py-16">
 
-      <div className="relative z-10 max-w-6xl mx-auto px-5 pt-14 pb-8">
-
-        {/* Grid principal */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-10 mb-12">
-
-          {/* Col 1: Marca — 5 cols */}
-          <div className="md:col-span-5">
-            <div className="flex items-center gap-4 mb-5">
+          {/* Columna 1: Marca */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-60px" }}
+            transition={{ duration: 0.45 }}
+            className="lg:col-span-1"
+          >
+            {/* Badge + meta */}
+            <div className="flex items-center gap-3 mb-4">
               <div
-                className="w-14 h-14 rounded-2xl overflow-hidden flex-shrink-0"
-                style={{ boxShadow: "0 4px 16px rgba(220,38,38,0.20)" }}
+                className="w-12 h-12 rounded-[13px] grid place-items-center text-white font-serif font-bold text-xl flex-shrink-0 overflow-hidden"
+                style={{ background: "linear-gradient(150deg, rgb(var(--brand-primary-rgb)), rgb(var(--brand-dark-rgb)))" }}
               >
                 {profile.logo_url ? (
                   <img src={profile.logo_url} alt={profile.party || "Logo"} className="w-full h-full object-cover" />
                 ) : (
-                  <div
-                    className="w-full h-full grid place-items-center font-serif font-extrabold text-xl text-white"
-                    style={{ background: "linear-gradient(145deg,#DC2626,#EF4444)" }}
-                  >
-                    {profile.list_number || "1"}
-                  </div>
+                  profile.list_number || "1"
                 )}
               </div>
               <div>
-                <p className="font-serif font-bold text-ink-900 text-lg leading-tight">{profile.name}</p>
-                <p
-                  className="text-[10px] font-extrabold uppercase tracking-[2px] mt-0.5"
-                  style={{ color: "#DC2626" }}
+                <b
+                  className="block text-[11px] font-bold uppercase tracking-[.16em]"
+                  style={{ color: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 80%, white)" }}
                 >
-                  {profile.party || "Perú Primero"} · Lista N°{profile.list_number}
-                </p>
+                  {profile.party || "Campaña Electoral"}
+                  {profile.list_number ? ` · Lista N°${profile.list_number}` : ""}
+                </b>
+                <span className="text-sm font-semibold text-white leading-tight">
+                  {profile.name}
+                </span>
               </div>
             </div>
 
-            <p className="text-ink-500 text-sm leading-relaxed font-medium mb-5 max-w-xs">
-              {profile.tagline
-                ? `"${profile.tagline}"`
-                : `Candidato a Alcalde de ${profile.location.split("·")[0].trim()}. Hijo del pueblo, no de la política.`}
-            </p>
-
-            <div className="flex items-center gap-2 text-ink-400 text-xs font-semibold mb-6">
-              <MapPin size={12} className="text-brand-500" />
-              {profile.location}
-            </div>
-
-            {socials.length > 0 && (
-              <div className="flex gap-2">
-                {socials.map((s) => {
-                  const Icon = s.icon;
-                  return (
-                    <motion.a
-                      key={s.label}
-                      href={s.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={s.label}
-                      whileHover={{ scale: 1.1, y: -2 }}
-                      whileTap={{ scale: 0.95 }}
-                      className={`w-9 h-9 rounded-xl bg-white border border-ink-200 grid place-items-center text-ink-500 hover:text-white transition-all duration-200 ${s.bg}`}
-                      style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
-                    >
-                      <Icon size={15} />
-                    </motion.a>
-                  );
-                })}
-              </div>
+            {/* Quote */}
+            {(profile.tagline) && (
+              <p
+                className="font-serif italic text-white mb-4 leading-snug"
+                style={{ fontSize: "18px", maxWidth: "300px" }}
+              >
+                "{profile.tagline}"
+              </p>
             )}
-          </div>
 
-          {/* Col 2: Navegación — 3 cols */}
-          <div className="md:col-span-3">
-            <p className="text-[10px] font-extrabold uppercase tracking-[2.5px] text-brand-500 mb-5">
-              Navegación
-            </p>
-            <ul className="space-y-2.5">
-              {navLinks.map((l) => (
-                <li key={l.href}>
-                  <Link
-                    href={l.href}
-                    className={`group flex items-center gap-1.5 text-sm font-semibold transition-colors duration-200 ${
-                      l.highlight ? "text-brand-600 hover:text-brand-900" : "text-ink-500 hover:text-brand-700"
-                    }`}
-                  >
-                    <ChevronRight
-                      size={12}
-                      className="opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 text-brand-400"
-                    />
-                    {l.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
+            {/* Ubicación */}
+            <span className="flex items-center gap-2 text-sm" style={{ color: "#a9bdb0" }}>
+              <MapPin size={15} style={{ color: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 80%, white)", flexShrink: 0 }} />
+              {profile.location}
+            </span>
+          </motion.div>
 
-          {/* Col 3: Contacto + CTAs — 4 cols */}
-          <div className="md:col-span-4">
-            <p className="text-[10px] font-extrabold uppercase tracking-[2.5px] text-brand-500 mb-5">
-              Contacto
-            </p>
-
-            <div className="space-y-2 mb-7">
-              <p className="text-ink-500 text-sm font-medium">
-                {profile.location.split("·")[0].trim()}, Cajamarca — Perú
-              </p>
-              <p className="text-ink-400 text-xs font-medium">
-                Elecciones municipales {profile.election_date ?? "2026"}
-              </p>
-            </div>
-
-            <Link
-              href="/transparencia"
-              className="group inline-flex items-center gap-2 border-2 border-brand-200 hover:border-brand-600 bg-brand-50 hover:bg-brand-600 text-brand-700 hover:text-white text-xs font-extrabold uppercase tracking-wider px-4 py-2.5 rounded-xl transition-all duration-200 mb-3"
+          {/* Columna 2: Contenido */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-60px" }}
+            transition={{ duration: 0.45, delay: 0.07 }}
+          >
+            <h4
+              className="text-[11.5px] font-bold uppercase tracking-[.16em] mb-4"
+              style={{ color: "#86a08e" }}
             >
-              <Shield size={13} />
-              Portal de Transparencia
-              <ArrowUpRight size={12} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-            </Link>
-
-            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}>
+              Contenido
+            </h4>
+            {contentLinks.map((l) => (
               <Link
-                href="/chat"
-                className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-extrabold uppercase tracking-wider text-white transition-all duration-200"
-                style={{
-                  background: "linear-gradient(135deg,#DC2626,#EF4444)",
-                  boxShadow: "0 6px 20px rgba(220,38,38,0.28)",
+                key={l.href}
+                href={l.href}
+                className="block text-sm font-semibold py-1.5 transition-all duration-200 hover:translate-x-1"
+                style={{ color: "#cfe0d3" }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.color = "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 80%, white)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.color = "#cfe0d3";
                 }}
               >
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+                {l.label}
+              </Link>
+            ))}
+          </motion.div>
+
+          {/* Columna 3: Participa */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-60px" }}
+            transition={{ duration: 0.45, delay: 0.13 }}
+          >
+            <h4
+              className="text-[11.5px] font-bold uppercase tracking-[.16em] mb-4"
+              style={{ color: "#86a08e" }}
+            >
+              Participa
+            </h4>
+            {participaLinks.map((l) => (
+              <Link
+                key={l.href}
+                href={l.href}
+                className="block text-sm font-semibold py-1.5 transition-all duration-200 hover:translate-x-1"
+                style={{ color: "#cfe0d3" }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.color = "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 80%, white)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.color = "#cfe0d3";
+                }}
+              >
+                {l.label}
+              </Link>
+            ))}
+          </motion.div>
+
+          {/* Columna 4: Elecciones + CTA */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-60px" }}
+            transition={{ duration: 0.45, delay: 0.19 }}
+          >
+            <h4
+              className="text-[11.5px] font-bold uppercase tracking-[.16em] mb-4"
+              style={{ color: "#86a08e" }}
+            >
+              Elecciones
+            </h4>
+            <p className="text-sm mb-1" style={{ color: "#a9bdb0" }}>
+              {profile.party || "Campaña Electoral"}
+            </p>
+            <p className="text-sm font-semibold text-white mb-5">
+              {profile.election_date ?? "2026"}
+            </p>
+
+            <motion.div whileHover={{ scale: 1.03, y: -1 }} whileTap={{ scale: 0.97 }}>
+              <Link
+                href="/chat"
+                className="inline-flex items-center gap-2 bg-white hover:bg-gray-100 font-bold text-sm rounded-full transition-all duration-200"
+                style={{
+                  color: "var(--page-ink, #0f1a12)",
+                  padding: "11px 18px",
+                }}
+              >
+                <span
+                  className="relative flex h-2 w-2"
+                >
+                  <span
+                    className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
+                    style={{ background: "rgb(var(--brand-primary-rgb))" }}
+                  />
+                  <span
+                    className="relative inline-flex rounded-full h-2 w-2"
+                    style={{ background: "rgb(var(--brand-primary-rgb))" }}
+                  />
                 </span>
                 Chatear con {shortName}
               </Link>
             </motion.div>
-          </div>
+          </motion.div>
         </div>
+      </div>
 
-        {/* Separador */}
-        <div className="h-px w-full bg-ink-200 mb-6" />
-
-        {/* Bottom bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-ink-400 text-xs font-semibold text-center sm:text-left">
-            © 2026 {profile.name} · {profile.party} · {profile.location.split("·")[0].trim()}, Cajamarca
-          </p>
-          <p className="text-ink-300 text-[10px] font-semibold tracking-wider uppercase">
+      {/* Bottom bar */}
+      <div style={{ borderTop: "1px solid rgba(255,255,255,0.09)" }}>
+        <div className="max-w-5xl mx-auto px-5 py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <span className="text-[12.5px]" style={{ color: "#86a08e" }}>
+            © {new Date().getFullYear()} {profile.name}
+            {profile.party ? ` · ${profile.party}` : ""}
+            {profile.location ? ` · ${profile.location}` : ""}
+          </span>
+          <span
+            className="text-[12.5px] font-semibold uppercase tracking-[.14em]"
+            style={{ color: "#86a08e", opacity: 0.7 }}
+          >
             Plataforma digital de campaña
-          </p>
+          </span>
         </div>
       </div>
     </footer>

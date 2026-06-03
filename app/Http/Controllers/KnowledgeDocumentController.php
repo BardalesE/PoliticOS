@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\KnowledgeDocument;
 use App\Services\EmbeddingsServiceInterface;
+use App\Services\PlanService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -22,6 +23,20 @@ class KnowledgeDocumentController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $tenant = app('tenant');
+        if ($tenant) {
+            $maxDocs = PlanService::getLimit($tenant, 'knowledge', 'max_documents');
+            if ($maxDocs !== -1 && KnowledgeDocument::count() >= $maxDocs) {
+                return response()->json([
+                    'message'          => "Tu plan permite máximo {$maxDocs} documento(s). Actualiza tu plan para subir más.",
+                    'feature'          => 'knowledge',
+                    'limit'            => $maxDocs,
+                    'current'          => KnowledgeDocument::count(),
+                    'upgrade_required' => true,
+                ], 403);
+            }
+        }
+
         $request->validate([
             'file'        => ['required','file','mimes:pdf','max:51200'],
             'title'       => ['required','string','max:255'],

@@ -45,7 +45,7 @@ export function Connection() {
   }[];
 
   return (
-    <section className="bg-white py-20 md:py-28 px-5 overflow-hidden">
+    <section className="py-20 md:py-28 px-5 overflow-hidden" style={{ background: "var(--page-soft)" }}>
       <div className="max-w-5xl mx-auto">
 
         {/* Header */}
@@ -64,7 +64,7 @@ export function Connection() {
             Redes{" "}
             <span
               style={{
-                background: "linear-gradient(135deg, #DC2626, #EF4444)",
+                background: "var(--brand-grad)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",
@@ -127,9 +127,9 @@ export function Connection() {
             className="max-w-3xl mx-auto text-center"
           >
             <p className="font-serif text-2xl sm:text-3xl text-ink-800 leading-relaxed italic">
-              "No tengo millones. Tengo algo más valioso: tu confianza, tu voto y las ganas de cambiar San Miguel."
+              "{profile.tagline || "Mi compromiso es contigo, con tu familia y con el futuro de nuestra comunidad."}"
             </p>
-            <footer className="mt-4 text-sm text-ink-500 font-semibold">— {profile.name || "James Cueva"}</footer>
+            <footer className="mt-4 text-sm text-ink-500 font-semibold">— {profile.name || "El candidato"}</footer>
           </motion.blockquote>
         )}
       </div>

@@ -2,22 +2,23 @@
 import { useState, useCallback, useRef } from "react";
 import type { Message } from "@/types/chat";
 import { findMockResponse } from "@/lib/mockResponses";
+import { resolveTenantSlug } from "@/lib/api";
 
-const API_URL   = process.env.NEXT_PUBLIC_API_URL  || "http://localhost:8000/api";
-const TENANT    = process.env.NEXT_PUBLIC_TENANT_SLUG || "";
-const USE_MOCK  = process.env.NEXT_PUBLIC_USE_MOCK === "true";
+const API_URL  = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === "true";
 
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 const mockDelay = () => new Promise<void>((r) => setTimeout(r, 200 + Math.random() * 500));
 
 function tenantHeaders(): Record<string, string> {
-  return TENANT ? { "X-Tenant": TENANT } : {};
+  const slug = resolveTenantSlug();
+  return slug ? { "X-Tenant": slug } : {};
 }
 
 export function useChat(initialMessages: Message[] = []) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [sending, setSending]   = useState(false);
-  const SESSION_KEY = `chat_session_${TENANT || "default"}`;
+  const SESSION_KEY = `chat_session_${resolveTenantSlug() || "default"}`;
   const sessionId = useRef<string | undefined>(
     typeof window !== "undefined" ? (localStorage.getItem(SESSION_KEY) ?? undefined) : undefined
   );
@@ -80,12 +81,10 @@ export function useChat(initialMessages: Message[] = []) {
         )
       );
     } catch {
-      // Fallback final: respuesta mock si todo falla
-      const mock = findMockResponse(trimmed);
       setMessages((prev) =>
         prev.map((m) =>
           m.id === placeholderId
-            ? { ...m, content: mock.reply, media: mock.media, topic: mock.topic, pending: false }
+            ? { ...m, content: "No se pudo conectar con el asistente. Por favor intenta de nuevo en unos momentos.", media: [], topic: undefined, pending: false }
             : m
         )
       );

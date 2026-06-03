@@ -48,10 +48,10 @@ export function LiveStreamBanner() {
         <Radio size={15} className="shrink-0" />
 
         <span className="font-bold text-sm">EN VIVO AHORA:</span>
-        <span className="text-sm text-red-100 truncate flex-1">{liveStream.title}</span>
+        <span className="text-sm text-white/90 truncate flex-1">{liveStream.title}</span>
 
         {liveStream.current_viewers > 0 && (
-          <span className="flex items-center gap-1 text-red-200 text-xs shrink-0">
+          <span className="flex items-center gap-1 text-white/70 text-xs shrink-0">
             <Users size={12} />
             {liveStream.current_viewers.toLocaleString()}
           </span>

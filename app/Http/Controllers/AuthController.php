@@ -33,9 +33,12 @@ class AuthController extends Controller
 
         $token = $user->createToken('admin-panel')->plainTextToken;
 
+        $tenant = app()->bound('tenant') ? app('tenant') : null;
+
         return response()->json([
-            'token' => $token,
-            'user'  => [
+            'token'       => $token,
+            'tenant_slug' => $tenant?->slug,
+            'user'        => [
                 'id'    => $user->id,
                 'name'  => $user->name,
                 'email' => $user->email,

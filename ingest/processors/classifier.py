@@ -22,7 +22,9 @@ def get_client():
         _client = Groq(api_key=os.getenv("GROQ_API_KEY"))
     return _client
 
-TARGET_CANDIDATES = [c.strip().lower() for c in os.getenv("TARGET_CANDIDATES", "james cueva,james,cueva").split(",") if c.strip()]
+TARGET_CANDIDATES = [c.strip().lower() for c in os.getenv("TARGET_CANDIDATES", "").split(",") if c.strip()]
+if not TARGET_CANDIDATES:
+    log.warning("TARGET_CANDIDATES env var not set — classification will match no candidates")
 
 def classify(text: str) -> dict:
     """Clasificación rápida con Groq Llama-8B."""

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { candidateApi, type CandidatePublicData, type CandidateProfile, type TopicItem, type ChatBtnConfig } from "@/lib/api";
+import { candidateApi, resolveTenantSlug, type CandidatePublicData, type CandidateProfile, type TopicItem, type ChatBtnConfig } from "@/lib/api";
 
 function hexToRgbVars(hex: string): string | null {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -23,8 +23,10 @@ function applyColors(primary?: string | null, dark?: string | null, accent?: str
   if (accent) root.style.setProperty("--brand-accent", accent);
 }
 
-const COLORS_KEY = "brand_colors";
-const PROFILE_CACHE_KEY = "candidate_profile_cache";
+function tenantStorageKey(base: string) {
+  const slug = resolveTenantSlug() || "default";
+  return `${base}_${slug}`;
+}
 
 // Valores por defecto (usados mientras carga o si la API falla)
 const DEFAULT_PROFILE: CandidateProfile = {
@@ -87,13 +89,13 @@ export function CandidateProvider({
   useEffect(() => {
     if (initialData) return; // SSR data already applied; no client cache needed
     try {
-      const cached = localStorage.getItem(PROFILE_CACHE_KEY);
+      const cached = localStorage.getItem(tenantStorageKey("candidate_profile_cache"));
       if (cached) {
         const parsed = JSON.parse(cached) as CandidatePublicData;
         setData(parsed);
         return;
       }
-      const cachedColors = localStorage.getItem(COLORS_KEY);
+      const cachedColors = localStorage.getItem(tenantStorageKey("brand_colors"));
       if (cachedColors) {
         const { primary, dark, accent } = JSON.parse(cachedColors);
         applyColors(primary, dark, accent);
@@ -108,7 +110,7 @@ export function CandidateProvider({
       .get()
       .then((fresh) => {
         setData(fresh);
-        try { localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(fresh)); } catch {}
+        try { localStorage.setItem(tenantStorageKey("candidate_profile_cache"), JSON.stringify(fresh)); } catch {}
       })
       .catch(() => {})
       .finally(() => setIsLoading(false));
@@ -120,7 +122,7 @@ export function CandidateProvider({
     const { color_primary, color_dark, color_accent } = data.profile;
     applyColors(color_primary, color_dark, color_accent);
     try {
-      localStorage.setItem(COLORS_KEY, JSON.stringify({
+      localStorage.setItem(tenantStorageKey("brand_colors"), JSON.stringify({
         primary: color_primary,
         dark: color_dark,
         accent: color_accent,

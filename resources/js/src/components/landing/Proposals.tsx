@@ -2,102 +2,24 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { ArrowRight, ChevronRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { api, type Proposal } from "@/lib/api";
-import { useCandidate } from "@/context/CandidateContext";
 
 interface ProposalExtended extends Proposal {
   eje?: string | null;
   year_range?: string | null;
 }
 
-const topicColors: Record<string, { bg: string; text: string; dot: string }> = {
-  agua:           { bg: "bg-cyan-50",   text: "text-cyan-700",   dot: "bg-cyan-500" },
-  infraestructura:{ bg: "bg-amber-50",  text: "text-amber-700",  dot: "bg-amber-500" },
-  salud:          { bg: "bg-rose-50",   text: "text-rose-700",   dot: "bg-rose-500" },
-  educacion:      { bg: "bg-violet-50", text: "text-violet-700", dot: "bg-violet-500" },
-  economia:       { bg: "bg-emerald-50",text: "text-emerald-700",dot: "bg-emerald-500" },
-  seguridad:      { bg: "bg-slate-50",  text: "text-slate-700",  dot: "bg-slate-500" },
-};
-
-function getTopicColor(topic?: string | null) {
-  if (!topic) return { bg: "bg-brand-50", text: "text-brand-700", dot: "bg-brand-500" };
-  return topicColors[topic.toLowerCase()] ?? { bg: "bg-brand-50", text: "text-brand-700", dot: "bg-brand-500" };
-}
-
-function ProposalCard({ proposal, index }: { proposal: ProposalExtended; index: number }) {
-  const tc = getTopicColor(proposal.topic);
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: index % 2 === 0 ? -20 : 20, y: 16 }}
-      whileInView={{ opacity: 1, x: 0, y: 0 }}
-      viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.5, delay: index * 0.06, type: "spring", stiffness: 80 }}
-      whileHover={{ y: -4 }}
-    >
-      <div
-        className="group relative bg-white rounded-2xl border border-ink-200 hover:border-brand-300 p-6 transition-all duration-300 overflow-hidden"
-        style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.05)" }}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLDivElement).style.boxShadow =
-            "0 12px 40px rgba(220,38,38,0.12)";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLDivElement).style.boxShadow =
-            "0 2px 12px rgba(0,0,0,0.05)";
-        }}
-      >
-        {/* Número de fondo */}
-        <span className="absolute -top-3 -right-2 font-serif font-extrabold text-[80px] leading-none text-ink-200/50 group-hover:text-brand-100/60 select-none transition-colors duration-300 pointer-events-none">
-          {String(index + 1).padStart(2, "0")}
-        </span>
-
-        {/* Barra superior animada */}
-        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-brand-700 to-brand-400 scale-x-0 group-hover:scale-x-100 transition-transform duration-400 origin-left rounded-t-2xl" />
-
-        <div className="relative z-10">
-          {/* Badge topic */}
-          <div className="flex items-center gap-2 mb-3">
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${tc.bg} ${tc.text}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${tc.dot}`} />
-              {proposal.topic ?? "propuesta"}
-            </span>
-            <span className="text-[10px] text-ink-400 font-semibold">
-              {proposal.eje ? `Eje ${proposal.eje} · ` : ""}{proposal.year_range ?? "2027–2030"}
-            </span>
-          </div>
-
-          <h3 className="font-serif font-bold text-ink-900 text-base leading-snug mb-2 group-hover:text-brand-800 transition-colors duration-200">
-            {proposal.title}
-          </h3>
-
-          {proposal.description && (
-            <p className="text-ink-500 text-sm leading-relaxed font-medium">
-              {proposal.description.slice(0, 110)}{proposal.description.length > 110 ? "…" : ""}
-            </p>
-          )}
-
-          <div className="mt-4 flex items-center gap-1 text-brand-600 text-xs font-bold opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 transition-all duration-200">
-            Ver detalle <ChevronRight size={12} />
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
-
 const FALLBACK: ProposalExtended[] = [
-  { id: 1, title: "Agua potable para todos los caseríos", description: "Sistema integral de agua y saneamiento con financiamiento regional.", district: null, topic: "agua", status: "propuesta" as const },
-  { id: 2, title: "Carreteras y conectividad rural", description: "Pavimentación de vías secundarias y puentes para todos los caseríos.", district: null, topic: "infraestructura", status: "propuesta" as const },
-  { id: 3, title: "Salud comunitaria en cada caserío", description: "Postas médicas equipadas y brigadas de salud preventiva.", district: null, topic: "salud", status: "propuesta" as const },
-  { id: 4, title: "Educación de calidad", description: "Mejora de infraestructura educativa y becas para todos los caseríos.", district: null, topic: "educacion", status: "propuesta" as const },
-  { id: 5, title: "Reactivación económica local", description: "Apoyo a microempresarios y mercados locales con capital semilla.", district: null, topic: "economia", status: "propuesta" as const },
-  { id: 6, title: "Seguridad ciudadana", description: "Cámaras, serenazgo y trabajo conjunto con la PNP.", district: null, topic: "seguridad", status: "propuesta" as const },
+  { id: 1, title: "Agua potable para todos los caseríos", description: "Sistema integral de agua y saneamiento con financiamiento regional y mantenimiento garantizado.", district: null, topic: "agua", status: "propuesta" as const },
+  { id: 2, title: "Carreteras y conectividad rural", description: "Pavimentación de vías secundarias y puentes que conecten cada comunidad con su mercado.", district: null, topic: "infraestructura", status: "propuesta" as const },
+  { id: 3, title: "Salud comunitaria en cada caserío", description: "Postas médicas equipadas y brigadas de salud preventiva que lleguen donde hoy no llega nadie.", district: null, topic: "salud", status: "propuesta" as const },
+  { id: 4, title: "Educación de calidad", description: "Mejora de infraestructura educativa, conectividad y becas para toda la provincia.", district: null, topic: "educacion", status: "propuesta" as const },
+  { id: 5, title: "Reactivación económica local", description: "Apoyo a microempresarios, ferias agropecuarias y capital semilla para emprendedores.", district: null, topic: "economia", status: "propuesta" as const },
+  { id: 6, title: "Seguridad ciudadana", description: "Red de cámaras, serenazgo ampliado y trabajo coordinado con la PNP.", district: null, topic: "seguridad", status: "propuesta" as const },
 ];
 
 export function Proposals({ initialData }: { initialData?: ProposalExtended[] }) {
-  const { profile } = useCandidate();
   const [proposals, setProposals] = useState<ProposalExtended[]>(() => {
     if (!initialData?.length) return [];
     return [...initialData].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99)).slice(0, 6);
@@ -120,89 +42,151 @@ export function Proposals({ initialData }: { initialData?: ProposalExtended[] })
   const displayProposals = loaded && proposals.length === 0 ? FALLBACK : proposals;
 
   return (
-    <section id="propuestas" className="relative bg-white py-20 md:py-28 px-5 overflow-hidden">
-      {/* Fondo decorativo */}
-      <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
-        <div
-          className="absolute top-0 right-0 w-[500px] h-[500px] rounded-full opacity-30 blur-3xl"
-          style={{ background: "radial-gradient(circle, #FEE2E2 0%, transparent 70%)" }}
-        />
-      </div>
+    <section id="propuestas" className="py-20 md:py-28 px-5" style={{ background: "var(--page-bg)" }}>
+      <div className="max-w-5xl mx-auto">
 
-      <div className="max-w-5xl mx-auto relative z-10">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-60px" }}
           transition={{ duration: 0.5 }}
-          className="mb-12 flex flex-col md:flex-row md:items-end md:justify-between gap-6"
+          className="mb-12 max-w-xl"
         >
-          <div>
-            <span className="inline-flex items-center gap-2 bg-brand-50 border border-brand-200 text-brand-700 text-[10px] font-extrabold uppercase tracking-[2px] px-4 py-2 rounded-full mb-4">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
-              Propuestas prioritarias
-            </span>
-            <h2 className="font-serif text-3xl md:text-4xl font-bold text-ink-900 leading-tight mt-2">
-              Lo que haremos en los<br />
-              <span
-                style={{
-                  background: "linear-gradient(135deg, #DC2626, #EF4444)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}
-              >
-                primeros 100 días.
-              </span>
-            </h2>
-          </div>
-
-          <motion.div
-            initial={{ opacity: 0, x: 16 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.5, delay: 0.15 }}
-            className="shrink-0"
+          <span
+            className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.2em] mb-4"
+            style={{ color: "rgb(var(--brand-primary-rgb))" }}
           >
-            <Link
-              href="/propuestas"
-              className="inline-flex items-center gap-2 text-sm text-brand-700 hover:text-brand-900 font-bold border-b-2 border-brand-300 hover:border-brand-700 pb-0.5 transition-colors duration-200"
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ background: "rgb(var(--brand-primary-rgb))" }}
+            />
+            Propuestas prioritarias
+          </span>
+          <h2
+            className="font-serif font-semibold leading-[1.04] tracking-tight mt-2"
+            style={{ fontSize: "clamp(31px,4.4vw,50px)", color: "var(--page-ink)" }}
+          >
+            Lo que haremos en los{" "}
+            <em
+              className="not-italic"
+              style={{ color: "rgb(var(--brand-dark-rgb))" }}
             >
-              Ver todas las propuestas <ArrowRight size={14} />
-            </Link>
-          </motion.div>
+              primeros 100 días.
+            </em>
+          </h2>
+          <p className="mt-3 text-base" style={{ color: "#4c5b51" }}>
+            Compromisos medibles, con fechas y responsables.
+          </p>
         </motion.div>
 
-        {/* Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Grid de propuestas — 3 columnas */}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {displayProposals.map((p, i) => (
-            <ProposalCard key={p.id} proposal={p} index={i} />
+            <motion.article
+              key={p.id}
+              initial={{ opacity: 0, y: 28 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-40px" }}
+              transition={{ duration: 0.45, delay: i * 0.07, type: "spring", stiffness: 80 }}
+              className="group relative bg-white rounded-[20px] overflow-hidden transition-all duration-300 cursor-default"
+              style={{
+                border: "1px solid var(--page-line)",
+                padding: "34px 28px 30px",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.transform = "translateY(-6px)";
+                (e.currentTarget as HTMLElement).style.boxShadow = "0 30px 60px -34px var(--page-shadow)";
+                (e.currentTarget as HTMLElement).style.borderColor = "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 30%, transparent)";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.transform = "";
+                (e.currentTarget as HTMLElement).style.boxShadow = "";
+                (e.currentTarget as HTMLElement).style.borderColor = "var(--page-line)";
+              }}
+            >
+              {/* Número de fondo gigante */}
+              <span
+                className="absolute select-none leading-none font-serif font-black pointer-events-none transition-colors duration-300"
+                style={{
+                  top: "-14px",
+                  right: "6px",
+                  fontSize: "120px",
+                  color: "color-mix(in srgb, var(--page-ink) 5%, transparent)",
+                  lineHeight: 1,
+                }}
+              >
+                {String(i + 1).padStart(2, "0")}
+              </span>
+
+              {/* Contenido relativo */}
+              <div className="relative z-10">
+                {/* Tag con pip */}
+                <span
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[.1em] mb-4"
+                  style={{ color: "rgb(var(--brand-primary-rgb))" }}
+                >
+                  <span
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ background: "rgb(var(--brand-dark-rgb))" }}
+                  />
+                  {p.topic ?? "propuesta"}
+                  {((p as ProposalExtended).year_range) && (
+                    <span className="ml-1 opacity-50 font-normal lowercase tracking-normal">
+                      · {(p as ProposalExtended).year_range}
+                    </span>
+                  )}
+                </span>
+
+                {/* Título */}
+                <h3
+                  className="font-serif font-semibold leading-[1.14] mb-3"
+                  style={{ fontSize: "23px", color: "var(--page-ink)" }}
+                >
+                  {p.title}
+                </h3>
+
+                {/* Descripción */}
+                {p.description && (
+                  <p className="text-sm leading-relaxed" style={{ color: "#4c5b51" }}>
+                    {p.description.slice(0, 140)}{p.description.length > 140 ? "…" : ""}
+                  </p>
+                )}
+
+                {/* Línea animada inferior */}
+                <div
+                  className="mt-5 h-[3px] w-10 rounded-full transition-all duration-350 group-hover:w-20"
+                  style={{
+                    background: "rgb(var(--brand-primary-rgb))",
+                    transitionDuration: "350ms",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLElement).style.background = "rgb(var(--brand-dark-rgb))";
+                  }}
+                />
+              </div>
+            </motion.article>
           ))}
         </div>
 
-        {/* CTA bottom */}
+        {/* CTA */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-60px" }}
-          transition={{ duration: 0.4, delay: 0.3 }}
-          className="mt-10 flex flex-wrap items-center gap-4"
+          transition={{ duration: 0.4, delay: 0.25 }}
+          className="mt-10 text-center"
         >
-          <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
-            <Link
-              href="/propuestas"
-              className="inline-flex items-center justify-center gap-2 bg-brand-700 hover:bg-brand-900 text-white px-7 py-3.5 rounded-xl text-sm font-extrabold uppercase tracking-wider transition-all duration-200"
-              style={{ boxShadow: "0 8px 24px rgba(220,38,38,0.3)" }}
-            >
-              Ver todas las propuestas
-            </Link>
-          </motion.div>
           <Link
-            href={`/chat?q=${encodeURIComponent("¿Cuáles son tus propuestas principales?")}`}
-            className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-brand-700 font-semibold transition-colors"
+            href="/propuestas"
+            className="inline-flex items-center gap-2.5 font-bold text-base pb-1 transition-all duration-200"
+            style={{
+              color: "var(--page-ink)",
+              borderBottom: "2px solid rgb(var(--brand-primary-rgb))",
+            }}
           >
-            Pregúntale a {profile.name.split(" ")[0]} <ArrowRight size={14} />
+            Ver todas las propuestas
+            <ArrowRight size={18} style={{ color: "rgb(var(--brand-primary-rgb))" }} />
           </Link>
         </motion.div>
       </div>

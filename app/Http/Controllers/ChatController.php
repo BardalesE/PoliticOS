@@ -6,6 +6,9 @@ use App\Jobs\AnalyzeMessageJob;
 use App\Jobs\GeolocateSessionJob;
 use App\Models\ChatMessage;
 use App\Models\ChatSession;
+use App\Models\CitizenProfile;
+use App\Models\CitizenPoint;
+use App\Services\PlanService;
 use App\Models\CitizenData;
 use App\Models\VisitorProfile;
 use App\Services\JamesAIService;
@@ -30,6 +33,27 @@ class ChatController extends Controller
         ]);
 
         $session = $this->resolveSession($request, $data['session_id'] ?? null, $data['consent'] ?? null);
+
+        // ── 0. Límite mensual de mensajes del plan ────────────────────────
+        $tenant = app('tenant');
+        if ($tenant) {
+            $limit = PlanService::messagesPerMonth($tenant);
+            if ($limit !== -1) {
+                $used = ChatMessage::where('role', 'user')
+                    ->whereMonth('created_at', now()->month)
+                    ->whereYear('created_at', now()->year)
+                    ->count();
+                if ($used >= $limit) {
+                    $limitResponse = [
+                        'reply'            => "⚠️ Este asistente alcanzó el límite mensual de mensajes de su plan. Por favor vuelve el próximo mes.",
+                        'topic'            => null, 'media' => [], 'attack_detected' => false,
+                        'attack_category'  => null, 'pepa_metadata' => null,
+                        'nonsense'         => false, 'blocked' => false, 'quickReplies' => [],
+                    ];
+                    return $this->jsonChatResponse($limitResponse, $session, $request);
+                }
+            }
+        }
 
         // ── 1. Sesión bloqueada ───────────────────────────────────────────
         if ($session->blocked_at) {
@@ -117,6 +141,27 @@ class ChatController extends Controller
         ]);
 
         $session = $this->resolveSession($request, $data['session_id'] ?? null, $data['consent'] ?? null);
+
+        // ── 0. Límite mensual de mensajes del plan ────────────────────────
+        $tenantForStream = app('tenant');
+        if ($tenantForStream) {
+            $streamLimit = PlanService::messagesPerMonth($tenantForStream);
+            if ($streamLimit !== -1) {
+                $streamUsed = ChatMessage::where('role', 'user')
+                    ->whereMonth('created_at', now()->month)
+                    ->whereYear('created_at', now()->year)
+                    ->count();
+                if ($streamUsed >= $streamLimit) {
+                    $limitResponse = [
+                        'reply' => "⚠️ Este asistente alcanzó el límite mensual de mensajes de su plan.",
+                        'topic' => null, 'media' => [], 'attack_detected' => false,
+                        'attack_category' => null, 'pepa_metadata' => null,
+                        'nonsense' => false, 'blocked' => false, 'quickReplies' => [],
+                    ];
+                    return $this->streamPrebuilt($limitResponse, $session);
+                }
+            }
+        }
 
         // ── 1. Sesión bloqueada ───────────────────────────────────────────
         if ($session->blocked_at) {
@@ -311,6 +356,21 @@ class ChatController extends Controller
             'content'    => $aiResponse['reply'],
             'media'      => json_encode($aiResponse['media'] ?? []),
         ]);
+
+        // Puntos por conversación (una vez al día por ciudadano registrado)
+        if ($session->visitor_uuid) {
+            $citizen = CitizenProfile::where('visitor_uuid', $session->visitor_uuid)->first();
+            if ($citizen) {
+                $today = now()->toDateString();
+                $alreadyAwarded = CitizenPoint::where('citizen_profile_id', $citizen->id)
+                    ->where('action', 'conversacion')
+                    ->whereDate('created_at', $today)
+                    ->exists();
+                if (!$alreadyAwarded) {
+                    $citizen->addPoints('conversacion', CitizenProfile::pointsFor('conversacion'));
+                }
+            }
+        }
     }
 
     private function jsonChatResponse(array $response, ChatSession $session, Request $request): JsonResponse

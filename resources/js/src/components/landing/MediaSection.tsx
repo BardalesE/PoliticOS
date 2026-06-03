@@ -150,11 +150,11 @@ export function MediaSection({
   }, []);
 
   return (
-    <section id="multimedia" className="relative bg-white py-20 md:py-28 overflow-hidden">
-      {/* Fondo decorativo */}
+    <section id="multimedia" className="relative py-20 md:py-28 overflow-hidden" style={{ background: "var(--page-ink, #0f1a12)" }}>
+      {/* Fondo decorativo radial */}
       <div
         className="absolute inset-0 pointer-events-none"
-        style={{ background: "radial-gradient(ellipse 70% 60% at 50% 50%, #FEF2F2 0%, transparent 70%)" }}
+        style={{ background: "radial-gradient(ellipse 70% 60% at 50% 50%, color-mix(in srgb, rgb(var(--brand-primary-rgb)) 12%, transparent) 0%, transparent 70%)" }}
       />
 
       <div className="relative z-10">
@@ -167,88 +167,93 @@ export function MediaSection({
           className="px-5 max-w-5xl mx-auto mb-10 flex flex-col sm:flex-row sm:items-end justify-between gap-6"
         >
           <div>
-            <span className="inline-flex items-center gap-2 bg-brand-50 border border-brand-200 text-brand-700 text-[10px] font-extrabold uppercase tracking-[2px] px-4 py-2 rounded-full mb-4">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
+            <span
+              className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.2em] mb-4"
+              style={{ color: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 80%, white)" }}
+            >
+              <span className="w-2 h-2 rounded-full" style={{ background: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 80%, white)" }} />
               Galería &amp; Videos
             </span>
-            <h2 className="font-serif text-3xl md:text-4xl font-bold text-ink-900 mt-2">
-              Lo que ha pasado{" "}
-              <span style={{ background: "linear-gradient(135deg,#DC2626,#EF4444)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
-                en campaña.
-              </span>
+            <h2 className="font-serif font-semibold text-white mt-2" style={{ fontSize: "clamp(28px,4vw,42px)" }}>
+              La campaña{" "}
+              <em className="not-italic italic" style={{ color: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 80%, white)" }}>
+                en imágenes.
+              </em>
             </h2>
           </div>
           <div className="flex gap-3 shrink-0">
             <Link
               href="/galeria"
-              className="inline-flex items-center gap-2 border-2 border-brand-700 text-brand-700 hover:bg-brand-50 px-4 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wider transition-colors"
+              className="inline-flex items-center gap-2 border border-white/30 text-white hover:bg-white/10 px-4 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider transition-colors"
             >
               <Camera size={14} /> Galería
             </Link>
             <Link
               href="/videos"
-              className="inline-flex items-center gap-2 bg-brand-700 hover:bg-brand-900 text-white px-4 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wider transition-colors"
-              style={{ boxShadow: "0 4px 16px rgba(220,38,38,0.28)" }}
+              className="inline-flex items-center gap-2 bg-white text-[#0f1a12] hover:bg-gray-100 px-4 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider transition-colors"
             >
               <Film size={14} /> Videos
             </Link>
           </div>
         </motion.div>
 
-        {/* ── Slider de FOTOS → izquierda ── */}
+        {/* ── Galería contenida ── */}
         <motion.div
-          initial={{ opacity: 0, x: 40 }}
-          whileInView={{ opacity: 1, x: 0 }}
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-60px" }}
-          transition={{ duration: 0.6, delay: 0.05 }}
-          className="mb-5"
+          transition={{ duration: 0.55, delay: 0.05 }}
+          className="max-w-5xl mx-auto px-5"
         >
-          <div className="flex items-center gap-2.5 px-5 max-w-5xl mx-auto mb-4">
-            <div className="w-7 h-7 rounded-lg bg-brand-50 border border-brand-200 grid place-items-center">
-              <Camera size={14} className="text-brand-600" />
-            </div>
-            <span className="text-[11px] font-extrabold uppercase tracking-[2px] text-brand-600">
-              Fotos de campaña
-            </span>
-            <div className="flex-1 h-px bg-brand-100" />
-            <span className="text-[10px] text-ink-400 font-semibold flex items-center gap-1">
-              <ArrowRight size={10} className="opacity-60" /> desplazando
-            </span>
-          </div>
-          <MarqueeTrack direction="left" duration="40s">
-            {photos.map((p) => (
-              <PhotoCard key={p.id} photo={p} />
-            ))}
-          </MarqueeTrack>
-        </motion.div>
-
-        {/* ── Slider de VIDEOS ← derecha ── */}
-        {videos.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, x: -40 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.6, delay: 0.12 }}
+          <div
+            className="rounded-2xl overflow-hidden"
+            style={{ border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)" }}
           >
-            <div className="flex items-center gap-2.5 px-5 max-w-5xl mx-auto mb-4">
-              <div className="w-7 h-7 rounded-lg bg-brand-50 border border-brand-200 grid place-items-center">
-                <Film size={14} className="text-brand-600" />
+            {/* Fotos */}
+            <div className="py-5">
+              <div className="flex items-center gap-2.5 px-5 mb-4">
+                <div className="w-7 h-7 rounded-lg border grid place-items-center shrink-0" style={{ background: "rgba(255,255,255,0.08)", borderColor: "rgba(255,255,255,0.15)" }}>
+                  <Camera size={14} style={{ color: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 80%, white)" }} />
+                </div>
+                <span className="text-[11px] font-bold uppercase tracking-[2px]" style={{ color: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 80%, white)" }}>
+                  Fotos de campaña
+                </span>
+                <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.12)" }} />
+                <span className="text-[10px] font-semibold flex items-center gap-1 shrink-0" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  <ArrowRight size={10} className="opacity-60" /> desplazando
+                </span>
               </div>
-              <span className="text-[11px] font-extrabold uppercase tracking-[2px] text-brand-600">
-                Videos
-              </span>
-              <div className="flex-1 h-px bg-brand-100" />
-              <span className="text-[10px] text-ink-400 font-semibold flex items-center gap-1">
-                <ArrowRight size={10} className="opacity-60 rotate-180" /> desplazando
-              </span>
+              <MarqueeTrack direction="left" duration="40s">
+                {photos.map((p) => (
+                  <PhotoCard key={p.id} photo={p} />
+                ))}
+              </MarqueeTrack>
             </div>
-            <MarqueeTrack direction="right" duration="32s">
-              {videos.map((v) => (
-                <VideoCard key={v.id} video={v} />
-              ))}
-            </MarqueeTrack>
-          </motion.div>
-        )}
+
+            {/* Videos */}
+            {videos.length > 0 && (
+              <div className="border-t py-5" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+                <div className="flex items-center gap-2.5 px-5 mb-4">
+                  <div className="w-7 h-7 rounded-lg border grid place-items-center shrink-0" style={{ background: "rgba(255,255,255,0.08)", borderColor: "rgba(255,255,255,0.15)" }}>
+                    <Film size={14} style={{ color: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 80%, white)" }} />
+                  </div>
+                  <span className="text-[11px] font-bold uppercase tracking-[2px]" style={{ color: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 80%, white)" }}>
+                    Videos
+                  </span>
+                  <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.12)" }} />
+                  <span className="text-[10px] font-semibold flex items-center gap-1 shrink-0" style={{ color: "rgba(255,255,255,0.4)" }}>
+                    <ArrowRight size={10} className="opacity-60 rotate-180" /> desplazando
+                  </span>
+                </div>
+                <MarqueeTrack direction="right" duration="32s">
+                  {videos.map((v) => (
+                    <VideoCard key={v.id} video={v} />
+                  ))}
+                </MarqueeTrack>
+              </div>
+            )}
+          </div>
+        </motion.div>
 
         {/* CTA */}
         <motion.div
@@ -260,7 +265,11 @@ export function MediaSection({
         >
           <Link
             href="/galeria"
-            className="inline-flex items-center gap-2 text-sm font-bold text-brand-600 hover:text-brand-900 transition-colors border-b-2 border-brand-200 hover:border-brand-600 pb-0.5"
+            className="inline-flex items-center gap-2 text-sm font-bold pb-1 transition-colors"
+            style={{
+              color: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 80%, white)",
+              borderBottom: "2px solid color-mix(in srgb, rgb(var(--brand-primary-rgb)) 60%, white)",
+            }}
           >
             Ver galería completa <ArrowRight size={14} />
           </Link>

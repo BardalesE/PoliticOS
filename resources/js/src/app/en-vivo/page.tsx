@@ -75,7 +75,7 @@ export default function EnVivoPage() {
           <Radio size={22} className="text-red-600" />
           <div>
             <h1 className="text-lg font-bold text-gray-900">En vivo</h1>
-            <p className="text-gray-500 text-xs">Transmisiones de la campaña de James Cueva</p>
+            <p className="text-gray-500 text-xs">Transmisiones en vivo de la campaña</p>
           </div>
         </div>
       </div>
@@ -170,7 +170,7 @@ function StreamCard({ stream: s, candidate }: { stream: LiveStream; candidate: C
             }
           </div>
           <span className="text-gray-500 text-xs truncate">
-            {candidate?.name ?? "Campaña James Cueva"}
+            {candidate?.name ?? "Campaña"}
           </span>
         </div>
 

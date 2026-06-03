@@ -106,7 +106,7 @@ export function LiveAlert() {
                     <p className="text-red-400 text-[11px] font-bold uppercase tracking-widest">
                       Transmisión en vivo
                     </p>
-                    <p className="text-zinc-500 text-xs mt-0.5">James Cueva está al aire ahora</p>
+                    <p className="text-zinc-500 text-xs mt-0.5">El candidato está al aire ahora</p>
                   </div>
                 </div>
 

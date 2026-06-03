@@ -37,25 +37,45 @@ use Illuminate\Support\Facades\Log;
  */
 class JamesAIService
 {
-    private AiSetting $config;
-    private ?CandidateProfile $candidate;
+    private ?AiSetting $config = null;
+    private ?CandidateProfile $candidate = null;
     private EmbeddingsServiceInterface $embeddings;
-    private string $systemPromptTemplate;
+    private ?string $systemPromptTemplate = null;
 
     public function __construct(EmbeddingsServiceInterface $embeddings)
     {
-        $this->config       = AiSetting::current();
-        $this->candidate    = CandidateProfile::query()->first();
-        $this->embeddings   = $embeddings;
+        // DB queries are intentionally deferred to ensureInitialized().
+        // The constructor runs before ResolveTenant middleware switches the DB
+        // connection to the tenant's database — querying here would always hit
+        // the central DB and return null for candidate/config.
+        $this->embeddings = $embeddings;
+    }
+
+    private function ensureInitialized(): void
+    {
+        if ($this->config !== null) return;
+        $this->config              = AiSetting::current();
+        $this->candidate           = CandidateProfile::current();
         $this->systemPromptTemplate = $this->config->system_prompt ?: $this->defaultPrompt();
     }
 
     // ─── Punto de entrada (sincrónico) ────────────────────────────────────
     public function respond(string $userMessage, ChatSession $session): array
     {
+        $this->ensureInitialized();
         if (! $this->candidate) {
             return [
-                'reply'  => 'El asistente no está disponible en este momento. Intenta más tarde.',
+                'reply'  => 'El asistente aún no está configurado para este candidato. El administrador debe completar el perfil desde el panel.',
+                'topic'  => null,
+                'media'  => [],
+                'source' => 'fallback',
+            ];
+        }
+
+        if ($this->candidateIsEmpty()) {
+            $nombre = $this->candidate->name;
+            return [
+                'reply'  => "Hola, soy el asistente de {$nombre}. Aún estamos cargando la información de campaña. Pronto podrás preguntarme sobre propuestas, eventos y más. ¡Vuelve pronto!",
                 'topic'  => null,
                 'media'  => [],
                 'source' => 'fallback',
@@ -111,8 +131,16 @@ class JamesAIService
     // ─── Punto de entrada (streaming SSE) ─────────────────────────────────
     public function respondStream(string $userMessage, ChatSession $session, callable $onChunk): array
     {
+        $this->ensureInitialized();
         if (! $this->candidate) {
-            $fallback = 'El asistente no está disponible en este momento. Intenta más tarde.';
+            $fallback = 'El asistente aún no está configurado para este candidato. El administrador debe completar el perfil desde el panel.';
+            $onChunk($fallback);
+            return ['topic' => null, 'media' => [], 'attack_detected' => false, 'pepa_metadata' => null];
+        }
+
+        if ($this->candidateIsEmpty()) {
+            $nombre   = $this->candidate->name;
+            $fallback = "Hola, soy el asistente de {$nombre}. Aún estamos cargando la información de campaña. Pronto podrás preguntarme sobre propuestas, eventos y más. ¡Vuelve pronto!";
             $onChunk($fallback);
             return ['topic' => null, 'media' => [], 'attack_detected' => false, 'pepa_metadata' => null];
         }
@@ -1007,6 +1035,21 @@ class JamesAIService
     // ─── BIENVENIDA (primer mensaje de la sesión) ────────────────────────
     public function buildWelcomeResponse(): array
     {
+        $this->ensureInitialized();
+        if (! $this->candidate) {
+            return [
+                'reply'           => 'El asistente aún no está configurado para este candidato. El administrador debe completar el perfil desde el panel.',
+                'topic'           => null,
+                'media'           => [],
+                'attack_detected' => false,
+                'attack_category' => null,
+                'pepa_metadata'   => null,
+                'nonsense'        => false,
+                'blocked'         => false,
+                'quickReplies'    => [],
+            ];
+        }
+
         $name   = $this->candidate->name;
         $fname  = explode(' ', $name)[0];
         $party  = $this->candidate->party;
@@ -1040,6 +1083,21 @@ class JamesAIService
     // ─── ADVERTENCIA: mensaje sin sentido (1er aviso) ────────────────────
     public function buildNonsenseWarning(): array
     {
+        $this->ensureInitialized();
+        if (! $this->candidate) {
+            return [
+                'reply'           => 'El asistente aún no está configurado para este candidato.',
+                'topic'           => null,
+                'media'           => [],
+                'attack_detected' => false,
+                'attack_category' => null,
+                'pepa_metadata'   => null,
+                'nonsense'        => true,
+                'blocked'         => false,
+                'quickReplies'    => [],
+            ];
+        }
+
         $name = $this->candidate->name;
 
         return [
@@ -1063,6 +1121,7 @@ class JamesAIService
     // ─── SESIÓN BLOQUEADA ────────────────────────────────────────────────
     public function buildBlockedResponse(): array
     {
+        $this->ensureInitialized();
         return [
             'reply'           => "🔒 Conversación bloqueada\n\nTu sesión fue pausada por mensajes repetidos no relacionados con la campaña.\n\nPara continuar escribe:\n• hola\n• menú\n• inicio",
             'topic'           => null,
@@ -1087,5 +1146,15 @@ class JamesAIService
     {
         return file_get_contents(__DIR__ . '/../../resources/prompts/politicos_v2_prompt.txt')
             ?: 'Eres el asistente virtual del candidato. Hablas en primera persona representando sus propuestas.';
+    }
+
+    // Detecta si el tenant fue provisionado pero aún no tiene contenido cargado.
+    // Un candidato "vacío" no tiene ni bio ni propuestas — el AI halucinaría sin datos.
+    private function candidateIsEmpty(): bool
+    {
+        // Solo bloquea si el nombre es el placeholder genérico que siembra TenantProvision.
+        // Cualquier nombre real (aunque el perfil esté incompleto) permite responder.
+        $placeholders = ['candidato', 'candidate', 'por definir'];
+        return in_array(strtolower(trim($this->candidate->name)), $placeholders);
     }
 }

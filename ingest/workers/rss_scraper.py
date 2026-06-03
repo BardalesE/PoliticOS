@@ -23,7 +23,9 @@ LARAVEL_API = os.getenv("LARAVEL_API_URL", "http://localhost:8000/api")
 LARAVEL_TOKEN = os.getenv("LARAVEL_ADMIN_TOKEN", "")
 TENANT_SLUGS = [s.strip() for s in os.getenv("TENANT_SLUGS", "").split(",") if s.strip()]
 RSS_FEEDS = [u.strip() for u in os.getenv("RSS_FEEDS", "").split(",") if u.strip()]
-TARGET_CANDIDATES = [c.strip().lower() for c in os.getenv("TARGET_CANDIDATES", "james cueva,james,cueva").split(",") if c.strip()]
+TARGET_CANDIDATES = [c.strip().lower() for c in os.getenv("TARGET_CANDIDATES", "").split(",") if c.strip()]
+if not TARGET_CANDIDATES:
+    log.warning("TARGET_CANDIDATES env var not set — no candidate filter will be applied")
 
 # Filtro: solo procesar items cuyo título/summary mencione algún candidato
 def _mentions_candidate(text: str) -> bool:
@@ -34,6 +36,9 @@ def _mentions_candidate(text: str) -> bool:
 def scrape_all_feeds():
     if not RSS_FEEDS:
         log.warning("No RSS_FEEDS configured, skipping")
+        return {"feeds_processed": 0, "signals_pushed": 0}
+    if not TARGET_CANDIDATES:
+        log.warning("TARGET_CANDIDATES not configured — all articles will be skipped")
         return {"feeds_processed": 0, "signals_pushed": 0}
 
     total_pushed = 0

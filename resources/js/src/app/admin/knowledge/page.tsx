@@ -129,7 +129,7 @@ export default function KnowledgePage() {
           <h1 className="font-serif text-xl font-bold text-gray-900">Base de Conocimiento</h1>
         </div>
         <p className="text-sm text-gray-400">
-          Sube PDFs con planes de gobierno, propuestas o documentos. Rigo los leerá automáticamente para responder mejor.
+          Sube PDFs con planes de gobierno, propuestas o documentos. El asistente los leerá automáticamente para responder mejor.
         </p>
       </div>
 
@@ -233,7 +233,7 @@ export default function KnowledgePage() {
 
             {uploadState === "done" && (
               <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-100 rounded-xl px-4 py-3">
-                <CheckCircle size={14} /> Documento subido. Rigo ya puede usarlo.
+                <CheckCircle size={14} /> Documento subido. El asistente ya puede usarlo.
               </div>
             )}
 
@@ -258,7 +258,7 @@ export default function KnowledgePage() {
           {/* Tip */}
           <div className="p-4 rounded-2xl bg-brand-50 border border-brand-100 text-xs text-gray-600 leading-relaxed">
             <strong className="text-brand-600">¿Cómo funciona?</strong> El sistema extrae el texto del PDF.
-            Cada pregunta que reciba Rigo buscará en estos documentos para responder con datos reales.
+            Cada pregunta que reciba el asistente buscará en estos documentos para responder con datos reales.
             Los documentos con <strong className="text-brand-600">tema asignado</strong> se priorizan según el contexto.
           </div>
         </div>
@@ -286,7 +286,7 @@ export default function KnowledgePage() {
               <div className="flex flex-col items-center gap-3 py-16 text-center">
                 <BookOpen size={32} className="text-gray-300" />
                 <p className="text-sm text-gray-400">No hay documentos todavía.</p>
-                <p className="text-xs text-gray-400">Sube el plan de gobierno o propuestas para que Rigo las use.</p>
+                <p className="text-xs text-gray-400">Sube el plan de gobierno o propuestas para que el asistente las use.</p>
               </div>
             ) : (
               <ul className="divide-y divide-gray-100">

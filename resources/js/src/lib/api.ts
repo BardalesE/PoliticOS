@@ -8,15 +8,30 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 // Prod: auto-detected from subdomain (james.politicos.pe → "james")
 const BASE_DOMAIN = process.env.NEXT_PUBLIC_BASE_DOMAIN || "";
 
-function resolveTenantSlug(): string {
+export function resolveTenantSlug(): string {
+  // 1. Env var de build — máxima prioridad en dev. Si está configurado, siempre gana.
+  //    En producción no se setea; en dev apunta al candidato activo.
   const envSlug = process.env.NEXT_PUBLIC_TENANT_SLUG;
   if (envSlug) return envSlug;
-  if (typeof window !== "undefined" && BASE_DOMAIN) {
-    const host = window.location.hostname; // e.g. "james.politicos.pe"
-    if (host.endsWith(`.${BASE_DOMAIN}`)) {
-      return host.slice(0, -(BASE_DOMAIN.length + 1));
+
+  if (typeof window !== "undefined") {
+    // 2. Subdominio (producción: rigo.politicos.pe → "rigo")
+    if (BASE_DOMAIN) {
+      const host = window.location.hostname;
+      if (host.endsWith(`.${BASE_DOMAIN}`)) {
+        return host.slice(0, -(BASE_DOMAIN.length + 1));
+      }
     }
+
+    // 3. ?tenant= en la URL — para links del superadmin ("Abrir panel")
+    const urlSlug = new URLSearchParams(window.location.search).get("tenant");
+    if (urlSlug) return urlSlug;
+
+    // 4. Slug del login admin — solo como último fallback en prod sin subdominio
+    const fromLogin = localStorage.getItem("admin_tenant_slug");
+    if (fromLogin) return fromLogin;
   }
+
   return "";
 }
 
@@ -56,7 +71,10 @@ const _cache = new Map<string, { data: unknown; expires: number }>();
 const CACHE_TTL = 30_000;
 
 function cacheKey(endpoint: string, token?: string | null) {
-  return token ? `${token.slice(-8)}:${endpoint}` : endpoint;
+  const tenant = resolveTenantSlug();
+  return token
+    ? `${tenant}:${token.slice(-8)}:${endpoint}`
+    : `${tenant}:${endpoint}`;
 }
 
 export function invalidateCache(prefix?: string) {
@@ -218,10 +236,17 @@ export const api = {
 
 // ─── API admin (requiere token) ────────────────────────────────────────
 
+export type PlanFeatureSet = {
+  plan: "starter" | "pro" | "elite" | "custom";
+  label: string;
+  price: number;
+  features: Record<string, unknown>;
+};
+
 export const adminApi = {
   auth: {
     login: (email: string, password: string) =>
-      request<{ token: string; user: AdminUser }>("/auth/login", {
+      request<{ token: string; user: AdminUser; tenant_slug?: string }>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       }),
@@ -229,6 +254,11 @@ export const adminApi = {
       request<{ message: string }>("/auth/logout", { method: "POST" }, token),
     me: (token: string) =>
       request<AdminUser>("/auth/me", {}, token),
+  },
+
+  plan: {
+    get: (token: string) =>
+      request<PlanFeatureSet>("/admin/plan", {}, token),
   },
 
   proposals: {
@@ -393,6 +423,7 @@ export type HeroSettings = {
   video_url: string | null;
   image_url: string | null;
   overlay_opacity: number;
+  overlay_color: string | null;
   btn1_label: string | null;
   btn1_url: string | null;
   btn2_label: string | null;
@@ -697,6 +728,16 @@ export type TenantStats = {
   proposals: number;
 };
 
+export type TenantCredentials = {
+  admin_email: string | null;
+  admin_password: string | null;
+  password_changed: boolean;
+  password_changed_at: string | null;
+  admin_url: string;
+  chatbot_url: string;
+  credential_log: { action: string; ip: string; timestamp: string }[];
+};
+
 export type TenantWithStats = Tenant & { stats?: TenantStats | { error: string } };
 
 export type ProvisionPayload = {
@@ -737,5 +778,30 @@ export const superadminApi = {
       saRequest<{ tenant: Tenant; stats: TenantStats | { error: string } }>(
         `/superadmin/tenants/${id}/stats`, saKey
       ),
+    credentials: (saKey: string, id: number) =>
+      saRequest<TenantCredentials>(
+        `/superadmin/tenants/${id}/credentials`, saKey
+      ),
+    resetPassword: (saKey: string, id: number) =>
+      saRequest<{ admin_email: string; admin_password: string; reset_at: string }>(
+        `/superadmin/tenants/${id}/reset-password`, saKey, { method: "POST" }
+      ),
+    getTenantPlan: (saKey: string, id: number) =>
+      saRequest<PlanFeatureSet & { tenant_id: number; custom_features?: unknown }>(
+        `/superadmin/tenants/${id}/plan`, saKey
+      ),
+    updateTenantPlan: (saKey: string, id: number, data: { plan: string; custom_features?: unknown }) =>
+      saRequest<Tenant>(`/superadmin/tenants/${id}/plan`, saKey, {
+        method: "PUT", body: JSON.stringify(data),
+      }),
+  },
+
+  plans: {
+    list: (saKey: string) =>
+      saRequest<PlanFeatureSet[]>("/superadmin/plans", saKey),
+    update: (saKey: string, id: number, data: Partial<PlanFeatureSet>) =>
+      saRequest<PlanFeatureSet>(`/superadmin/plans/${id}`, saKey, {
+        method: "PUT", body: JSON.stringify(data),
+      }),
   },
 };

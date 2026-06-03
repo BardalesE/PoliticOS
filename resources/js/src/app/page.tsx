@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import DynamicHome from "@/components/landing/DynamicHome";
 import type {
   HeroSettings, HomeSettings,
@@ -7,9 +8,16 @@ import type {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
 
-async function get<T>(path: string, revalidate = 30): Promise<T | null> {
+async function get<T>(
+  path: string,
+  tenant: string,
+  revalidate = 30,
+): Promise<T | null> {
   try {
-    const res = await fetch(`${API_URL}${path}`, { next: { revalidate } });
+    const res = await fetch(`${API_URL}${path}`, {
+      headers: tenant ? { "X-Tenant": tenant } : {},
+      next: { revalidate, tags: tenant ? [`tenant-${tenant}`] : [] },
+    });
     if (!res.ok) return null;
     return res.json() as Promise<T>;
   } catch {
@@ -17,8 +25,18 @@ async function get<T>(path: string, revalidate = 30): Promise<T | null> {
   }
 }
 
+async function resolveTenant(): Promise<string> {
+  const reqHeaders = await headers();
+  return (
+    reqHeaders.get("x-tenant-slug") ||
+    process.env.NEXT_PUBLIC_TENANT_SLUG ||
+    ""
+  );
+}
+
 export default async function HomePage() {
-  // All fetches run in parallel — zero sequential waiting
+  const tenant = await resolveTenant();
+
   const [
     initialHero,
     initialSettings,
@@ -29,14 +47,14 @@ export default async function HomePage() {
     initialGallery,
     initialVideos,
   ] = await Promise.all([
-    get<HeroSettings>("/hero-settings", 30),
-    get<HomeSettings>("/home-settings", 60),
-    get<Proposal[]>("/proposals", 60),
-    get<CampaignEvent[]>("/events", 60),
-    get<CampaignEvent>("/events/featured", 60),
-    get<TeamMember[]>("/team-members", 120),
-    get<{ data: CampaignPhoto[] }>("/gallery", 120),
-    get<{ data: CampaignVideo[] }>("/campaign-videos", 120),
+    get<HeroSettings>("/hero-settings", tenant, 30),
+    get<HomeSettings>("/home-settings", tenant, 60),
+    get<Proposal[]>("/proposals", tenant, 60),
+    get<CampaignEvent[]>("/events", tenant, 60),
+    get<CampaignEvent>("/events/featured", tenant, 60),
+    get<TeamMember[]>("/team-members", tenant, 120),
+    get<{ data: CampaignPhoto[] }>("/gallery", tenant, 120),
+    get<{ data: CampaignVideo[] }>("/campaign-videos", tenant, 120),
   ]);
 
   return (

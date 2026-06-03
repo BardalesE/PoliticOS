@@ -49,6 +49,21 @@ class CandidateProfileController extends Controller
         return response()->json(CandidateProfile::current());
     }
 
+    // GET /api/admin/branding  (admin — datos de marca para el panel)
+    public function branding(): JsonResponse
+    {
+        $p = CandidateProfile::current();
+        return response()->json([
+            'name'          => $p?->name,
+            'party'         => $p?->party,
+            'color_primary' => $p?->color_primary ?? '#DC2626',
+            'color_dark'    => $p?->color_dark    ?? '#7F1D1D',
+            'color_accent'  => $p?->color_accent  ?? '#C9A84C',
+            'logo_url'      => $p?->logo_url,
+            'photo_url'     => $p?->photo_url,
+        ]);
+    }
+
     // PUT /api/admin/candidate-profile  (admin — edita el activo)
     public function update(Request $request): JsonResponse
     {
@@ -74,6 +89,12 @@ class CandidateProfileController extends Controller
             'instagram_url'  => ['nullable', 'string', 'max:500'],
             'whatsapp_number' => ['nullable', 'string', 'max:20'],
         ]);
+
+        // NOT NULL columns with DB defaults: replace null (from ConvertEmptyStringsToNull) with defaults
+        $data['list_number']   = $data['list_number']   ?? '1';
+        $data['color_primary'] = $data['color_primary'] ?? '#DC2626';
+        $data['color_dark']    = $data['color_dark']    ?? '#7F1D1D';
+        $data['color_accent']  = $data['color_accent']  ?? '#C9A84C';
 
         $profile = CandidateProfile::firstOrNew(['is_active' => true]);
         $profile->is_active = true;
@@ -120,6 +141,10 @@ class CandidateProfileController extends Controller
             'whatsapp_number' => ['nullable', 'string', 'max:20'],
         ]);
 
+        $data['list_number']   = $data['list_number']   ?? '1';
+        $data['color_primary'] = $data['color_primary'] ?? '#DC2626';
+        $data['color_dark']    = $data['color_dark']    ?? '#7F1D1D';
+        $data['color_accent']  = $data['color_accent']  ?? '#C9A84C';
         $data['is_active'] = false;
         $preset = CandidateProfile::create($data);
 

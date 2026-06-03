@@ -13,8 +13,9 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const TOKEN_KEY = "admin_token";
-const USER_KEY  = "admin_user";
+const TOKEN_KEY  = "admin_token";
+const USER_KEY   = "admin_user";
+const TENANT_KEY = "admin_tenant_slug";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Always start null/true — same on server and client, no hydration mismatch
@@ -56,9 +57,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     invalidateCache();
-    const { token: t, user: u } = await adminApi.auth.login(email, password);
+    const { token: t, user: u, tenant_slug } = await adminApi.auth.login(email, password);
     localStorage.setItem(TOKEN_KEY, t);
     localStorage.setItem(USER_KEY, JSON.stringify(u));
+    if (tenant_slug) localStorage.setItem(TENANT_KEY, tenant_slug);
     setToken(t);
     setUser(u);
   }, []);
@@ -70,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     invalidateCache();
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    localStorage.removeItem(TENANT_KEY);
     setToken(null);
     setUser(null);
   }, [token]);

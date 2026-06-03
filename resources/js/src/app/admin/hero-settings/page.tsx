@@ -10,12 +10,13 @@ import { FormField } from "@/components/admin/FormField";
 import { cn } from "@/lib/utils";
 
 const DEFAULTS: Partial<HeroSettings> = {
-  title:           "Habla con James",
-  subtitle:        "Fe en Dios. Trabajo por el pueblo.",
+  title:           "Habla con el candidato",
+  subtitle:        "Conoce las propuestas y el plan de gobierno.",
   badge_text:      "Primer candidato con IA del Perú",
   video_url:       "/hero.mp4",
   image_url:       "",
   overlay_opacity: 0.70,
+  overlay_color:   "#DC2626",
   btn1_label:      "Empezar conversación",
   btn1_url:        "/chat",
   btn2_label:      "Ver propuestas",
@@ -178,7 +179,7 @@ export default function HeroSettingsPage() {
               label="Título principal *"
               value={form.title ?? ""}
               onChange={(e) => set("title", e.target.value)}
-              placeholder="Habla con James"
+              placeholder="Habla con el candidato"
             />
             <FormField
               label="Subtítulo"
@@ -395,7 +396,7 @@ export default function HeroSettingsPage() {
           {/* Overlay opacity — always visible */}
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-2">
-              Opacidad del overlay oscuro — {Math.round((form.overlay_opacity ?? 0.7) * 100)}%
+              Opacidad del overlay — {Math.round(((form.overlay_opacity ?? 0.7) || 0) * 100)}%
             </label>
             <input
               type="range" min="0" max="1" step="0.05"
@@ -404,9 +405,40 @@ export default function HeroSettingsPage() {
               className="w-full accent-brand-500"
             />
             <div className="flex justify-between text-[10px] text-gray-500 mt-1">
-              <span>Más transparente (video más visible)</span>
+              <span>Más transparente</span>
               <span>Más oscuro</span>
             </div>
+          </div>
+
+          {/* Overlay color */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-2">
+              Color del overlay
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="color"
+                value={form.overlay_color ?? "#DC2626"}
+                onChange={(e) => set("overlay_color", e.target.value)}
+                className="h-9 w-16 rounded-lg border border-gray-200 cursor-pointer p-0.5 bg-white"
+              />
+              <input
+                type="text"
+                value={form.overlay_color ?? "#DC2626"}
+                onChange={(e) => set("overlay_color", e.target.value)}
+                placeholder="#DC2626"
+                maxLength={7}
+                className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg font-mono focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
+              />
+              <div
+                className="h-9 w-9 rounded-lg border border-gray-200 shrink-0"
+                style={{ background: `linear-gradient(135deg, ${form.overlay_color ?? "#DC2626"}, #0a0a0a)` }}
+                title="Vista previa del gradiente"
+              />
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1">
+              Se aplica como gradiente sobre el video o imagen de fondo
+            </p>
           </div>
         </div>
 

@@ -5,6 +5,7 @@ import { Menu, X, Shield, ChevronRight } from "lucide-react";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useCandidate } from "@/context/CandidateContext";
+import { resolveTenantSlug } from "@/lib/api";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
@@ -22,9 +23,15 @@ export function Navbar() {
   const [open, setOpen]       = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [isLive, setIsLive]   = useState(false);
+  const [chatHref, setChatHref] = useState("/chat");
   const { profile }           = useCandidate();
   const pathname              = usePathname();
   const shortName             = profile.name.split(" ")[0];
+
+  useEffect(() => {
+    const slug = resolveTenantSlug();
+    if (slug) setChatHref(`/chat?tenant=${slug}`);
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -83,7 +90,7 @@ export function Navbar() {
           className="bg-white border-b border-ink-200 transition-all duration-300"
           style={{
             boxShadow: scrolled
-              ? "0 4px 24px rgba(220,38,38,0.10)"
+              ? "0 4px 24px var(--brand-glow-10)"
               : "0 1px 0 rgba(0,0,0,0.06)",
           }}
         >
@@ -123,10 +130,11 @@ export function Navbar() {
                 {navLinks.map((l) => {
                   const active = isActive(l.href);
                   const showDot = l.live && isLive;
+                  const href = l.href === "/chat" ? chatHref : l.href;
                   return (
                     <Link
                       key={l.href}
-                      href={l.href}
+                      href={href}
                       className={`relative px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200
                         ${active
                           ? "text-brand-700 bg-brand-50"
@@ -165,11 +173,11 @@ export function Navbar() {
                   className="hidden lg:block"
                 >
                   <Link
-                    href="/chat"
+                    href={chatHref}
                     className="inline-flex items-center gap-2 bg-brand-700 hover:bg-brand-900 text-white
                                px-5 py-2.5 rounded-xl text-sm font-extrabold uppercase tracking-wider
                                transition-all duration-200"
-                    style={{ boxShadow: "0 4px 16px rgba(220,38,38,0.30)" }}
+                    style={{ boxShadow: "0 4px 16px var(--brand-glow-30)" }}
                   >
                     <span className="relative flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
@@ -253,6 +261,7 @@ export function Navbar() {
                 {navLinks.map((l, i) => {
                   const active = isActive(l.href);
                   const showDot = l.live && isLive;
+                  const href = l.href === "/chat" ? chatHref : l.href;
                   return (
                     <motion.div
                       key={l.href}
@@ -261,7 +270,7 @@ export function Navbar() {
                       transition={{ delay: i * 0.05, duration: 0.25, type: "spring", stiffness: 120 }}
                     >
                       <Link
-                        href={l.href}
+                        href={href}
                         onClick={() => setOpen(false)}
                         className={`flex items-center justify-between py-3.5 px-4 rounded-xl mb-1
                                     text-base font-semibold transition-colors
@@ -294,12 +303,12 @@ export function Navbar() {
                   transition={{ delay: 0.35, duration: 0.3 }}
                 >
                   <Link
-                    href="/chat"
+                    href={chatHref}
                     onClick={() => setOpen(false)}
                     className="flex items-center justify-center gap-2 w-full bg-brand-700 hover:bg-brand-900
                                text-white py-4 rounded-xl text-base font-extrabold uppercase tracking-wider
                                transition-all duration-200"
-                    style={{ boxShadow: "0 6px 20px rgba(220,38,38,0.30)" }}
+                    style={{ boxShadow: "0 6px 20px var(--brand-glow-30)" }}
                   >
                     <span className="relative flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />

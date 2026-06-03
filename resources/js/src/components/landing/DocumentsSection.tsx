@@ -71,7 +71,7 @@ function PdfModal({
             <div className="flex items-start gap-3 min-w-0">
               <div
                 className="w-10 h-10 rounded-xl flex-shrink-0 grid place-items-center"
-                style={{ background: "linear-gradient(135deg,#DC2626,#EF4444)" }}
+                style={{ background: "var(--brand-grad)" }}
               >
                 <FileText size={18} className="text-white" />
               </div>
@@ -168,7 +168,7 @@ function DocCard({
         onClick={onClick}
         className="group w-full text-left bg-white rounded-2xl border border-ink-200 hover:border-brand-300 p-5 transition-all duration-200 relative overflow-hidden"
         style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.05)" }}
-        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 12px 36px rgba(220,38,38,0.12)"; }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 12px 36px var(--brand-glow-10)"; }}
         onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 2px 12px rgba(0,0,0,0.05)"; }}
       >
         {/* Barra top animada */}
@@ -178,7 +178,7 @@ function DocCard({
           {/* Icono */}
           <div
             className="w-12 h-12 rounded-xl flex-shrink-0 grid place-items-center group-hover:scale-105 transition-transform duration-200"
-            style={{ background: "linear-gradient(145deg,#DC2626,#EF4444)", boxShadow: "0 4px 14px rgba(220,38,38,0.30)" }}
+            style={{ background: "var(--brand-grad)", boxShadow: "0 4px 14px var(--brand-glow-30)" }}
           >
             <FileText size={22} className="text-white" />
           </div>
@@ -228,11 +228,11 @@ export function DocumentsSection() {
 
   return (
     <>
-      <section id="documentos" className="relative bg-white py-20 md:py-28 px-5 overflow-hidden">
+      <section id="documentos" className="relative py-20 md:py-28 px-5 overflow-hidden" style={{ background: "var(--page-soft)" }}>
         {/* Fondo decorativo */}
         <div
           className="absolute inset-0 pointer-events-none"
-          style={{ background: "radial-gradient(ellipse 70% 50% at 100% 50%, #FEF2F2 0%, transparent 60%)" }}
+          style={{ background: "radial-gradient(ellipse 70% 50% at 100% 50%, var(--brand-soft-bg) 0%, transparent 60%)" }}
         />
 
         <div className="max-w-5xl mx-auto relative z-10">
@@ -253,7 +253,7 @@ export function DocumentsSection() {
                 Transparencia y{" "}
                 <span
                   style={{
-                    background: "linear-gradient(135deg,#DC2626,#EF4444)",
+                    background: "var(--brand-grad)",
                     WebkitBackgroundClip: "text",
                     WebkitTextFillColor: "transparent",
                     backgroundClip: "text",

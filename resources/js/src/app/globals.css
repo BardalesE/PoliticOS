@@ -29,6 +29,20 @@
     --brand-accent:      #C9A84C;
     --brand-primary-rgb: 217 16 35;
     --brand-dark-rgb:    179 13 28;
+    /* Derived brand tokens — auto-update when --brand-primary-rgb changes */
+    --brand-grad:     linear-gradient(135deg, rgb(var(--brand-primary-rgb)), rgb(var(--brand-dark-rgb)));
+    --brand-soft-bg:  color-mix(in srgb, rgb(var(--brand-primary-rgb)) 6%, white);
+    --brand-glow-10:  rgb(var(--brand-primary-rgb) / 0.10);
+    --brand-glow-20:  rgb(var(--brand-primary-rgb) / 0.20);
+    --brand-glow-30:  rgb(var(--brand-primary-rgb) / 0.30);
+    --brand-glow-35:  rgb(var(--brand-primary-rgb) / 0.35);
+    --brand-glow-40:  rgb(var(--brand-primary-rgb) / 0.40);
+    /* Landing page background tokens (Roberto design) */
+    --page-bg:        color-mix(in srgb, rgb(var(--brand-primary-rgb)) 4%, #f3f2ef);
+    --page-soft:      color-mix(in srgb, rgb(var(--brand-primary-rgb)) 8%, #eceae6);
+    --page-ink:       #0f1a12;
+    --page-line:      color-mix(in srgb, rgb(var(--brand-primary-rgb)) 6%, rgba(0,0,0,0.11));
+    --page-shadow:    color-mix(in srgb, rgb(var(--brand-primary-rgb)) 18%, rgba(0,0,0,0.18));
   }
 
   .dark {
@@ -205,6 +219,22 @@
   }
 }
 
+/* ─── Landing page base ───────────────────────────────────────────────── */
+.landing-main {
+  background: var(--page-bg);
+  position: relative;
+}
+/* Grain texture overlay — subtle paper feel, pure CSS */
+.landing-main::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  opacity: 0.028;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
 /* ─── Orbs y partículas CSS (compositor thread, sin JS) ──────────────── */
 @keyframes orbFloat {
   0%, 100% { transform: scale(1)   translateY(0px);   opacity: 0.7; }
@@ -253,7 +283,7 @@
 
   /* Gradiente de texto reutilizable */
   .text-gradient-blue {
-    background: linear-gradient(135deg, #DC2626 0%, #EF4444 100%);
+    background: var(--brand-grad);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;

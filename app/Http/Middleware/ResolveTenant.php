@@ -6,6 +6,7 @@ use App\Models\Tenant;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 class ResolveTenant
@@ -20,6 +21,7 @@ class ResolveTenant
 
         $tenant = Tenant::where('slug', $slug)->where('is_active', true)->first();
 
+
         if (!$tenant) {
             return response()->json(['message' => 'Tenant no encontrado.'], 404);
         }
@@ -30,11 +32,12 @@ class ResolveTenant
             'database.connections.mysql.host'     => $tenant->db_host,
             'database.connections.mysql.port'     => $tenant->db_port,
             'database.connections.mysql.username' => $tenant->db_user,
-            'database.connections.mysql.password' => $tenant->db_password,
+            'database.connections.mysql.password' => $tenant->db_password ?? '',
         ]);
 
         DB::purge('mysql');
         DB::reconnect('mysql');
+
 
         // Disponible globalmente en esta request
         app()->instance('tenant', $tenant);

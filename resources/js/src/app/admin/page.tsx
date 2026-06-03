@@ -206,7 +206,7 @@ export default function AdminDashboard() {
         <div>
           <p className="text-[10px] font-bold uppercase tracking-widest text-brand-500 mb-1">Panel de control</p>
           <h1 className="font-serif text-2xl md:text-3xl font-bold text-gray-900">
-            Bienvenido, {user?.name?.split(" ")[0]}
+            Bienvenido, {profile.name !== "Candidato" ? profile.name.split(" ")[0] : (user?.name?.split(" ")[0] ?? "Administrador")}
           </h1>
           <p className="text-xs text-gray-400 mt-1 capitalize">{dateStr}</p>
         </div>

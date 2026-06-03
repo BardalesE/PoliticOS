@@ -11,6 +11,7 @@ interface HeroProps {
   initialHero?: HeroSettings | null;
 }
 
+
 function renderTitleWithEmphasis(title: string, onDark: boolean) {
   return title.split(/(\*[^*]+\*|\n)/).map((part, i) => {
     if (part === "\n") return <br key={i} />;
@@ -22,7 +23,7 @@ function renderTitleWithEmphasis(title: string, onDark: boolean) {
           style={
             !onDark
               ? {
-                  background: "linear-gradient(135deg, #DC2626 0%, #EF4444 50%, #DC2626 100%)",
+                  background: "var(--brand-grad)",
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
                   backgroundClip: "text",
@@ -47,20 +48,21 @@ export function Hero({ initialHero }: HeroProps) {
   const { profile } = useCandidate();
   const [videoError, setVideoError] = useState(false);
 
-  const location = profile.location.split("·")[0].trim() || "San Miguel, Cajamarca";
+  const location = profile.location.split("·")[0].trim() || profile.location;
   const d = {
-    title:      initialHero?.title           ?? "No tengo millones,\ntengo *tu confianza*.",
-    subtitle:   initialHero?.subtitle        ?? `Candidato a Alcalde Provincial de ${location}. Hijo del pueblo, no de la política.`,
-    badge_text: initialHero?.badge_text      ?? "★ Ola Rojiblanca ★",
+    title:      initialHero?.title           ?? profile.tagline ?? "Un *compromiso* real\ncon nuestra gente.",
+    subtitle:   initialHero?.subtitle        ?? (profile.title ? `${profile.title} · ${profile.location}` : profile.location),
+    badge_text: initialHero?.badge_text      ?? (profile.party ? `${profile.party}${profile.list_number ? ` · Lista N°${profile.list_number}` : ""}` : "Campaña Electoral"),
     btn1_label: initialHero?.btn1_label      ?? "Conocer propuestas",
     btn1_url:   initialHero?.btn1_url        ?? "/propuestas",
-    btn2_label: initialHero?.btn2_label      ?? "Sobre James",
+    btn2_label: initialHero?.btn2_label      ?? "Sobre el candidato",
     btn2_url:   initialHero?.btn2_url        ?? "#sobre",
     btn3_label: initialHero?.btn3_label      ?? null,
     btn3_url:   initialHero?.btn3_url        ?? null,
-    video_url:  initialHero?.video_url       ?? null,
-    image_url:  initialHero?.image_url       ?? null,
-    opacity:    initialHero?.overlay_opacity ?? 0.55,
+    video_url:      initialHero?.video_url       ?? null,
+    image_url:      initialHero?.image_url       ?? null,
+    opacity:        initialHero?.overlay_opacity ?? 0.55,
+    overlay_color:  initialHero?.overlay_color   ?? null,
   };
 
   const hasBackground = (d.video_url && !videoError) || d.image_url;
@@ -97,7 +99,7 @@ export function Hero({ initialHero }: HeroProps) {
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
-              backgroundImage: "radial-gradient(circle, #DC26260F 1.5px, transparent 1.5px)",
+              backgroundImage: "radial-gradient(circle, rgb(var(--brand-primary-rgb) / 0.06) 1.5px, transparent 1.5px)",
               backgroundSize: "36px 36px",
             }}
           />
@@ -129,7 +131,7 @@ export function Hero({ initialHero }: HeroProps) {
           <div
             className="absolute inset-0"
             style={{
-              background: `linear-gradient(160deg, rgba(153,27,27,${d.opacity * 0.9}) 0%, rgba(220,38,38,${d.opacity * 0.7}) 50%, rgba(10,10,10,${d.opacity}) 100%)`,
+              background: `linear-gradient(160deg, rgba(0,0,0,${d.opacity * 0.7}) 0%, rgba(0,0,0,${d.opacity}) 100%)`,
             }}
           />
           <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black/40 to-transparent" />
@@ -199,7 +201,7 @@ export function Hero({ initialHero }: HeroProps) {
                       ? "bg-brand-500 hover:bg-brand-600 text-white shadow-brand-500/30 hover:shadow-brand-500/50"
                       : "bg-brand-700 hover:bg-brand-900 text-white shadow-brand-700/30 hover:shadow-brand-700/50"
                   }`}
-                  style={{ boxShadow: onDark ? undefined : "0 8px 30px rgba(220,38,38,0.35)" }}
+                  style={{ boxShadow: onDark ? undefined : "0 8px 30px var(--brand-glow-35)" }}
                 >
                   {d.btn1_label}
                 </Link>
@@ -272,7 +274,7 @@ export function Hero({ initialHero }: HeroProps) {
       {/* Franja inferior */}
       <div
         className="absolute bottom-0 left-0 right-0 h-1"
-        style={{ background: "linear-gradient(90deg, #DC2626, #EF4444, #DC2626)" }}
+        style={{ background: "linear-gradient(90deg, rgb(var(--brand-primary-rgb)), rgb(var(--brand-dark-rgb)), rgb(var(--brand-primary-rgb)))" }}
       />
     </section>
   );

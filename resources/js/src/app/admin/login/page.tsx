@@ -4,10 +4,12 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Lock, Mail, AlertCircle, Loader2, Eye, EyeOff, Server } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useCandidate } from "@/context/CandidateContext";
 import { ApiError } from "@/lib/api";
 
 export default function AdminLoginPage() {
   const { login, isAuthenticated } = useAuth();
+  const { profile } = useCandidate();
   const router = useRouter();
 
   const [email, setEmail]       = useState("");
@@ -38,6 +40,10 @@ export default function AdminLoginPage() {
     }
   }
 
+  const hasRealCandidate = profile?.name && profile.name !== "Candidato";
+  const firstName        = hasRealCandidate ? profile.name.split(" ")[0] : null;
+  const hasRealParty     = profile?.party && profile.party !== "Por definir";
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4">
       <motion.div
@@ -48,12 +54,28 @@ export default function AdminLoginPage() {
       >
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-brand-500 mb-4 shadow-lg shadow-brand-500/30">
-            <span className="font-serif text-2xl font-bold text-white">1</span>
-          </div>
-          <span className="eyebrow-red block mb-2">PoliticOS · Panel Admin</span>
-          <h1 className="font-serif text-3xl font-bold text-gray-900">Ingresar al panel</h1>
-          <p className="text-sm text-gray-500 mt-2">Solo para administradores autorizados</p>
+          {profile?.photo_url ? (
+            <img
+              src={profile.photo_url}
+              alt={profile.name}
+              className="h-16 w-16 rounded-2xl object-cover mx-auto mb-4 shadow-lg ring-2 ring-brand-500/20"
+            />
+          ) : (
+            <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-brand-500 mb-4 shadow-lg shadow-brand-500/30">
+              <span className="font-serif text-2xl font-bold text-white">
+                {firstName?.[0] ?? "P"}
+              </span>
+            </div>
+          )}
+          <span className="eyebrow-red block mb-2">
+            {hasRealParty ? profile.party : "PoliticOS · Panel Admin"}
+          </span>
+          <h1 className="font-serif text-3xl font-bold text-gray-900">
+            {firstName ? `Bienvenido, ${firstName}` : "Ingresar al panel"}
+          </h1>
+          <p className="text-sm text-gray-500 mt-2">
+            {hasRealCandidate ? "Panel de administración de campaña" : "Solo para administradores autorizados"}
+          </p>
         </div>
 
         {/* Card */}

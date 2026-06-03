@@ -26,9 +26,10 @@ return Application::configure(basePath: dirname(__DIR__))
         );
 
         $middleware->alias([
-            'admin'       => \App\Http\Middleware\EnsureIsAdmin::class,
-            'tenant'      => \App\Http\Middleware\ResolveTenant::class,
-            'superadmin'  => \App\Http\Middleware\EnsureSuperAdmin::class,
+            'admin'        => \App\Http\Middleware\EnsureIsAdmin::class,
+            'tenant'       => \App\Http\Middleware\ResolveTenant::class,
+            'superadmin'   => \App\Http\Middleware\EnsureSuperAdmin::class,
+            'plan_feature' => \App\Http\Middleware\CheckPlanFeature::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

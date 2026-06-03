@@ -9,26 +9,10 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            // Tenant (multi-tenancy)
-            TenantSeeder::class,
-
-            // Configuración del candidato
-            CandidateProfileSeeder::class,
-            AiSettingSeeder::class,
-            DistrictSeeder::class,
-            TopicSeeder::class,
-            SuggestedQuestionSeeder::class,
-
-            // Contenido
-            AdminUserSeeder::class,
-            ProposalSeeder::class,
-            FaqSeeder::class,
-            VideoSeeder::class,
-
-            // Landing page
-            HeroSettingSeeder::class,
-            EventSeeder::class,
-            SettingSeeder::class,
+            AdminUserSeeder::class,    // login inicial
+            AiSettingSeederV2::class,  // configuración técnica IA (prompt dinámico)
+            SettingSeeder::class,      // flags de UI
+            PlanFeaturesSeeder::class, // planes de suscripción
         ]);
     }
 }

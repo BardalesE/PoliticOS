@@ -1,9 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Facebook, Instagram, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { homeApi, type TeamMember } from "@/lib/api";
 import { useCandidate } from "@/context/CandidateContext";
+
+function initials(name: string): string {
+  return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+}
 
 export function TeamSection({ initialMembers }: { initialMembers?: TeamMember[] }) {
   const { profile } = useCandidate();
@@ -11,7 +15,7 @@ export function TeamSection({ initialMembers }: { initialMembers?: TeamMember[] 
   const [loaded,  setLoaded]  = useState(!!initialMembers?.length);
 
   useEffect(() => {
-    if (initialMembers?.length) return; // already have SSR data
+    if (initialMembers?.length) return;
     homeApi.teamMembers()
       .then((data) => setMembers(data))
       .catch(() => {})
@@ -22,7 +26,7 @@ export function TeamSection({ initialMembers }: { initialMembers?: TeamMember[] 
   const fallbackTeam: TeamMember[] = [{
     id:           0,
     name:         profile.name,
-    role:         "Candidato a Alcalde Provincial",
+    role:         profile.title || "Candidato",
     description:  profile.bio,
     photo_url:    profile.photo_url,
     facebook_url: profile.facebook_url,
@@ -33,131 +37,125 @@ export function TeamSection({ initialMembers }: { initialMembers?: TeamMember[] 
   }];
 
   const display = loaded && members.length > 0 ? members : fallbackTeam;
-  const isMain  = (m: TeamMember) => m.sort_order === 0 || display.indexOf(m) === 0;
 
   return (
-    <section id="equipo" className="bg-white py-12 md:py-16 px-5">
+    <section
+      id="equipo"
+      className="py-20 md:py-28 px-5"
+      style={{ background: "var(--page-bg)" }}
+    >
       <div className="max-w-5xl mx-auto">
 
+        {/* Header */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-60px" }}
-          transition={{ duration: 0.25 }}
-          className="mb-8"
+          transition={{ duration: 0.5 }}
+          className="mb-12 max-w-xl"
         >
-          <span className="eyebrow-red">EQUIPO</span>
-          <h2 className="h2-serif">Las personas detrás del cambio.</h2>
+          <span
+            className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.2em] mb-4"
+            style={{ color: "rgb(var(--brand-primary-rgb))" }}
+          >
+            <span className="w-2 h-2 rounded-full" style={{ background: "rgb(var(--brand-primary-rgb))" }} />
+            Equipo
+          </span>
+          <h2
+            className="font-serif font-semibold leading-[1.04] tracking-tight mt-2"
+            style={{ fontSize: "clamp(31px,4.4vw,50px)", color: "var(--page-ink)" }}
+          >
+            Las personas detrás del{" "}
+            <em className="not-italic" style={{ color: "rgb(var(--brand-dark-rgb))" }}>cambio.</em>
+          </h2>
+          <p className="mt-3 text-base" style={{ color: "#4c5b51" }}>
+            Un equipo comprometido, con experiencia en gestión pública y trabajo de campo.
+          </p>
         </motion.div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          {display.map((member, i) => {
-            const main = isMain(member);
-            return (
-              <motion.div
-                key={member.id}
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-60px" }}
-                transition={{ duration: 0.25, delay: i * 0.04 }}
-                className={`group rounded-md overflow-hidden transition-all duration-300 hover:shadow-lg
-                            ${main
-                              ? "border-2 border-brand-500 bg-white"
-                              : "border-2 border-ink-200 bg-white hover:border-ink-400"
-                            }`}
+        {/* Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
+          {display.map((member, i) => (
+            <motion.div
+              key={member.id}
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-60px" }}
+              transition={{ duration: 0.35, delay: i * 0.07 }}
+              className="text-center"
+            >
+              {/* Avatar cuadrado */}
+              <div
+                className="aspect-square rounded-[20px] mb-4 overflow-hidden relative flex items-center justify-center border"
+                style={{
+                  background: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 8%, var(--page-soft))",
+                  borderColor: "var(--page-line)",
+                }}
               >
-                {/* Foto circular */}
-                <div className="flex flex-col items-center pt-6 px-4 pb-4 text-center">
-                  <div className={`relative mb-4 ${main ? "w-24 h-24" : "w-20 h-20"}`}>
-                    {member.photo_url ? (
-                      <img
-                        src={member.photo_url}
-                        alt={member.name}
-                        className="w-full h-full rounded-full object-cover object-top
-                                   border-4 border-white ring-2 ring-ink-200"
-                      />
-                    ) : (
-                      <div className="w-full h-full rounded-full bg-ink-100 border-4 border-white ring-2 ring-ink-200
-                                      flex items-center justify-center">
-                        <span className="font-serif text-2xl font-bold text-ink-400">{member.name[0]}</span>
-                      </div>
-                    )}
-                    {main && (
-                      <div className="absolute -top-1 -right-1 bg-brand-500 text-white text-[9px] font-extrabold
-                                      uppercase px-1.5 py-0.5 rounded-full tracking-wider">
-                        #1
-                      </div>
-                    )}
-                  </div>
+                {member.photo_url ? (
+                  <img
+                    src={member.photo_url}
+                    alt={member.name}
+                    className="w-full h-full object-cover object-top"
+                  />
+                ) : (
+                  <span
+                    className="font-serif font-semibold select-none"
+                    style={{
+                      fontSize: "clamp(28px, 5vw, 46px)",
+                      color: "rgb(var(--brand-primary-rgb))",
+                      opacity: 0.55,
+                    }}
+                  >
+                    {initials(member.name)}
+                  </span>
+                )}
+              </div>
 
-                  {/* Cargo eyebrow */}
-                  <p className="text-[10px] font-extrabold uppercase tracking-wider text-ink-500 mb-1">
-                    {member.role}
-                  </p>
+              {/* Nombre */}
+              <b
+                className="block font-serif font-semibold text-base leading-snug mb-0.5"
+                style={{ color: "var(--page-ink)" }}
+              >
+                {member.name}
+              </b>
 
-                  {/* Nombre serif */}
-                  <h3 className={`font-serif font-bold text-ink-800 leading-tight mb-2
-                                  ${main ? "text-base" : "text-sm"}`}>
-                    {member.name}
-                  </h3>
-
-                  {member.description && (
-                    <p className="text-xs text-ink-500 leading-relaxed line-clamp-3 font-medium">
-                      {member.description}
-                    </p>
-                  )}
-
-                  {(member.facebook_url || member.instagram_url) && (
-                    <div className="flex gap-2 mt-3">
-                      {member.facebook_url && (
-                        <a
-                          href={member.facebook_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1.5 rounded-md bg-ink-100 hover:bg-brand-500 text-ink-500
-                                     hover:text-white transition-colors border border-ink-200"
-                        >
-                          <Facebook size={12} />
-                        </a>
-                      )}
-                      {member.instagram_url && (
-                        <a
-                          href={member.instagram_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1.5 rounded-md bg-ink-100 hover:bg-brand-500 text-ink-500
-                                     hover:text-white transition-colors border border-ink-200"
-                        >
-                          <Instagram size={12} />
-                        </a>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            );
-          })}
+              {/* Rol */}
+              <span
+                className="text-[13px] font-semibold"
+                style={{ color: "rgb(var(--brand-dark-rgb))" }}
+              >
+                {member.role}
+              </span>
+            </motion.div>
+          ))}
         </div>
 
+        {/* Join CTA */}
         {profile.whatsapp_number && (
           <motion.div
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.25, delay: 0.1 }}
-            className="mt-8 text-center"
+            transition={{ duration: 0.4, delay: 0.2 }}
+            className="mt-10 pt-8"
+            style={{ borderTop: "1px solid var(--page-line)" }}
           >
             <a
               href={`https://wa.me/${profile.whatsapp_number.replace(/[^0-9]/g, "")}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-sm text-brand-500 hover:text-brand-600 font-semibold transition-colors"
+              className="inline-flex items-center gap-2 font-bold text-sm pb-1 transition-all duration-200"
+              style={{
+                color: "var(--page-ink)",
+                borderBottom: "2px solid rgb(var(--brand-primary-rgb))",
+              }}
             >
-              Únete al equipo de campaña <ArrowRight size={14} />
+              Únete al equipo de campaña
+              <ArrowRight size={16} style={{ color: "rgb(var(--brand-primary-rgb))" }} />
             </a>
           </motion.div>
         )}
-
       </div>
     </section>
   );

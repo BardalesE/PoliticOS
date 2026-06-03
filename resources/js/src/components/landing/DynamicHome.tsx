@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 // ── Crítico (above-fold) — carga inmediata ────────────────────────────────────
 import { Navbar }            from "@/components/ui/Navbar";
 import { Hero }              from "@/components/landing/Hero";
+import { StatsBar }          from "@/components/landing/StatsBar";
 import { ListaUnoBanner }    from "@/components/landing/ListaUnoBanner";
 import { AssistantPreview }  from "@/components/landing/AssistantPreview";
 import { LiveStreamBanner }  from "@/components/landing/LiveStreamBanner";
@@ -17,7 +18,6 @@ const Districts       = dynamic(() => import("@/components/landing/Districts").t
 const TeamSection     = dynamic(() => import("@/components/landing/TeamSection").then(m => ({ default: m.TeamSection })));
 const Connection      = dynamic(() => import("@/components/landing/Connection").then(m => ({ default: m.Connection })));
 const OpinionSection  = dynamic(() => import("@/components/landing/OpinionSection").then(m => ({ default: m.OpinionSection })));
-const FinalCTA        = dynamic(() => import("@/components/landing/FinalCTA").then(m => ({ default: m.FinalCTA })));
 const Footer          = dynamic(() => import("@/components/ui/Footer").then(m => ({ default: m.Footer })));
 const ChatFAB         = dynamic(() => import("@/components/ui/ChatFAB").then(m => ({ default: m.ChatFAB })));
 
@@ -28,15 +28,18 @@ import type {
 } from "@/lib/api";
 
 const DEFAULTS: HomeSettings = {
-  show_hero:       "1",
-  show_assistant:  "1",
-  show_proposals:  "1",
-  show_multimedia: "1",
-  show_documents:  "1",
-  show_events:     "1",
-  show_districts:  "1",
-  show_team:       "1",
-  show_connection: "1",
+  show_hero:          "1",
+  show_assistant:     "1",
+  show_proposals:     "1",
+  show_multimedia:    "1",
+  show_documents:     "1",
+  show_events:        "1",
+  show_districts:     "1",
+  show_team:          "1",
+  show_connection:    "1",
+  events_title:       "Próximos encuentros con el pueblo.",
+  events_badge:       "Agenda",
+  election_date_iso:  "2026-10-04",
 };
 
 function on(s: HomeSettings, key: string): boolean {
@@ -67,21 +70,29 @@ export default function DynamicHome({
   const settings = { ...DEFAULTS, ...(initialSettings ?? {}) };
 
   return (
-    <main className="relative">
+    <main className="landing-main">
       <LiveStreamBanner />
       <Navbar />
       {on(settings, "show_hero")       && <Hero initialHero={initialHero ?? null} />}
+      {on(settings, "show_hero")       && <StatsBar proposalsCount={initialProposals.length} />}
       {on(settings, "show_hero")       && <ListaUnoBanner />}
       {on(settings, "show_assistant")  && <AssistantPreview />}
       {on(settings, "show_proposals")  && <Proposals initialData={initialProposals} />}
       {on(settings, "show_multimedia") && <MediaSection initialPhotos={initialGallery} initialVideos={initialVideos} />}
       {on(settings, "show_documents")  && <DocumentsSection />}
-      {on(settings, "show_events")     && <EventsSection initialEvents={initialEvents} initialFeatured={initialFeatured} />}
+      {on(settings, "show_events")     && (
+        <EventsSection
+          initialEvents={initialEvents}
+          initialFeatured={initialFeatured}
+          title={settings.events_title}
+          badge={settings.events_badge}
+          electionDateIso={settings.election_date_iso}
+        />
+      )}
       {on(settings, "show_districts")  && <Districts />}
       {on(settings, "show_team")       && <TeamSection initialMembers={initialTeam} />}
       {on(settings, "show_connection") && <Connection />}
       <OpinionSection />
-      <FinalCTA />
       <Footer />
       <ChatFAB />
     </main>

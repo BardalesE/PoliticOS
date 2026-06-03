@@ -1,15 +1,38 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Source_Serif_4 } from "next/font/google";
+import { headers } from "next/headers";
 import "./globals.css";
 import { ThemeProvider } from "next-themes";
 import { CandidateProvider } from "@/context/CandidateContext";
+import { DynamicTitle } from "@/components/DynamicTitle";
 import type { CandidatePublicData } from "@/lib/api";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
 
+async function resolveTenantSlugServer(): Promise<string> {
+  const reqHeaders = await headers();
+
+  // Set by middleware from ?tenant= param or subdomain
+  const fromMiddleware = reqHeaders.get("x-tenant-slug");
+  if (fromMiddleware) return fromMiddleware;
+
+  // Fallback: direct subdomain check (e.g. when middleware isn't invoked)
+  const host = reqHeaders.get("host") ?? "";
+  const parts = host.split(".");
+  if (parts.length >= 3 && !["www", "app", "api"].includes(parts[0])) {
+    return parts[0];
+  }
+
+  return process.env.NEXT_PUBLIC_TENANT_SLUG ?? "";
+}
+
 async function fetchCandidate(): Promise<CandidatePublicData | null> {
   try {
-    const res = await fetch(`${API_URL}/candidate`, { next: { revalidate: 60 } });
+    const slug = await resolveTenantSlugServer();
+    const res = await fetch(`${API_URL}/candidate`, {
+      headers: slug ? { "X-Tenant": slug } : {},
+      next: { revalidate: 60, tags: slug ? [`candidate-${slug}`] : [] },
+    });
     if (!res.ok) return null;
     return res.json();
   } catch {
@@ -34,10 +57,18 @@ const serif = Source_Serif_4({
 
 export async function generateMetadata(): Promise<Metadata> {
   const data = await fetchCandidate();
-  const name     = data?.profile?.name     ?? "Candidato";
-  const location = data?.profile?.location ?? "Perú";
-  const tagline  = data?.profile?.tagline  ?? "Plataforma de campaña política";
+  const name      = data?.profile?.name     ?? "Candidato";
+  const location  = data?.profile?.location ?? "Perú";
+  const tagline   = data?.profile?.tagline  ?? "Plataforma de campaña política";
   const shortName = name.split(" ")[0];
+
+  // "Candidato" means the fetch returned no tenant data — use generic title
+  if (name === "Candidato") {
+    return {
+      title: "PoliticOS",
+      description: "Plataforma de campaña política",
+    };
+  }
 
   return {
     title: `Habla con ${shortName} — ${location}`,
@@ -67,6 +98,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-screen bg-white font-sans">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <CandidateProvider initialData={initialCandidate}>
+            <DynamicTitle />
             {children}
           </CandidateProvider>
         </ThemeProvider>
