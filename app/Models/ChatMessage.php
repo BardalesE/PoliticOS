@@ -11,14 +11,17 @@ class ChatMessage extends Model
         'sentiment', 'emotion', 'intent', 'concerns',
         'attack_detected', 'attack_category', 'analysis_raw',
         'pepa_metadata',
+        'district_mentioned', 'proposals_detected', 'problems_mentioned',
     ];
 
     protected $casts = [
-        'concerns'       => 'array',
-        'analysis_raw'   => 'array',
-        'pepa_metadata'  => 'array',
-        'attack_detected'=> 'boolean',
-        'sentiment'      => 'float',
+        'concerns'           => 'array',
+        'analysis_raw'       => 'array',
+        'pepa_metadata'      => 'array',
+        'proposals_detected' => 'array',
+        'problems_mentioned' => 'array',
+        'attack_detected'    => 'boolean',
+        'sentiment'          => 'float',
     ];
 
     public function session()

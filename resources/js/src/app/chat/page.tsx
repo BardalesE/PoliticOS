@@ -6,6 +6,8 @@ import { FileText, Play, Link as LinkIcon, X, ImageIcon, ShieldAlert, AlertTrian
 import ConsentModal from "@/components/chat/ConsentModal";
 import AIBadge from "@/components/chat/AIBadge";
 import { LiveAlert } from "@/components/live/LiveAlert";
+import { useCandidate } from "@/context/CandidateContext";
+import { resolveTenantSlug } from "@/lib/api";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -63,12 +65,14 @@ const PREOCUPACIONES = [
   "Educación", "Empleo y economía", "Seguridad ciudadana", "Agricultura",
 ];
 
-const INTENCIONES = [
-  "Voto seguro por Rigo",
-  "Aún evaluando opciones",
-  "Tengo dudas sobre mi voto",
-  "Prefiero no decir",
-];
+function buildIntenciones(candidateName: string) {
+  return [
+    `Voto seguro por ${candidateName}`,
+    "Aún evaluando opciones",
+    "Tengo dudas sobre mi voto",
+    "Prefiero no decir",
+  ];
+}
 
 const THINKING_STEPS = [
   "Analizando tu pregunta",
@@ -435,9 +439,201 @@ function BlockedBanner() {
   );
 }
 
+// ─── Helper: leer cookie ────────────────────────────────────────────────
+
+function getCookieValue(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp("(^|;\\s*)" + name + "=([^;]*)"));
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
+function mapVotingIntention(label: string): string {
+  if (/seguro/i.test(label)) return "alta";
+  if (/evaluando|opciones/i.test(label)) return "indeciso";
+  if (/dud/i.test(label)) return "media";
+  return "indeciso";
+}
+
+// ─── Tarjeta de registro ciudadano (aparece tras el onboarding) ──────────
+
+type RegistrationResult = { points: number; referral_code: string; share_url: string; status: string };
+
+function RegistrationCard({
+  prefillName,
+  prefillDistrict,
+  occupation,
+  votingIntention,
+  visitorUuid,
+  onDone,
+}: {
+  prefillName: string;
+  prefillDistrict: string;
+  occupation: string;
+  votingIntention: string;
+  visitorUuid: string | null;
+  onDone: (result: RegistrationResult | null) => void;
+}) {
+  const [name, setName]     = useState(prefillName);
+  const [phone, setPhone]   = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<RegistrationResult | null>(null);
+  const [error, setError]   = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+
+  async function submit() {
+    if (!phone.trim() || !name.trim()) { setError("Ingresa tu nombre y WhatsApp."); return; }
+    setLoading(true);
+    setError("");
+    try {
+      const tenant = resolveTenantSlug();
+      const r = await fetch(`${API}/citizen/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(tenant ? { "X-Tenant": tenant } : {}),
+        },
+        body: JSON.stringify({
+          name,
+          phone_whatsapp: phone.trim(),
+          district:          prefillDistrict || null,
+          occupation:        occupation || null,
+          voting_intention:  mapVotingIntention(votingIntention),
+          visitor_uuid:      visitorUuid,
+          source:            "chat",
+          consent:           true,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        setError(data.message ?? "Error al registrar. Intenta de nuevo.");
+        return;
+      }
+      setResult({ points: data.points, referral_code: data.referral_code, share_url: data.share_url, status: data.status });
+    } catch {
+      setError("No se pudo conectar. Intenta más tarde.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function copyCode() {
+    if (!result?.referral_code) return;
+    navigator.clipboard.writeText(result.referral_code).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+  }
+
+  if (result) {
+    const isNew = result.status === "registered";
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white border border-emerald-200 rounded-2xl shadow-sm p-5 my-3"
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <div className="h-9 w-9 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+            <span className="text-emerald-600 text-lg">✓</span>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-zinc-900">
+              {isNew ? "¡Registro exitoso!" : "¡Bienvenido de nuevo!"}
+            </p>
+            <p className="text-xs text-zinc-500">
+              {isNew ? `Ganaste ${result.points} puntos de participación` : "Tu perfil fue actualizado."}
+            </p>
+          </div>
+        </div>
+        {result.referral_code && (
+          <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-3 mb-3">
+            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">
+              Tu código de referido
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-mono font-bold text-zinc-900 tracking-widest">{result.referral_code}</span>
+              <button
+                onClick={copyCode}
+                className="ml-auto flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-800 transition-colors px-2 py-1 rounded-lg border border-zinc-200 hover:border-zinc-400"
+              >
+                {copied ? "¡Copiado!" : "Copiar"}
+              </button>
+            </div>
+            <p className="text-[11px] text-zinc-500 mt-1">
+              Comparte este código y gana <strong>100 puntos</strong> por cada persona que se registre.
+            </p>
+          </div>
+        )}
+        <button
+          onClick={() => onDone(result)}
+          className="w-full bg-zinc-900 text-white text-sm font-semibold py-2.5 rounded-xl hover:bg-zinc-800 transition-colors"
+        >
+          Continuar al chat →
+        </button>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-white border border-zinc-200 rounded-2xl shadow-sm p-5 my-3"
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p className="text-sm font-bold text-zinc-900">Regístrate y gana puntos</p>
+          <p className="text-xs text-zinc-500">Únete como ciudadano activo de la campaña.</p>
+        </div>
+        <div className="h-9 w-9 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+          <span className="text-amber-600 font-bold text-sm">50</span>
+        </div>
+      </div>
+
+      <div className="space-y-2 mb-3">
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Tu nombre completo"
+          className="w-full px-4 py-2.5 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 placeholder-zinc-400"
+        />
+        <input
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && submit()}
+          placeholder="WhatsApp (Ej: 51987654321)"
+          className="w-full px-4 py-2.5 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 placeholder-zinc-400"
+        />
+        {error && <p className="text-xs text-red-600">{error}</p>}
+      </div>
+
+      <div className="flex gap-2">
+        <button
+          onClick={submit}
+          disabled={loading || !phone.trim() || !name.trim()}
+          className="flex-1 bg-zinc-900 text-white text-sm font-semibold py-2.5 rounded-xl hover:bg-zinc-800 disabled:opacity-40 transition-colors"
+        >
+          {loading ? "Registrando..." : "Registrarme →"}
+        </button>
+        <button
+          onClick={() => onDone(null)}
+          className="px-4 py-2.5 text-sm text-zinc-500 hover:text-zinc-700 transition-colors"
+        >
+          Omitir
+        </button>
+      </div>
+
+      <p className="text-[10px] text-zinc-400 mt-2 text-center">
+        Tu WhatsApp solo se usa para comunicaciones de campaña. Ley 29733 aplicable.
+      </p>
+    </motion.div>
+  );
+}
+
 // ─── Formulario de onboarding inicial ────────────────────────────────────────
 
-function OnboardingCard({ onSubmit }: { onSubmit: (data: OnboardingData) => void }) {
+function OnboardingCard({ onSubmit, candidateName }: { onSubmit: (data: OnboardingData) => void; candidateName: string }) {
   const [form, setForm] = useState<OnboardingData>({
     nombre: "", region: "", distrito: "", ocupacion: "", preocupacion: "", intencion_voto: "",
   });
@@ -449,7 +645,7 @@ function OnboardingCard({ onSubmit }: { onSubmit: (data: OnboardingData) => void
     { key: "distrito",      label: "¿En qué ciudad o distrito vives?",     placeholder: "Ej: Lima, Cajamarca, Niepos…" },
     { key: "ocupacion",     label: "¿A qué te dedicas?",                   options: OCUPACIONES   },
     { key: "preocupacion",  label: "¿Qué tema te preocupa más?",           options: PREOCUPACIONES },
-    { key: "intencion_voto",label: "¿Cómo está tu intención de voto?",     options: INTENCIONES   },
+    { key: "intencion_voto",label: "¿Cómo está tu intención de voto?",     options: buildIntenciones(candidateName) },
   ];
 
   const current = FIELDS[step];
@@ -541,6 +737,8 @@ function OnboardingCard({ onSubmit }: { onSubmit: (data: OnboardingData) => void
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function ChatPage() {
+  const { profile }                   = useCandidate();
+  const shortName                     = profile.name.split(" ")[0];
   const [messages, setMessages]       = useState<ChatMessage[]>([]);
   const [input, setInput]             = useState("");
   const [streaming, setStreaming]     = useState(false);
@@ -550,6 +748,8 @@ export default function ChatPage() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showNonsense, setShowNonsense] = useState(false);
   const [blocked, setBlocked]         = useState(false);
+  const [showRegister, setShowRegister]   = useState(false);
+  const [onboardingData, setOnboardingData] = useState<OnboardingData | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -581,15 +781,17 @@ export default function ChatPage() {
     setDeclared(filled);
     localStorage.setItem("politicos_onboarding_v1", "done");
     setShowOnboarding(false);
+    setOnboardingData(data);
 
     const name = data.nombre ? data.nombre.split(" ")[0] : "ciudadano/a";
     const lugar = data.distrito || data.region || null;
     const greet: ChatMessage = {
       id: `greet-${Date.now()}`,
       role: "james",
-      content: `¡Mucho gusto, ${name}${lugar ? ` desde ${lugar}` : ""}! Estoy aquí para responder tus preguntas sobre las propuestas y el plan de gobierno de Rigo. ¿Qué te gustaría saber?`,
+      content: `¡Mucho gusto, ${name}${lugar ? ` desde ${lugar}` : ""}! Para personalizarte mejor la experiencia, puedes registrarte con tu WhatsApp y ganar puntos de participación. O si prefieres, omite este paso y empieza a chatear directamente.`,
     };
     setMessages([greet]);
+    setShowRegister(true);
   };
 
   const buildPayload = (text: string) => ({
@@ -601,9 +803,13 @@ export default function ChatPage() {
 
   const sendStreaming = async (text: string, aiId: string): Promise<boolean> => {
     try {
+      const tenant = resolveTenantSlug();
       const r = await fetch(`${API}/chat/stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(tenant ? { "X-Tenant": tenant } : {}),
+        },
         body: JSON.stringify(buildPayload(text)),
       });
       if (!r.ok || !r.body) return false;
@@ -661,9 +867,13 @@ export default function ChatPage() {
 
   const sendFallback = async (text: string, aiId: string): Promise<boolean> => {
     try {
+      const tenant = resolveTenantSlug();
       const r = await fetch(`${API}/chat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(tenant ? { "X-Tenant": tenant } : {}),
+        },
         body: JSON.stringify(buildPayload(text)),
       });
       if (!r.ok) return false;
@@ -784,11 +994,38 @@ export default function ChatPage() {
               className="flex justify-start mb-2"
             >
               <div className="max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed bg-white border border-zinc-200 text-zinc-800 shadow-sm">
-                Hola, soy el asistente virtual oficial de <strong>Rigo</strong>, candidato a la alcaldía de San Gregorio. Antes de comenzar, me gustaría conocerte un poco para personalizar mejor mis respuestas.
+                Hola, soy el asistente virtual oficial de <strong>{profile.name}</strong>, {profile.title ? `${profile.title} · ` : ""}{profile.location}. Antes de comenzar, me gustaría conocerte un poco para personalizar mejor mis respuestas.
               </div>
             </motion.div>
-            <OnboardingCard onSubmit={handleOnboardingSubmit} />
+            <OnboardingCard onSubmit={handleOnboardingSubmit} candidateName={shortName} />
           </div>
+        )}
+
+        {/* Registro ciudadano (tras onboarding) */}
+        {showRegister && onboardingData && (
+          <RegistrationCard
+            prefillName={onboardingData.nombre}
+            prefillDistrict={onboardingData.distrito || onboardingData.region}
+            occupation={onboardingData.ocupacion}
+            votingIntention={onboardingData.intencion_voto}
+            visitorUuid={getCookieValue("politicos_visitor_id")}
+            onDone={(result) => {
+              setShowRegister(false);
+              if (result) {
+                const pts = result.points;
+                const successMsg: ChatMessage = {
+                  id: `reg-ok-${Date.now()}`,
+                  role: "james",
+                  content: `🎉 ¡Registro confirmado! Tienes ${pts} puntos de participación. Tu código de referido es **${result.referral_code}** — compártelo y gana 100 puntos extra por cada persona que se registre. ¿Qué te gustaría saber sobre las propuestas?`,
+                  quickReplies: [
+                    { label: "📋 Ver propuestas", value: "Muéstrame las propuestas de gobierno" },
+                    { label: "🗺️ Por distrito",   value: "¿Qué propuestas hay para mi distrito?" },
+                  ],
+                };
+                setMessages((m) => [...m, successMsg]);
+              }
+            }}
+          />
         )}
 
         {/* Mensajes */}
@@ -854,16 +1091,18 @@ export default function ChatPage() {
             placeholder={
               showOnboarding
                 ? "Completa el formulario para comenzar..."
+                : showRegister
+                ? "Completa o salta el registro para chatear..."
                 : blocked
                 ? "Escribe 'hola', 'menú' o 'inicio' para continuar..."
                 : "Escribe tu pregunta..."
             }
-            disabled={streaming || showOnboarding}
+            disabled={streaming || showOnboarding || showRegister}
             className="flex-1 px-4 py-3 border border-zinc-300 rounded-full focus:outline-none focus:ring-2 focus:ring-zinc-900 text-sm disabled:opacity-50"
           />
           <button
             onClick={send}
-            disabled={streaming || !input.trim() || showOnboarding}
+            disabled={streaming || !input.trim() || showOnboarding || showRegister}
             className="bg-zinc-900 text-white font-medium px-5 rounded-full hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
           >
             {streaming ? "..." : "Enviar"}

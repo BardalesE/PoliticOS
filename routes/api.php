@@ -19,6 +19,8 @@ use App\Http\Controllers\AiSettingController;
 use App\Http\Controllers\DistrictController;
 use App\Http\Controllers\TopicController;
 use App\Http\Controllers\SuggestedQuestionController;
+use App\Http\Controllers\CitizenController;
+use App\Http\Controllers\PlanController;
 use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\IntelligenceController;
 use App\Http\Controllers\AttackResponseController;
@@ -31,7 +33,7 @@ use App\Http\Controllers\LiveStreamController;
 |--------------------------------------------------------------------------
 */
 
-Route::middleware(\App\Http\Middleware\ResolveTenant::class)->group(function () {
+Route::group([], function () { // ResolveTenant is in the global 'api' group (bootstrap/app.php)
 
     // ─── Auth ─────────────────────────────────────────────────────────
     Route::prefix('auth')->group(function () {
@@ -52,6 +54,11 @@ Route::middleware(\App\Http\Middleware\ResolveTenant::class)->group(function () 
         Route::get('/session/{id}',  [ChatController::class, 'session']);
         Route::post('/consent',      [ChatController::class, 'consent']);
     });
+
+    // ─── Registro ciudadano (público) ────────────────────────────────
+    Route::post('/citizen/register',        [CitizenController::class, 'register']);
+    Route::get ('/citizen/profile/{uuid}',  [CitizenController::class, 'showByUuid']);
+    Route::get ('/citizen/referral/{code}', [CitizenController::class, 'referralInfo']);
 
     // ─── Perfil del candidato (público) ──────────────────────────────
     Route::get('/candidate', [CandidateProfileController::class, 'show']);
@@ -96,8 +103,8 @@ Route::middleware(\App\Http\Middleware\ResolveTenant::class)->group(function () 
     // ─── Configuración home (público) ────────────────────────────────
     Route::get('/home-settings', [SettingController::class, 'publicIndex']);
 
-    // ─── Admin (sanctum + rol admin) ─────────────────────────────────
-    Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
+    // ─── Admin (sanctum + rol admin + plan check) ────────────────────
+    Route::middleware(['auth:sanctum', 'admin', 'plan_feature'])->prefix('admin')->group(function () {
 
         // Analytics
         Route::get('/analytics', [AnalyticsController::class, 'adminSummary']);
@@ -113,6 +120,7 @@ Route::middleware(\App\Http\Middleware\ResolveTenant::class)->group(function () 
             Route::get('/alerts',         [IntelligenceController::class, 'alerts']);
             Route::post('/alerts/{id}/ack', [IntelligenceController::class, 'acknowledgeAlert']);
             Route::post('/regenerate-alerts', [IntelligenceController::class, 'regenerateAlerts']);
+            Route::get('/districts',      [IntelligenceController::class, 'districts']);
         });
 
         // ━━━ ATTACK RESPONSES (NUEVO en v2) ━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -125,9 +133,17 @@ Route::middleware(\App\Http\Middleware\ResolveTenant::class)->group(function () 
         Route::post('/external-signals/ingest', [ExternalSignalController::class, 'ingest']);
         Route::get ('/external-signals',        [ExternalSignalController::class, 'index']);
 
+        // Plan del tenant
+        Route::get('/plan', [PlanController::class, 'adminShow']);
+
+        // Ciudadanos registrados
+        Route::get('/citizens',        [CitizenController::class, 'adminIndex']);
+        Route::get('/citizens/export', [CitizenController::class, 'export']);
+
         // Perfil del candidato
         Route::get('/candidate-profile', [CandidateProfileController::class, 'adminShow']);
         Route::put('/candidate-profile', [CandidateProfileController::class, 'update']);
+        Route::get('/branding',          [CandidateProfileController::class, 'branding']);
         Route::get   ('/candidate-presets',               [CandidateProfileController::class, 'listPresets']);
         Route::post  ('/candidate-presets',               [CandidateProfileController::class, 'createPreset']);
         Route::post  ('/candidate-presets/{id}/activate', [CandidateProfileController::class, 'activatePreset']);
@@ -245,5 +261,11 @@ Route::middleware(\App\Http\Middleware\EnsureSuperAdmin::class)
         Route::post  ('/tenants',            [SuperAdminController::class, 'storeTenant']);
         Route::put   ('/tenants/{id}',       [SuperAdminController::class, 'updateTenant']);
         Route::delete('/tenants/{id}',       [SuperAdminController::class, 'destroyTenant']);
-        Route::get   ('/tenants/{id}/stats', [SuperAdminController::class, 'tenantStats']);
+        Route::get   ('/tenants/{id}/stats',          [SuperAdminController::class, 'tenantStats']);
+        Route::get   ('/plans',                       [PlanController::class, 'listPlans']);
+        Route::put   ('/plans/{id}',                  [PlanController::class, 'updatePlan']);
+        Route::get   ('/tenants/{id}/plan',           [PlanController::class, 'tenantPlan']);
+        Route::put   ('/tenants/{id}/plan',           [PlanController::class, 'updateTenantPlan']);
+        Route::get   ('/tenants/{id}/credentials',    [SuperAdminController::class, 'getCredentials']);
+        Route::post  ('/tenants/{id}/reset-password', [SuperAdminController::class, 'resetPassword']);
     });

@@ -43,7 +43,13 @@ interface Realtime {
   critical_alerts: number;
 }
 
-type Tab = "pulse" | "attacks" | "segments";
+interface Districts {
+  by_district: { district: string; mentions: number; avg_sentiment: number }[];
+  problems_by_district: Record<string, string[]>;
+  citizen_proposals: { district: string; text: string; date: string }[];
+}
+
+type Tab = "pulse" | "attacks" | "segments" | "districts";
 
 export default function IntelligencePage() {
   const { token } = useAuth();
@@ -52,6 +58,7 @@ export default function IntelligencePage() {
   const [attacks, setAttacks] = useState<AttackFeed | null>(null);
   const [segments, setSegments] = useState<Segments | null>(null);
   const [realtime, setRealtime] = useState<Realtime | null>(null);
+  const [districts, setDistricts] = useState<Districts | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -66,16 +73,18 @@ export default function IntelligencePage() {
   const loadAll = async () => {
     if (!token) return;
     setLoading(true);
-    const [p, a, s, r] = await Promise.allSettled([
+    const [p, a, s, r, d] = await Promise.allSettled([
       adminGet(token, "/intelligence/pulse"),
       adminGet(token, "/intelligence/attacks?limit=30"),
       adminGet(token, "/intelligence/segments"),
       adminGet(token, "/intelligence/realtime"),
+      adminGet(token, "/intelligence/districts"),
     ]);
     if (p.status === "fulfilled") setPulse(p.value);
     if (a.status === "fulfilled") setAttacks(a.value);
     if (s.status === "fulfilled") setSegments(s.value);
     if (r.status === "fulfilled") setRealtime(r.value);
+    if (d.status === "fulfilled") setDistricts(d.value);
     setLoading(false);
   };
 
@@ -114,7 +123,7 @@ export default function IntelligencePage() {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-5 border-b border-zinc-200">
-        {(["pulse","attacks","segments"] as Tab[]).map((t) => (
+        {(["pulse","attacks","segments","districts"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -122,14 +131,15 @@ export default function IntelligencePage() {
               tab === t ? "text-zinc-900 border-b-2 border-zinc-900" : "text-zinc-500 hover:text-zinc-700"
             }`}
           >
-            {t === "pulse" ? "Pulso Ciudadano" : t === "attacks" ? "Ataques" : "Segmentación"}
+            {t === "pulse" ? "Pulso Ciudadano" : t === "attacks" ? "Ataques" : t === "segments" ? "Segmentación" : "Por Distrito"}
           </button>
         ))}
       </div>
 
-      {tab === "pulse"    && (pulse    ? <PulseTab    data={pulse}    /> : <EmptyTab label="Pulso ciudadano" />)}
-      {tab === "attacks"  && (attacks  ? <AttacksTab  data={attacks}  /> : <EmptyTab label="Ataques"         />)}
-      {tab === "segments" && (segments ? <SegmentsTab data={segments} /> : <EmptyTab label="Segmentación"    />)}
+      {tab === "pulse"     && (pulse     ? <PulseTab     data={pulse}     /> : <EmptyTab label="Pulso ciudadano" />)}
+      {tab === "attacks"   && (attacks   ? <AttacksTab   data={attacks}   /> : <EmptyTab label="Ataques"         />)}
+      {tab === "segments"  && (segments  ? <SegmentsTab  data={segments}  /> : <EmptyTab label="Segmentación"    />)}
+      {tab === "districts" && (districts ? <DistrictsTab data={districts} /> : <EmptyTab label="Análisis por distrito" />)}
     </div>
   );
 }
@@ -319,6 +329,99 @@ function SegmentsTab({ data }: { data: Segments }) {
                     </span>
                   ))}
                 </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function DistrictsTab({ data }: { data: Districts }) {
+  const sentColor = (s: number) =>
+    s > 0.2 ? "text-emerald-600" : s < -0.2 ? "text-red-600" : "text-zinc-500";
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Menciones por distrito */}
+      <Card title="Menciones por distrito (7 días)" className="lg:col-span-2">
+        {data.by_district.length === 0 ? (
+          <p className="text-sm text-zinc-500">Sin datos aún. Los distritos aparecen cuando los ciudadanos los mencionan en el chat.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={data.by_district.slice(0, 12)} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis type="number" />
+              <YAxis type="category" dataKey="district" width={120} tick={{ fontSize: 12 }} />
+              <Tooltip formatter={(val) => [val, "Menciones"]} />
+              <Bar dataKey="mentions" fill="#3B82F6" radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </Card>
+
+      {/* Sentimiento por distrito */}
+      {data.by_district.length > 0 && (
+        <Card title="Sentimiento promedio por distrito">
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {data.by_district.map((d) => (
+              <div key={d.district} className="flex items-center justify-between py-1 border-b border-zinc-100 last:border-0">
+                <span className="text-sm text-zinc-700">{d.district}</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-20 h-2 bg-zinc-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${d.avg_sentiment > 0 ? "bg-emerald-400" : "bg-red-400"}`}
+                      style={{ width: `${Math.min(100, Math.abs(d.avg_sentiment) * 100)}%`, marginLeft: d.avg_sentiment < 0 ? "auto" : undefined }}
+                    />
+                  </div>
+                  <span className={`text-sm font-bold w-12 text-right ${sentColor(d.avg_sentiment)}`}>
+                    {d.avg_sentiment > 0 ? "+" : ""}{d.avg_sentiment.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Problemas por distrito */}
+      <Card title="Problemas reportados por distrito">
+        {Object.keys(data.problems_by_district).length === 0 ? (
+          <p className="text-sm text-zinc-500">Sin problemas detectados aún.</p>
+        ) : (
+          <div className="space-y-4 max-h-72 overflow-y-auto">
+            {Object.entries(data.problems_by_district).map(([district, problems]) => (
+              <div key={district}>
+                <p className="text-xs font-bold text-zinc-600 mb-1">{district}</p>
+                <div className="space-y-1">
+                  {(problems as string[]).slice(0, 3).map((p, i) => (
+                    <p key={i} className="text-xs text-zinc-600 bg-red-50 border border-red-100 rounded-lg px-3 py-1.5">
+                      {p}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Propuestas ciudadanas */}
+      <Card title="Propuestas de los ciudadanos" className="lg:col-span-2">
+        {data.citizen_proposals.length === 0 ? (
+          <p className="text-sm text-zinc-500">Aún no hay propuestas ciudadanas detectadas. Aparecen cuando los ciudadanos sugieren ideas en el chat.</p>
+        ) : (
+          <div className="divide-y divide-zinc-100 max-h-80 overflow-y-auto">
+            {data.citizen_proposals.slice(0, 20).map((p, i) => (
+              <div key={i} className="py-2.5 flex items-start gap-3">
+                <span className="text-xs font-medium px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full shrink-0 mt-0.5">
+                  {p.district ?? "General"}
+                </span>
+                <p className="text-sm text-zinc-700 flex-1">{p.text}</p>
+                <span className="text-xs text-zinc-400 shrink-0">
+                  {new Date(p.date).toLocaleDateString("es-PE")}
+                </span>
               </div>
             ))}
           </div>

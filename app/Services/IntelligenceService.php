@@ -225,6 +225,84 @@ class IntelligenceService
         ];
     }
 
+    public function districtAnalysis(): array
+    {
+        return Cache::remember('intel.districts', 120, function () {
+            $weekAgo = now()->subDays(7);
+
+            // Menciones y sentimiento promedio por distrito
+            $byDistrict = ChatMessage::where('role', 'user')
+                ->where('created_at', '>=', $weekAgo)
+                ->whereNotNull('district_mentioned')
+                ->select(
+                    'district_mentioned',
+                    DB::raw('COUNT(*) as mentions'),
+                    DB::raw('AVG(sentiment) as avg_sentiment')
+                )
+                ->groupBy('district_mentioned')
+                ->orderByDesc('mentions')
+                ->limit(20)
+                ->get()
+                ->map(fn($r) => [
+                    'district'     => $r->district_mentioned,
+                    'mentions'     => $r->mentions,
+                    'avg_sentiment'=> round((float)($r->avg_sentiment ?? 0), 2),
+                ]);
+
+            // Problemas mencionados por distrito (últimos 500 mensajes con problemas)
+            $rows = ChatMessage::where('role', 'user')
+                ->where('created_at', '>=', $weekAgo)
+                ->whereNotNull('district_mentioned')
+                ->whereNotNull('problems_mentioned')
+                ->where('problems_mentioned', '!=', '[]')
+                ->select('district_mentioned', 'problems_mentioned')
+                ->limit(500)
+                ->get();
+
+            $problemsByDistrict = $rows->groupBy('district_mentioned')
+                ->map(function ($group) {
+                    $all = [];
+                    foreach ($group as $m) {
+                        $probs = is_array($m->problems_mentioned)
+                            ? $m->problems_mentioned
+                            : json_decode($m->problems_mentioned ?? '[]', true);
+                        if (is_array($probs)) {
+                            foreach ($probs as $p) $all[] = $p;
+                        }
+                    }
+                    return array_values(array_slice(array_unique($all), 0, 10));
+                });
+
+            // Propuestas ciudadanas (top 50 más recientes con distrito)
+            $citizenProposals = ChatMessage::where('role', 'user')
+                ->where('created_at', '>=', $weekAgo)
+                ->whereNotNull('proposals_detected')
+                ->where('proposals_detected', '!=', '[]')
+                ->select('district_mentioned', 'proposals_detected', 'created_at')
+                ->orderByDesc('created_at')
+                ->limit(100)
+                ->get()
+                ->flatMap(function ($m) {
+                    $props = is_array($m->proposals_detected)
+                        ? $m->proposals_detected
+                        : json_decode($m->proposals_detected ?? '[]', true);
+                    return collect($props)->map(fn($p) => [
+                        'district' => $m->district_mentioned ?? 'Sin distrito',
+                        'text'     => $p,
+                        'date'     => $m->created_at,
+                    ]);
+                })
+                ->values()
+                ->take(50);
+
+            return [
+                'by_district'          => $byDistrict,
+                'problems_by_district' => $problemsByDistrict,
+                'citizen_proposals'    => $citizenProposals,
+            ];
+        });
+    }
+
     /**
      * Genera alertas automáticas. Llamado por scheduler cada 5 min.
      */
