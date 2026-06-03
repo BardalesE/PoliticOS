@@ -59,10 +59,10 @@ export default function IntelligencePage() {
   const [segments, setSegments] = useState<Segments | null>(null);
   const [realtime, setRealtime] = useState<Realtime | null>(null);
   const [districts, setDistricts] = useState<Districts | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) { setLoading(false); return; }
     loadAll();
     const realtimeInterval = setInterval(loadRealtime, 5_000);
     const dataInterval     = setInterval(loadAll,      30_000);
@@ -71,7 +71,7 @@ export default function IntelligencePage() {
   }, [token]);
 
   const loadAll = async () => {
-    if (!token) return;
+    if (!token) { setLoading(false); return; }
     setLoading(true);
     const [p, a, s, r, d] = await Promise.allSettled([
       adminGet(token, "/intelligence/pulse"),
