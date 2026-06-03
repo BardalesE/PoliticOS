@@ -1,16 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSuperAdmin } from "@/context/SuperAdminContext";
 import {
   superadminApi, ApiError,
-  type Tenant, type ProvisionPayload, type TenantStats,
+  type Tenant, type ProvisionPayload, type TenantStats, type TenantCredentials, type PlanFeatureSet,
 } from "@/lib/api";
 import {
   Plus, Pencil, Trash2, Loader2, CheckCircle2, XCircle,
   ChevronDown, ChevronUp, Database, Users, FileText,
   MessageSquare, Zap, BarChart2, RefreshCw, Copy, Check,
-  ExternalLink, AlertTriangle,
+  ExternalLink, AlertTriangle, KeyRound, Eye, EyeOff, Clock, ShieldAlert,
+  CreditCard, Lock, Unlock, Save,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -125,7 +126,287 @@ function CopyBtn({ text }: { text: string }) {
   );
 }
 
+// ─── Campo de credencial con reveal automático ────────────────────────────
+
+function CredentialField({
+  label, value, secret = false, badge,
+}: {
+  label: string; value: string | null; secret?: boolean; badge?: React.ReactNode;
+}) {
+  const [visible, setVisible] = useState(!secret);
+  const [copied, setCopied]   = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isUrl = !!value && (value.startsWith("http://") || value.startsWith("https://"));
+
+  function reveal() {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setVisible(true);
+    timerRef.current = setTimeout(() => setVisible(false), 5000);
+  }
+  function hide() {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setVisible(false);
+  }
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+  function copy() {
+    if (!value) return;
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">{label}</span>
+        {badge}
+      </div>
+      <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2.5">
+        <code className="flex-1 text-sm text-zinc-200 font-mono break-all min-w-0">
+          {!value
+            ? <span className="text-zinc-600 italic text-xs">Sin datos registrados</span>
+            : secret && !visible ? "••••••••••••••••"
+            : value}
+        </code>
+        <div className="flex items-center gap-1 shrink-0">
+          {isUrl && (
+            <a
+              href={value!}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Abrir en nueva pestaña"
+              className="text-zinc-500 hover:text-emerald-400 transition p-1 rounded"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )}
+          {secret && value && (
+            <button
+              onClick={visible ? hide : reveal}
+              title={visible ? "Ocultar" : "Revelar 5 segundos"}
+              className="text-zinc-500 hover:text-zinc-300 transition p-1 rounded"
+            >
+              {visible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+          )}
+          {value && (
+            <button onClick={copy} className="text-zinc-500 hover:text-zinc-300 transition p-1 rounded">
+              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Modal de Credenciales ────────────────────────────────────────────────
+
+function CredentialsModal({
+  tenant, saKey, onClose,
+}: {
+  tenant: Tenant; saKey: string; onClose: () => void;
+}) {
+  const [creds, setCreds]       = useState<TenantCredentials | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
+  const [resetPass, setResetPass] = useState<string | null>(null);
+
+  useEffect(() => {
+    superadminApi.tenants.credentials(saKey, tenant.id)
+      .then(setCreds)
+      .catch((e: ApiError) => setError(e.message ?? "Error al cargar credenciales."))
+      .finally(() => setLoading(false));
+  }, [saKey, tenant.id]);
+
+  async function handleReset() {
+    if (!window.confirm(`¿Resetear la contraseña de "${tenant.slug}"?\nSe generará una nueva contraseña aleatoria de 16 caracteres.`)) return;
+    setResetting(true);
+    try {
+      const result = await superadminApi.tenants.resetPassword(saKey, tenant.id);
+      setResetPass(result.admin_password);
+      const fresh = await superadminApi.tenants.credentials(saKey, tenant.id);
+      setCreds(fresh);
+    } catch (e) {
+      alert((e as ApiError).message ?? "Error al resetear contraseña.");
+    } finally {
+      setResetting(false);
+    }
+  }
+
+  function formatTs(iso: string) {
+    return new Date(iso).toLocaleString("es-PE", {
+      day: "2-digit", month: "2-digit", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    });
+  }
+
+  function actionLabel(action: string) {
+    if (action === "viewed")         return "👁 Visto";
+    if (action === "reset_password") return "🔄 Contraseña reseteada";
+    return action;
+  }
+
+  const passwordBadge = creds && (
+    creds.password_changed
+      ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-400">
+          CAMBIADA {creds.password_changed_at ? formatTs(creds.password_changed_at) : ""}
+        </span>
+      : <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-900/40 text-amber-400">
+          <ShieldAlert className="w-3 h-3" /> ORIGINAL
+        </span>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="relative z-10 w-full max-w-md bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
+          <div className="flex items-center gap-2.5">
+            <KeyRound className="w-4 h-4 text-amber-400" />
+            <div>
+              <h2 className="font-bold text-zinc-100 text-sm">Credenciales de acceso</h2>
+              <p className="text-[11px] text-zinc-500 font-mono">{tenant.slug} · {tenant.name}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 text-xl leading-none">×</button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          {loading && (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-start gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" /> {error}
+            </div>
+          )}
+
+          {creds && !loading && (
+            <>
+              {/* Banner post-reset */}
+              {resetPass && (
+                <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3 space-y-1.5">
+                  <p className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Contraseña reseteada — guárdala ahora
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-sm font-bold font-mono text-white">{resetPass}</code>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(resetPass); }}
+                      className="text-zinc-500 hover:text-emerald-400 transition p-1"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <CredentialField label="URL Panel Admin"     value={creds.admin_url} />
+              <CredentialField label="URL Chatbot Público" value={creds.chatbot_url} />
+              <CredentialField label="Email de acceso"     value={creds.admin_email} />
+              <CredentialField
+                label="Contraseña"
+                value={resetPass ?? creds.admin_password}
+                secret
+                badge={passwordBadge}
+              />
+
+              {!creds.admin_email && (
+                <p className="text-xs text-zinc-500 bg-zinc-800/60 rounded-lg px-3 py-2">
+                  Este tenant fue provisionado antes de este módulo. No hay credenciales registradas.
+                  Usa "Resetear contraseña" si conoces el email del admin.
+                </p>
+              )}
+
+              {/* Reset button */}
+              <button
+                onClick={handleReset}
+                disabled={resetting || !creds.admin_email}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-zinc-700
+                           text-sm text-zinc-400 hover:text-amber-400 hover:border-amber-500/40 transition
+                           disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {resetting
+                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Reseteando...</>
+                  : <><RefreshCw className="w-3.5 h-3.5" /> Resetear contraseña</>}
+              </button>
+
+              {/* Audit log */}
+              {creds.credential_log.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 mb-2 flex items-center gap-1.5">
+                    <Clock className="w-3 h-3" /> Historial de acceso
+                  </p>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {creds.credential_log.slice(0, 10).map((entry, i) => (
+                      <div key={i} className="flex items-center justify-between text-[11px] bg-zinc-950 rounded-lg px-3 py-1.5 gap-3">
+                        <span className="text-zinc-400 shrink-0">{actionLabel(entry.action)}</span>
+                        <div className="flex items-center gap-3 text-zinc-600 min-w-0 overflow-hidden">
+                          <span className="font-mono shrink-0">{entry.ip}</span>
+                          <span className="truncate">{formatTs(entry.timestamp)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 // ─── Modal de Provisioning / Creación ─────────────────────────────────────
+
+type CredsData = { email: string; password: string; slug: string; adminUrl: string; voterUrl: string };
+
+function CredRow({ label, value, secret = false }: { label: string; value: string; secret?: boolean }) {
+  const [visible, setVisible] = useState(!secret);
+  const [copied, setCopied]   = useState(false);
+  const isUrl = value.startsWith("http://") || value.startsWith("https://");
+  function copy() { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 1500); }
+  return (
+    <div className="flex items-center justify-between gap-3 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2.5">
+      <span className="text-[11px] text-zinc-500 font-semibold uppercase tracking-wider w-20 shrink-0">{label}</span>
+      <code className="flex-1 text-sm text-zinc-200 font-mono break-all">
+        {secret && !visible ? "••••••••••••" : value}
+      </code>
+      <div className="flex items-center gap-1 shrink-0">
+        {isUrl && (
+          <a href={value} target="_blank" rel="noopener noreferrer"
+             title="Abrir" className="text-zinc-500 hover:text-emerald-400 transition p-0.5">
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        )}
+        {secret && (
+          <button onClick={() => setVisible((v) => !v)} className="text-zinc-500 hover:text-zinc-300 transition text-xs px-1">
+            {visible ? "ocultar" : "ver"}
+          </button>
+        )}
+        <button onClick={copy} className="text-zinc-500 hover:text-zinc-300 transition">
+          {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function ProvisionModal({
   open, onClose, onSuccess, saKey,
@@ -138,6 +419,8 @@ function ProvisionModal({
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState<string | null>(null);
   const [log, setLog]       = useState<string | null>(null);
+  const [creds, setCreds]   = useState<CredsData | null>(null);
+  const [doneTenant, setDoneTenant] = useState<Tenant | null>(null);
 
   function set<K extends keyof ProvisionForm>(k: K, v: ProvisionForm[K]) {
     setForm((p) => ({ ...p, [k]: v }));
@@ -171,7 +454,10 @@ function ProvisionModal({
     try {
       const res = await superadminApi.tenants.provision(saKey, payload);
       setLog(res.output);
-      onSuccess(res.tenant);
+      const adminUrl = `http://localhost:3000/admin/login?tenant=${form.slug}`;
+      const voterUrl = `http://localhost:3000?tenant=${form.slug}`;
+      setCreds({ email: form.admin_email, password: form.admin_password, slug: form.slug, adminUrl, voterUrl });
+      setDoneTenant(res.tenant);
     } catch (err) {
       const e = err as ApiError;
       const body = e.body as any;
@@ -187,6 +473,14 @@ function ProvisionModal({
     setError(null);
     setLog(null);
     setSaving(false);
+    setCreds(null);
+    setDoneTenant(null);
+  }
+
+  function handleDone() {
+    if (doneTenant) onSuccess(doneTenant);
+    reset();
+    onClose();
   }
 
   if (!open) return null;
@@ -230,7 +524,53 @@ function ProvisionModal({
         </div>
 
         <div className="px-6 py-5">
-          {tab === "provision" ? (
+          {/* ── Pantalla de éxito con credenciales ── */}
+          {creds ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-emerald-400">
+                <CheckCircle2 className="w-5 h-5" />
+                <p className="font-semibold text-sm">Candidato provisionado correctamente</p>
+              </div>
+              <p className="text-xs text-zinc-500">
+                Guarda estas credenciales — la contraseña no se puede recuperar después.
+              </p>
+              <div className="space-y-2">
+                <CredRow label="Slug"     value={creds.slug} />
+                <CredRow label="Email"    value={creds.email} />
+                <CredRow label="Password" value={creds.password} secret />
+                <CredRow label="Panel"    value={creds.adminUrl} />
+                <CredRow label="Votantes" value={creds.voterUrl} />
+              </div>
+              {log && (
+                <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 max-h-32 overflow-y-auto">
+                  <pre className="text-[11px] text-zinc-500 font-mono whitespace-pre-wrap">{log}</pre>
+                </div>
+              )}
+              <div className="flex gap-2 pt-1">
+                <a
+                  href={creds.adminUrl} target="_blank" rel="noopener noreferrer"
+                  className="flex-1 py-2.5 rounded-xl border border-zinc-700 text-sm text-zinc-300
+                             hover:text-zinc-100 hover:border-zinc-500 transition text-center"
+                >
+                  Abrir panel ↗
+                </a>
+                <a
+                  href={creds.voterUrl} target="_blank" rel="noopener noreferrer"
+                  className="flex-1 py-2.5 rounded-xl border border-zinc-700 text-sm text-zinc-300
+                             hover:text-zinc-100 hover:border-zinc-500 transition text-center"
+                >
+                  Ver sitio ↗
+                </a>
+                <button
+                  onClick={handleDone}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400
+                             text-white text-sm font-semibold transition"
+                >
+                  Listo
+                </button>
+              </div>
+            </div>
+          ) : tab === "provision" ? (
             <form onSubmit={handleProvision} className="space-y-4">
               <p className="text-xs text-zinc-500 bg-zinc-800/60 rounded-lg px-3 py-2">
                 Crea la base de datos MySQL, ejecuta todas las migraciones, siembra datos iniciales
@@ -497,12 +837,13 @@ function EditModal({
 
 function TenantRow({
   tenant, saKey,
-  onEdit, onDelete, onToggle,
+  onEdit, onDelete, onToggle, onCredentials,
 }: {
   tenant: Tenant; saKey: string;
   onEdit: () => void;
   onDelete: () => void;
   onToggle: () => void;
+  onCredentials: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [stats, setStats]       = useState<TenantStats | null>(null);
@@ -529,6 +870,7 @@ function TenantRow({
   }
 
   const adminUrl = `http://localhost:3000/admin/login?tenant=${tenant.slug}`;
+  const voterUrl = `http://localhost:3000?tenant=${tenant.slug}`;
 
   return (
     <>
@@ -556,6 +898,13 @@ function TenantRow({
               className="p-1.5 rounded-lg text-zinc-500 hover:text-blue-400 hover:bg-zinc-800 transition"
             >
               <BarChart2 className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={onCredentials}
+              title="Ver credenciales"
+              className="p-1.5 rounded-lg text-zinc-500 hover:text-amber-400 hover:bg-zinc-800 transition"
+            >
+              <KeyRound className="w-3.5 h-3.5" />
             </button>
             <a
               href={adminUrl} target="_blank" rel="noopener noreferrer"
@@ -621,10 +970,25 @@ function TenantRow({
                       <StatChip icon={FileText}  label="Propuestas" value={stats.proposals} />
                     </div>
                   )}
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="text-[11px] text-zinc-600">URL admin:</span>
-                    <code className="text-[11px] text-zinc-500 font-mono">{adminUrl}</code>
-                    <CopyBtn text={adminUrl} />
+                  <div className="mt-2 flex flex-col gap-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-zinc-600 w-16 shrink-0">Admin:</span>
+                      <code className="text-[11px] text-zinc-500 font-mono flex-1 truncate">{adminUrl}</code>
+                      <CopyBtn text={adminUrl} />
+                      <a href={adminUrl} target="_blank" rel="noopener noreferrer"
+                         className="text-zinc-600 hover:text-emerald-400 transition">
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-zinc-600 w-16 shrink-0">Votantes:</span>
+                      <code className="text-[11px] text-zinc-500 font-mono flex-1 truncate">{voterUrl}</code>
+                      <CopyBtn text={voterUrl} />
+                      <a href={voterUrl} target="_blank" rel="noopener noreferrer"
+                         className="text-zinc-600 hover:text-emerald-400 transition">
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -719,15 +1083,189 @@ function DeleteConfirm({
 
 // ─── Página principal ─────────────────────────────────────────────────────
 
+// ─── Tab Planes ──────────────────────────────────────────────────────────
+
+const FEATURE_LABELS: Record<string, string> = {
+  chatbot: "Chatbot", candidate_profile: "Perfil candidato", faqs: "FAQs",
+  chat_sessions: "Sesiones chat", analytics: "Analytics",
+  proposals: "Propuestas", media: "Videos y galería", events: "Eventos",
+  team: "Equipo", attack_responses: "Respuestas a ataques",
+  livestream: "Livestream",
+  "knowledge.max_documents": "Docs de conocimiento",
+  "external_signals.enabled": "Señales externas",
+  "intelligence.enabled": "Inteligencia electoral",
+  messages_per_month: "Mensajes/mes",
+};
+
+const PLAN_COLORS: Record<string, string> = {
+  starter: "text-zinc-400 bg-zinc-800",
+  pro:     "text-blue-400 bg-blue-900/40",
+  elite:   "text-amber-400 bg-amber-900/30",
+};
+
+function PlansTab({ saKey }: { saKey: string }) {
+  const [plans, setPlans]       = useState<(PlanFeatureSet & { id: number })[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [saving, setSaving]     = useState<number | null>(null);
+  const [editPlan, setEditPlan] = useState<(PlanFeatureSet & { id: number }) | null>(null);
+  const [editFeatures, setEditFeatures] = useState<string>("");
+
+  useEffect(() => {
+    superadminApi.plans.list(saKey)
+      .then((data) => setPlans(data as (PlanFeatureSet & { id: number })[]))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [saKey]);
+
+  function startEdit(plan: PlanFeatureSet & { id: number }) {
+    setEditPlan(plan);
+    setEditFeatures(JSON.stringify(plan.features, null, 2));
+  }
+
+  async function saveEdit() {
+    if (!editPlan) return;
+    try {
+      JSON.parse(editFeatures); // validate JSON
+    } catch {
+      alert("JSON inválido. Revisa el formato.");
+      return;
+    }
+    setSaving(editPlan.id);
+    try {
+      const updated = await superadminApi.plans.update(saKey, editPlan.id, {
+        features: JSON.parse(editFeatures),
+        price: editPlan.price,
+      }) as PlanFeatureSet & { id: number };
+      setPlans((prev) => prev.map((p) => p.id === updated.id ? updated : p));
+      setEditPlan(null);
+    } catch (e) {
+      alert((e as ApiError).message ?? "Error guardando.");
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  if (loading) return (
+    <div className="flex justify-center py-20">
+      <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-zinc-500">
+        Edita los módulos y límites de cada plan. Los cambios se aplican a todos los tenants con ese plan en el próximo request.
+      </p>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {plans.map((plan) => {
+          const colorClass = PLAN_COLORS[plan.plan] ?? PLAN_COLORS.starter;
+          const features = plan.features as Record<string, unknown>;
+          return (
+            <div key={plan.plan} className="bg-zinc-800/60 border border-zinc-700 rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-zinc-700 flex items-center justify-between">
+                <div>
+                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${colorClass}`}>
+                    {plan.label.toUpperCase()}
+                  </span>
+                  <p className="text-xs text-zinc-500 mt-1">${plan.price}/mes</p>
+                </div>
+                <button
+                  onClick={() => startEdit(plan)}
+                  className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700 transition"
+                  title="Editar features"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="px-4 py-3 space-y-1.5">
+                {Object.entries(FEATURE_LABELS).map(([key, label]) => {
+                  const val = key.includes(".") ? key.split(".").reduce((o: unknown, k) => (o && typeof o === "object" ? (o as Record<string, unknown>)[k] : undefined), features) : features[key];
+                  const enabled = typeof val === "boolean" ? val : typeof val === "number" ? val !== 0 : val != null;
+                  const display = typeof val === "number" ? (val === -1 ? "∞" : String(val)) : null;
+                  return (
+                    <div key={key} className="flex items-center gap-2 text-xs">
+                      {enabled
+                        ? <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                        : <XCircle className="w-3 h-3 text-zinc-600 shrink-0" />}
+                      <span className={enabled ? "text-zinc-300" : "text-zinc-600"}>{label}</span>
+                      {display && <span className="ml-auto text-zinc-400 font-mono text-[10px]">{display}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Edit modal */}
+      {editPlan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setEditPlan(null)} />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+            className="relative z-10 w-full max-w-lg bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl"
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+              <h3 className="font-bold text-zinc-100">Editar features — {editPlan.label}</h3>
+              <button onClick={() => setEditPlan(null)} className="text-zinc-500 hover:text-zinc-300 text-xl">×</button>
+            </div>
+            <div className="px-6 py-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Precio (USD/mes)</label>
+                <input
+                  type="number" min={0} step={1}
+                  value={editPlan.price}
+                  onChange={(e) => setEditPlan((p) => p ? { ...p, price: parseFloat(e.target.value) } : null)}
+                  className="w-24 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 block mb-1">Features (JSON)</label>
+                <textarea
+                  value={editFeatures}
+                  onChange={(e) => setEditFeatures(e.target.value)}
+                  rows={16}
+                  className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-200 font-mono
+                             focus:outline-none focus:border-emerald-500 resize-y"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 px-6 pb-5">
+              <button onClick={() => setEditPlan(null)} className="flex-1 py-2 rounded-lg border border-zinc-700 text-sm text-zinc-400 hover:text-zinc-200 transition">
+                Cancelar
+              </button>
+              <button
+                onClick={saveEdit}
+                disabled={saving === editPlan.id}
+                className="flex-1 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-white text-sm font-semibold flex items-center justify-center gap-1.5 transition"
+              >
+                {saving === editPlan.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                Guardar
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Página principal ─────────────────────────────────────────────────────
+
 export default function SuperAdminPage() {
   const { saKey } = useSuperAdmin();
+
+  const [activeTab, setActiveTab] = useState<"tenants" | "plans">("tenants");
 
   const [tenants, setTenants]       = useState<Tenant[]>([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
   const [provisionOpen, setProvisionOpen] = useState(false);
-  const [editTarget, setEditTarget] = useState<Tenant | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Tenant | null>(null);
+  const [editTarget, setEditTarget]       = useState<Tenant | null>(null);
+  const [deleteTarget, setDeleteTarget]   = useState<Tenant | null>(null);
+  const [credsTarget, setCredsTarget]     = useState<Tenant | null>(null);
 
   const load = useCallback(async () => {
     if (!saKey) return;
@@ -776,33 +1314,58 @@ export default function SuperAdminPage() {
   return (
     <>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-bold text-zinc-100">Tenants</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">
-            {tenants.length} candidatos ·{" "}
-            <span className="text-emerald-400">{active} activos</span>
-            {inactive > 0 && <span className="text-zinc-600"> · {inactive} inactivos</span>}
-          </p>
-        </div>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold text-zinc-100">PoliticOS</h1>
         <div className="flex items-center gap-2">
-          <button
-            onClick={load}
-            className="p-2 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition"
-            title="Recargar"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-          </button>
-          <button
-            onClick={() => setProvisionOpen(true)}
-            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white
-                       font-semibold text-sm px-4 py-2 rounded-xl transition"
-          >
-            <Plus className="w-4 h-4" />
-            Nuevo Candidato
-          </button>
+          {activeTab === "tenants" && (
+            <>
+              <button onClick={load} className="p-2 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition" title="Recargar">
+                <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+              </button>
+              <button
+                onClick={() => setProvisionOpen(true)}
+                className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold text-sm px-4 py-2 rounded-xl transition"
+              >
+                <Plus className="w-4 h-4" /> Nuevo Candidato
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-zinc-800 mb-6">
+        {([["tenants", "Candidatos", Database], ["plans", "Planes", CreditCard]] as const).map(([tab, label, Icon]) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`flex items-center gap-2 py-2.5 px-1 mr-6 text-sm font-medium border-b-2 transition ${
+              activeTab === tab
+                ? "border-emerald-500 text-emerald-400"
+                : "border-transparent text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            <Icon className="w-3.5 h-3.5" />
+            {label}
+            {tab === "tenants" && <span className="text-[11px] bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded-full">{tenants.length}</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* Sub-header de tenants */}
+      {activeTab === "tenants" && (
+        <p className="text-sm text-zinc-500 mb-4">
+          {tenants.length} candidatos ·{" "}
+          <span className="text-emerald-400">{active} activos</span>
+          {inactive > 0 && <span className="text-zinc-600"> · {inactive} inactivos</span>}
+        </p>
+      )}
+
+      {/* Tab de planes */}
+      {activeTab === "plans" && saKey && <PlansTab saKey={saKey} />}
+
+      {/* Tab de tenants */}
+      {activeTab === "tenants" && <>
 
       {/* Resumen por plan */}
       {tenants.length > 0 && (
@@ -867,6 +1430,7 @@ export default function SuperAdminPage() {
                   onEdit={() => setEditTarget(t)}
                   onDelete={() => setDeleteTarget(t)}
                   onToggle={() => toggleActive(t)}
+                  onCredentials={() => setCredsTarget(t)}
                 />
               ))}
             </tbody>
@@ -903,6 +1467,15 @@ export default function SuperAdminPage() {
           onDeleted={handleDeleted}
         />
       )}
+
+      {credsTarget && (
+        <CredentialsModal
+          tenant={credsTarget}
+          saKey={saKey!}
+          onClose={() => setCredsTarget(null)}
+        />
+      )}
+      </> /* end tenants tab */}
     </>
   );
 }

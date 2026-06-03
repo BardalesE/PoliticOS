@@ -111,6 +111,81 @@ class SuperAdminController extends Controller
         ], 201);
     }
 
+    // GET /api/superadmin/tenants/{id}/credentials
+    public function getCredentials(int $id, \Illuminate\Http\Request $request): JsonResponse
+    {
+        $tenant = Tenant::findOrFail($id);
+
+        $log   = json_decode($tenant->credential_log ?? '[]', true) ?: [];
+        $log[] = ['action' => 'viewed', 'ip' => $request->ip(), 'timestamp' => now()->toIso8601String()];
+        $log   = array_slice($log, -20);
+        $tenant->update(['credential_log' => json_encode($log)]);
+
+        $password = null;
+        if ($tenant->admin_password_hint) {
+            try { $password = \Illuminate\Support\Facades\Crypt::decrypt($tenant->admin_password_hint); } catch (\Throwable) {}
+        }
+
+        return response()->json([
+            'admin_email'         => $tenant->admin_email,
+            'admin_password'      => $password,
+            'password_changed'    => !is_null($tenant->password_changed_at),
+            'password_changed_at' => $tenant->password_changed_at,
+            'admin_url'           => env('FRONTEND_URL', 'http://localhost:3000') . "/admin/login?tenant={$tenant->slug}",
+            'chatbot_url'         => env('FRONTEND_URL', 'http://localhost:3000') . "?tenant={$tenant->slug}",
+            'credential_log'      => array_reverse($log),
+        ]);
+    }
+
+    // POST /api/superadmin/tenants/{id}/reset-password
+    public function resetPassword(int $id, \Illuminate\Http\Request $request): JsonResponse
+    {
+        $tenant = Tenant::findOrFail($id);
+
+        if (!$tenant->admin_email) {
+            return response()->json(['message' => 'Este tenant no tiene email de admin registrado.'], 422);
+        }
+
+        $newPassword = \Illuminate\Support\Str::random(16);
+
+        config([
+            'database.connections.tenant_creds.driver'    => 'mysql',
+            'database.connections.tenant_creds.host'      => $tenant->db_host,
+            'database.connections.tenant_creds.port'      => $tenant->db_port,
+            'database.connections.tenant_creds.database'  => $tenant->db_name,
+            'database.connections.tenant_creds.username'  => $tenant->db_user,
+            'database.connections.tenant_creds.password'  => $tenant->db_password,
+            'database.connections.tenant_creds.charset'   => 'utf8mb4',
+            'database.connections.tenant_creds.collation' => 'utf8mb4_unicode_ci',
+        ]);
+
+        try {
+            DB::connection('tenant_creds')->table('users')
+                ->where('email', $tenant->admin_email)
+                ->update(['password' => \Illuminate\Support\Facades\Hash::make($newPassword)]);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'No se pudo conectar a la DB del tenant: ' . $e->getMessage()], 500);
+        } finally {
+            DB::purge('tenant_creds');
+        }
+
+        $log   = json_decode($tenant->credential_log ?? '[]', true) ?: [];
+        $log[] = ['action' => 'reset_password', 'ip' => $request->ip(), 'timestamp' => now()->toIso8601String()];
+        $log   = array_slice($log, -20);
+
+        $tenant->update([
+            'admin_password_hint'  => \Illuminate\Support\Facades\Crypt::encrypt($newPassword),
+            'password_changed_at'  => now(),
+            'credential_log'       => json_encode($log),
+        ]);
+
+        return response()->json([
+            'admin_email'    => $tenant->admin_email,
+            'admin_password' => $newPassword,
+            'reset_at'       => now()->toIso8601String(),
+        ]);
+    }
+
     // GET /api/superadmin/tenants/{id}/stats
     public function tenantStats(int $id): JsonResponse
     {
