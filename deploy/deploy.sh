@@ -1,18 +1,29 @@
 #!/usr/bin/env bash
 # ─── PoliticOS — Production deploy script ─────────────────────────────────────
-# Usage: ./deploy/deploy.sh [--skip-migrations]
+# Uso: ./deploy/deploy.sh [--skip-migrations] [--skip-frontend]
 #
-# Assumptions:
-#   - Server: Ubuntu 22.04, PHP 8.2-FPM, MySQL 8, Node 20, nginx
+# Requisitos del servidor:
+#   - Ubuntu 22.04, PHP 8.2-FPM, MySQL 8, Node 20, Nginx, Redis, Supervisor
 #   - App root: /var/www/politicos
-#   - Running as www-data or a deploy user with sudo for service restarts
-#   - .env already configured on the server (never committed)
+#   - .env configurado en el servidor (nunca commitear)
+#   - Usuario deploy con sudo limitado a: supervisorctl, nginx, systemctl
+# ──────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
 
 APP_DIR="/var/www/politicos"
 NEXT_DIR="${APP_DIR}/resources/js"
-SKIP_MIGRATIONS="${1:-}"
+BACKUP_DIR="/var/backups/politicos"
+SKIP_MIGRATIONS=false
+SKIP_FRONTEND=false
+DEPLOY_START=$(date +%s)
+
+for arg in "$@"; do
+    case $arg in
+        --skip-migrations) SKIP_MIGRATIONS=true ;;
+        --skip-frontend)   SKIP_FRONTEND=true   ;;
+    esac
+done
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo " PoliticOS deploy — $(date '+%Y-%m-%d %H:%M:%S')"
@@ -20,56 +31,94 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 
 cd "$APP_DIR"
 
-# ── 1. Pull latest code ───────────────────────────────────────────────────────
-echo "▶ 1/8  Pulling latest code..."
+# ── 1. Backup de BD ANTES de migrar (rollback manual si algo falla) ───────────
+if [[ "$SKIP_MIGRATIONS" == false ]]; then
+    echo "▶ 1/9  Backup pre-deploy de base de datos..."
+    mkdir -p "$BACKUP_DIR"
+    BACKUP_FILE="${BACKUP_DIR}/pre-deploy_$(date +%Y%m%d_%H%M%S).sql.gz"
+    # Lee credenciales del .env sin sourcear el archivo completo
+    DB_HOST=$(grep '^DB_HOST=' .env | cut -d= -f2)
+    DB_USER=$(grep '^DB_USERNAME=' .env | cut -d= -f2)
+    DB_PASS=$(grep '^DB_PASSWORD=' .env | cut -d= -f2)
+    mysqldump -h"${DB_HOST}" -u"${DB_USER}" -p"${DB_PASS}" --all-databases \
+        --single-transaction --quick 2>/dev/null | gzip > "$BACKUP_FILE"
+    echo "   ✓ Backup guardado: $BACKUP_FILE"
+else
+    echo "▶ 1/9  Backup omitido (--skip-migrations)"
+fi
+
+# ── 2. Pull latest code ───────────────────────────────────────────────────────
+echo "▶ 2/9  Pulling latest code..."
 git pull origin main
 
-# ── 2. PHP dependencies ───────────────────────────────────────────────────────
-echo "▶ 2/8  Installing PHP dependencies..."
+# ── 3. PHP dependencies ───────────────────────────────────────────────────────
+echo "▶ 3/9  Installing PHP dependencies..."
 composer install --no-dev --no-interaction --optimize-autoloader --quiet
 
-# ── 3. Node dependencies & build ─────────────────────────────────────────────
-echo "▶ 3/8  Building Next.js frontend..."
-cd "$NEXT_DIR"
-npm ci --prefer-offline --silent
-npm run build
-# Next.js standalone mode requires manual copy of static assets
-cp -r .next/static  .next/standalone/.next/static
-[ -d public ] && cp -r public .next/standalone/public || true
-cd "$APP_DIR"
+# ── 4. Node dependencies & build ─────────────────────────────────────────────
+if [[ "$SKIP_FRONTEND" == false ]]; then
+    echo "▶ 4/9  Building Next.js frontend..."
+    cd "$NEXT_DIR"
+    npm ci --prefer-offline --silent
+    npm run build
+    # Standalone mode: copiar assets estáticos al directorio de producción
+    cp -r .next/static .next/standalone/.next/static
+    [ -d public ] && cp -r public .next/standalone/public || true
+    cd "$APP_DIR"
+else
+    echo "▶ 4/9  Build frontend omitido (--skip-frontend)"
+fi
 
-# ── 4. Storage setup ─────────────────────────────────────────────────────────
-echo "▶ 4/8  Setting up storage..."
-php artisan storage:link --quiet 2>/dev/null || true   # idempotent
+# ── 5. Storage y permisos ─────────────────────────────────────────────────────
+echo "▶ 5/9  Setting up storage..."
+php artisan storage:link --quiet 2>/dev/null || true
 chown -R www-data:www-data storage bootstrap/cache
 chmod -R 775 storage bootstrap/cache
 
-# ── 5. Laravel cache ─────────────────────────────────────────────────────────
-echo "▶ 5/8  Warming Laravel caches..."
+# ── 6. Activar modo mantenimiento ─────────────────────────────────────────────
+echo "▶ 6/9  Enabling maintenance mode..."
+php artisan down --retry=15 --secret="deploy-$(date +%s)" 2>/dev/null || true
+
+# ── 7. Migraciones ────────────────────────────────────────────────────────────
+if [[ "$SKIP_MIGRATIONS" == false ]]; then
+    echo "▶ 7/9  Running migrations..."
+    php artisan migrate --force
+else
+    echo "▶ 7/9  Skipping migrations (--skip-migrations)"
+fi
+
+# ── 8. Caches de Laravel + flush de Redis ────────────────────────────────────
+echo "▶ 8/9  Warming caches..."
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 php artisan event:cache
+# Limpiar caché de aplicación (intel, realtime, etc.) para que tome el código nuevo
+php artisan cache:clear
 
-# ── 6. Database migrations ────────────────────────────────────────────────────
-if [[ "$SKIP_MIGRATIONS" != "--skip-migrations" ]]; then
-    echo "▶ 6/8  Running migrations..."
-    php artisan migrate --force
-else
-    echo "▶ 6/8  Skipping migrations (--skip-migrations)"
-fi
+# ── 9. Reiniciar servicios ────────────────────────────────────────────────────
+echo "▶ 9/9  Restarting services..."
+php artisan queue:restart                    # señal a los workers para reiniciarse
+sudo supervisorctl restart politicos:*       # Supervisor reinicia workers + Next.js
+sudo nginx -t && sudo systemctl reload nginx # Reload sin downtime
 
-# ── 7. Restart services ───────────────────────────────────────────────────────
-echo "▶ 7/8  Restarting workers and frontend..."
-php artisan queue:restart
-sudo supervisorctl restart politicos:*
+# Desactivar modo mantenimiento
+php artisan up
 
-# ── 8. Reload nginx ───────────────────────────────────────────────────────────
-echo "▶ 8/8  Reloading nginx..."
-sudo nginx -t && sudo systemctl reload nginx
-
+ELAPSED=$(( $(date +%s) - DEPLOY_START ))
 echo ""
-echo "✓ Deploy complete."
-echo "  API:    https://api.politicos.pe"
-echo "  Admin:  https://admin.politicos.pe  (or any slug subdomain)"
+echo "✓ Deploy completado en ${ELAPSED}s"
+echo "  API:     https://api.politicos.pe/up"
+echo "  Frontend: https://james.politicos.pe"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# ── Health check final ────────────────────────────────────────────────────────
+echo "Verificando API..."
+HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://api.politicos.pe/up 2>/dev/null || echo "000")
+if [[ "$HTTP_STATUS" == "200" ]]; then
+    echo "✓ API responde 200 OK"
+else
+    echo "⚠ API respondió HTTP ${HTTP_STATUS} — revisa los logs:"
+    echo "  sudo tail -50 /var/log/nginx/politicos-api-error.log"
+    echo "  sudo tail -50 /var/log/supervisor/politicos-queue.log"
+fi

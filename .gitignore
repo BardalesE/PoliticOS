@@ -40,3 +40,15 @@ yarn-error.log
 /landing_bento_*.png
 /politicos-v2-patch*/
 /training-data/
+
+# Redis dump (generado automáticamente por Redis)
+dump.rdb
+
+# Archivos de prueba locales
+/resources/js/test-*.js
+/resources/js/test-*.mjs
+/landing-robertov2.html
+
+# Logs de storage
+/storage/logs/*.log
+/storage/logs/bootstrap_debug.log

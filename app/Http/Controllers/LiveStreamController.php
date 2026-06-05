@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\MergeStreamChunksJob;
 use App\Models\LiveStream;
 use App\Models\LiveStreamComment;
 use App\Models\LiveStreamViewer;
@@ -210,45 +211,12 @@ class LiveStreamController extends Controller
             'status'          => 'ended',
             'ended_at'        => now(),
             'current_viewers' => 0,
-            'recording_path'  => null, // will be merged on first request
+            'recording_path'  => null,
         ]);
 
-        // Start merge in background (non-blocking for the HTTP response)
-        dispatch(function () use ($stream) {
-            $this->mergeChunks($stream);
-        })->afterResponse();
+        MergeStreamChunksJob::dispatch($stream->id);
 
         return response()->json($stream);
-    }
-
-    /**
-     * Merge all WebM chunks into one recording.webm file.
-     * Uses stream_copy_to_stream for memory-efficient handling of hours of content.
-     */
-    private function mergeChunks(\App\Models\LiveStream $stream): void
-    {
-        $disk   = Storage::disk('public');
-        $outRel = "streams/{$stream->stream_key}/recording.webm";
-        $outAbs = $disk->path($outRel);
-
-        // Don't re-merge if already done
-        if ($disk->exists($outRel)) return;
-
-        $out = @fopen($outAbs, 'wb');
-        if (!$out) return;
-
-        for ($i = 0; $i < $stream->chunk_count; $i++) {
-            $chunkAbs = $disk->path(sprintf('streams/%s/chunk_%06d.webm', $stream->stream_key, $i));
-            if (!file_exists($chunkAbs)) continue;
-            $in = fopen($chunkAbs, 'rb');
-            if (!$in) continue;
-            stream_copy_to_stream($in, $out);
-            fclose($in);
-        }
-
-        fclose($out);
-
-        $stream->update(['recording_path' => $outRel]);
     }
 
     /**
@@ -407,18 +375,10 @@ class LiveStreamController extends Controller
             abort(404, 'Sin grabación disponible.');
         }
 
-        // Merge now (first-time request — blocks until done, then caches forever)
-        set_time_limit(0); // allow hours-long merge
-        $this->mergeChunks($stream);
+        // El Job de merge se lanzó al detener el stream.
+        // Si el archivo aún no existe, el merge está en progreso.
+        MergeStreamChunksJob::dispatchIf(!$disk->exists($outRel), $stream->id);
 
-        if ($disk->exists($outRel)) {
-            return response()->file($disk->path($outRel), [
-                'Content-Type'  => 'video/webm',
-                'Cache-Control' => 'public, max-age=86400',
-                'Accept-Ranges' => 'bytes',
-            ]);
-        }
-
-        abort(500, 'Error al procesar la grabación.');
+        return response()->json(['status' => 'processing'], 202);
     }
 }

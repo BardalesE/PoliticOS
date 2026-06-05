@@ -20,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // SortedMiddleware reorders auth:sanctum (AuthenticatesRequests, priority 6)
         // ahead of anything not in the priority list. prependToPriorityList fixes that.
         $middleware->appendToGroup('api', \App\Http\Middleware\ResolveTenant::class);
+        $middleware->appendToGroup('api', \App\Http\Middleware\SecurityHeaders::class);
         $middleware->prependToPriorityList(
             \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
             \App\Http\Middleware\ResolveTenant::class

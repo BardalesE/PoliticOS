@@ -64,8 +64,8 @@ class ResolveTenant
             }
         }
 
-        // 3. Query param ?tenant=james (demos rápidas)
-        if ($request->query('tenant')) {
+        // 3. Query param ?tenant=james (solo en entorno local — jamás en producción)
+        if (app()->environment('local') && $request->query('tenant')) {
             return strtolower($request->query('tenant'));
         }
 

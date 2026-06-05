@@ -56,10 +56,10 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
     });
 
     // ─── Registro ciudadano (público) ────────────────────────────────
-    Route::post('/citizen/register',        [CitizenController::class, 'register']);
+    Route::post('/citizen/register',        [CitizenController::class, 'register'])->middleware('throttle:5,1');
     Route::get ('/citizen/profile/{uuid}',  [CitizenController::class, 'showByUuid']);
     Route::get ('/citizen/referral/{code}', [CitizenController::class, 'referralInfo']);
-    Route::get ('/citizen/check-dni/{dni}', [CitizenController::class, 'checkDni']);
+    Route::get ('/citizen/check-dni/{dni}', [CitizenController::class, 'checkDni'])->middleware('throttle:10,1');
 
     // ─── Perfil del candidato (público) ──────────────────────────────
     Route::get('/candidate', [CandidateProfileController::class, 'show']);
@@ -122,6 +122,7 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
             Route::post('/alerts/{id}/ack', [IntelligenceController::class, 'acknowledgeAlert']);
             Route::post('/regenerate-alerts', [IntelligenceController::class, 'regenerateAlerts']);
             Route::get('/districts',      [IntelligenceController::class, 'districts']);
+            Route::get('/map',            [IntelligenceController::class, 'map']);
         });
 
         // ━━━ ATTACK RESPONSES (NUEVO en v2) ━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -254,7 +255,7 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
 });
 
 // ─── Super Admin (sin tenant) ─────────────────────────────────────────
-Route::middleware(\App\Http\Middleware\EnsureSuperAdmin::class)
+Route::middleware(['throttle:30,1', \App\Http\Middleware\EnsureSuperAdmin::class])
     ->prefix('superadmin')
     ->group(function () {
         Route::get   ('/tenants',              [SuperAdminController::class, 'listTenants']);

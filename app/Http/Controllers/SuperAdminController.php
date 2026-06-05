@@ -128,11 +128,11 @@ class SuperAdminController extends Controller
 
         return response()->json([
             'admin_email'         => $tenant->admin_email,
-            'admin_password'      => $password,
+            'has_password'        => !is_null($password),
             'password_changed'    => !is_null($tenant->password_changed_at),
             'password_changed_at' => $tenant->password_changed_at,
-            'admin_url'           => env('FRONTEND_URL', 'http://localhost:3000') . "/admin/login?tenant={$tenant->slug}",
-            'chatbot_url'         => env('FRONTEND_URL', 'http://localhost:3000') . "?tenant={$tenant->slug}",
+            'admin_url'           => config('app.frontend_url', 'http://localhost:3000') . "/admin/login?tenant={$tenant->slug}",
+            'chatbot_url'         => config('app.frontend_url', 'http://localhost:3000') . "?tenant={$tenant->slug}",
             'credential_log'      => array_reverse($log),
         ]);
     }

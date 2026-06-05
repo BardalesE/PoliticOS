@@ -212,16 +212,68 @@ class IntelligenceService
 
     public function realtimeMetrics(): array
     {
-        // Sin cache, datos en vivo
-        $last10min = now()->subMinutes(10);
+        return Cache::remember('intel.realtime', 10, function () {
+            $last10min = now()->subMinutes(10);
+
+            return [
+                'active_sessions'       => ChatSession::where('updated_at', '>=', $last10min)->count(),
+                'messages_per_min'      => round(ChatMessage::where('created_at', '>=', now()->subMinute())->count(), 0),
+                'unacknowledged_alerts' => IntelAlert::unread()->count(),
+                'critical_alerts'       => IntelAlert::unread()->bySeverity('critical')->count(),
+            ];
+        });
+    }
+
+    public function mapData(): array
+    {
+        // Ciudadanos registrados con GPS del navegador
+        $citizens = \App\Models\CitizenProfile::whereNotNull('browser_lat')
+            ->whereNotNull('browser_lng')
+            ->select([
+                'id', 'name', 'district', 'voting_intention', 'points_balance',
+                'browser_lat', 'browser_lng',
+                'location_district', 'location_province', 'location_department',
+                'created_at',
+            ])
+            ->orderByDesc('created_at')
+            ->limit(2000)
+            ->get()
+            ->map(fn($c) => [
+                'id'                  => $c->id,
+                'name'                => $c->name,
+                'district'            => $c->district ?? $c->location_district,
+                'voting_intention'    => $c->voting_intention,
+                'points'              => $c->points_balance,
+                'lat'                 => (float) $c->browser_lat,
+                'lng'                 => (float) $c->browser_lng,
+                'location_department' => $c->location_department,
+                'created_at'          => $c->created_at,
+            ]);
+
+        // Chat sessions anónimas con GPS (usuarios que no se registraron)
+        $sessions = \App\Models\ChatSession::whereNotNull('browser_lat')
+            ->whereNotNull('browser_lng')
+            ->select(['id', 'geo_city', 'geo_region', 'browser_lat', 'browser_lng',
+                      'inferred_segment', 'avg_sentiment', 'created_at'])
+            ->orderByDesc('created_at')
+            ->limit(500)
+            ->get()
+            ->map(fn($s) => [
+                'id'               => 'session_' . $s->id,
+                'name'             => null,
+                'district'         => $s->geo_city,
+                'voting_intention' => null,
+                'points'           => 0,
+                'lat'              => (float) $s->browser_lat,
+                'lng'              => (float) $s->browser_lng,
+                'segment'          => $s->inferred_segment,
+                'created_at'       => $s->created_at,
+            ]);
 
         return [
-            'active_sessions' => ChatSession::where('updated_at','>=',$last10min)->count(),
-            'messages_per_min' => round(
-                ChatMessage::where('created_at','>=', now()->subMinute())->count(), 0
-            ),
-            'unacknowledged_alerts' => IntelAlert::unread()->count(),
-            'critical_alerts' => IntelAlert::unread()->bySeverity('critical')->count(),
+            'citizens' => $citizens,
+            'sessions' => $sessions,
+            'total'    => $citizens->count() + $sessions->count(),
         ];
     }
 
