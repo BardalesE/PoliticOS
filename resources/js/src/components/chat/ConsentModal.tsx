@@ -50,12 +50,15 @@ export default function ConsentModal({ onAccept, onDecline }: ConsentModalProps)
               entrenado con información pública del candidato. <strong>No es el candidato en persona.</strong>
             </p>
 
-            <p className="text-sm text-zinc-700 leading-relaxed mb-4">
+            <p className="text-sm text-zinc-700 leading-relaxed mb-3">
               Para mejorar tus respuestas, este chat puede almacenar tus mensajes y datos opcionales
-              que tú elijas compartir (edad, distrito, preferencias). <strong>No recopilamos DNI,
-              teléfono ni datos identificables.</strong> Operado conforme a la Ley 29733 de Protección
-              de Datos Personales. Puedes solicitar borrado en{" "}
+              que tú elijas compartir (edad, distrito, preferencias). Operado conforme a la Ley 29733
+              de Protección de Datos Personales. Puedes solicitar borrado en{" "}
               <a href="/privacidad" className="text-brand-600 underline">privacidad@politicos.pe</a>.
+            </p>
+            <p className="text-xs text-zinc-500 bg-zinc-50 rounded-lg px-3 py-2 mb-4 border border-zinc-200">
+              📍 También podemos usar tu <strong>ubicación aproximada</strong> para entender mejor
+              las necesidades de tu zona. Es opcional — te lo pediremos aparte y puedes denegar.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">

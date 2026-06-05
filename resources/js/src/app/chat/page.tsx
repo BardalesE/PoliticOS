@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FileText, Play, Link as LinkIcon, X, ImageIcon, ShieldAlert, AlertTriangle } from "lucide-react";
+import { FileText, Play, Link as LinkIcon, X, ImageIcon, ShieldAlert, AlertTriangle, ArrowRight, RotateCcw } from "lucide-react";
 import ConsentModal from "@/components/chat/ConsentModal";
 import AIBadge from "@/components/chat/AIBadge";
 import { LiveAlert } from "@/components/live/LiveAlert";
 import { useCandidate } from "@/context/CandidateContext";
 import { resolveTenantSlug } from "@/lib/api";
+import { TenantLink } from "@/components/ui/TenantLink";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -33,9 +34,22 @@ interface ChatMessage {
   quickReplies?: QuickReply[];
 }
 
+interface WelcomeBack {
+  name: string;
+  points: number | null;
+  savedAt: number;
+}
+
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+
+const LS_HISTORY        = "politicos_chat_history";
+const LS_SAVED_AT       = "politicos_chat_saved_at";
+const LS_SESSION        = "politicos_session_id";
+const LS_REG_DONE       = "politicos_reg_done";
+const LS_CITIZEN_NAME   = "politicos_citizen_name";
+const LS_CITIZEN_POINTS = "politicos_citizen_points";
 
 // Fases del flujo de registro conversacional
 type RegPhase =
@@ -68,6 +82,11 @@ const THINKING_STEPS = [
   "Procesando información",
   "Preparando respuesta",
 ];
+
+function formatSavedDate(ts: number): string {
+  if (!ts) return "fecha desconocida";
+  return new Date(ts).toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" });
+}
 
 // ─── Modal de alerta por mensaje ininteligible ────────────────────────────────
 
@@ -398,29 +417,38 @@ export default function ChatPage() {
   const [blocked, setBlocked]    = useState(false);
   const endRef                   = useRef<HTMLDivElement>(null);
 
+  // ── Geolocalización (browser GPS) ───────────────────────────────────────────
+  const [geoLocation, setGeoLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
+
   // ── Flujo de registro conversacional ────────────────────────────────────────
-  const [regPhase, setRegPhase]   = useState<RegPhase | null>(null); // null = no iniciado
+  const [regPhase, setRegPhase]   = useState<RegPhase | null>(null);
   const [regData, setRegData]     = useState<RegData>({ name: "", dni: "", phone: "", email: "" });
-  const [chatInitialized, setChatInitialized] = useState(false); // se pasó initialized:true al backend
+  const [chatInitialized, setChatInitialized] = useState(false);
+
+  // ── Mejora 1: auto-start ─────────────────────────────────────────────────────
+  const [autoStarting, setAutoStarting] = useState(false);
+
+  // ── Mejora 2: welcome back ───────────────────────────────────────────────────
+  const [welcomeBack, setWelcomeBack] = useState<WelcomeBack | null>(null);
+
+  // ── Guardar historial en localStorage al cambiar los mensajes ────────────────
+  useEffect(() => {
+    if (welcomeBack !== null) return; // no sobreescribir mientras se muestra la pantalla de bienvenida
+    const saveable = messages.filter((m) => !m.pending && m.content.length > 0);
+    if (saveable.length === 0) return;
+    localStorage.setItem(LS_HISTORY, JSON.stringify(saveable));
+    localStorage.setItem(LS_SAVED_AT, Date.now().toString());
+  }, [messages, welcomeBack]);
 
   // ── Init ────────────────────────────────────────────────────────────────────
   useEffect(() => {
     const hasConsent = ConsentModal.hasConsent();
     setConsent(hasConsent);
-    const stored = localStorage.getItem("politicos_session_id");
+    const stored = localStorage.getItem(LS_SESSION);
     if (stored) setSessionId(stored);
 
     if (hasConsent) {
-      const regDone = localStorage.getItem("politicos_reg_done");
-      if (regDone) {
-        // Usuario ya pasó por el flujo → chat libre directo
-        setChatInitialized(true);
-        setRegPhase("done");
-      } else {
-        // Primera vez → iniciar flujo de registro
-        startRegistrationFlow();
-        setRegPhase("offered");
-      }
+      initChatAfterConsent();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -429,18 +457,57 @@ export default function ChatPage() {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // ── Consent result ──────────────────────────────────────────────────────────
-  const onConsentResult = (accepted: boolean) => {
-    setConsent(accepted);
-    if (accepted) {
-      const regDone = localStorage.getItem("politicos_reg_done");
+  // ── Lógica de inicialización post-consent ───────────────────────────────────
+
+  function initChatAfterConsent() {
+    requestGeoLocation(); // pedir GPS siempre que el usuario tenga consentimiento
+    let savedMessages: ChatMessage[] = [];
+    try {
+      const raw = localStorage.getItem(LS_HISTORY);
+      if (raw) savedMessages = JSON.parse(raw);
+    } catch {}
+
+    if (savedMessages.length > 0) {
+      // Hay historial → mostrar pantalla de bienvenida de regreso
+      const savedName   = localStorage.getItem(LS_CITIZEN_NAME) || "";
+      const savedPoints = localStorage.getItem(LS_CITIZEN_POINTS);
+      const savedAt     = parseInt(localStorage.getItem(LS_SAVED_AT) || "0");
+      setWelcomeBack({
+        name:   savedName,
+        points: savedPoints ? parseInt(savedPoints) : null,
+        savedAt,
+      });
+    } else {
+      const regDone = localStorage.getItem(LS_REG_DONE);
       if (regDone) {
         setChatInitialized(true);
         setRegPhase("done");
       } else {
-        startRegistrationFlow();
-        setRegPhase("offered");
+        autoStartRegistrationFlow();
       }
+    }
+  }
+
+  // ── Solicitar GPS del navegador (silencioso si se deniega) ──────────────────
+  function requestGeoLocation() {
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGeoLocation({
+          lat:      pos.coords.latitude,
+          lng:      pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        });
+      },
+      () => {}
+    );
+  }
+
+  // ── Consent result ──────────────────────────────────────────────────────────
+  const onConsentResult = (accepted: boolean) => {
+    setConsent(accepted);
+    if (accepted) {
+      initChatAfterConsent(); // ya llama requestGeoLocation internamente
     }
   };
 
@@ -467,6 +534,21 @@ export default function ChatPage() {
     }]);
   }
 
+  // ── Mejora 1: arrancar el chat automáticamente con indicador de escritura ────
+
+  function autoStartRegistrationFlow() {
+    setAutoStarting(true);
+    const typingId = `auto-typing-${Date.now()}`;
+    setMessages([{ id: typingId, role: "james", content: "", pending: true }]);
+
+    setTimeout(() => {
+      setAutoStarting(false);
+      // startRegistrationFlow reemplaza todos los mensajes con el mensaje de bienvenida
+      startRegistrationFlow();
+      setRegPhase("offered");
+    }, 800);
+  }
+
   // ── Paso 1+2: bienvenida + invitación a la rifa ──────────────────────────────
 
   function startRegistrationFlow() {
@@ -485,6 +567,55 @@ export default function ChatPage() {
     }]);
   }
 
+  // ── Mejora 2: continuar conversación anterior ────────────────────────────────
+
+  function handleContinue() {
+    let saved: ChatMessage[] = [];
+    try {
+      const raw = localStorage.getItem(LS_HISTORY);
+      if (raw) saved = JSON.parse(raw);
+    } catch {}
+
+    const firstName = welcomeBack?.name?.split(" ")[0] || "vecino/a";
+    const typingId  = `greeting-${Date.now()}`;
+
+    setWelcomeBack(null);
+    setRegPhase("done");
+    setChatInitialized(true);
+    setAutoStarting(true);
+
+    setMessages([
+      ...saved,
+      { id: typingId, role: "james", content: "", pending: true },
+    ]);
+
+    setTimeout(() => {
+      setAutoStarting(false);
+      setMessages((m) =>
+        m.map((x) =>
+          x.id === typingId
+            ? { ...x, content: `¡Hola de nuevo, ${firstName}! 👋 ¿En qué te puedo ayudar hoy?`, pending: false }
+            : x
+        )
+      );
+    }, 900);
+  }
+
+  // ── Mejora 2: nuevo chat desde cero ──────────────────────────────────────────
+
+  function handleNewChat() {
+    localStorage.removeItem(LS_HISTORY);
+    localStorage.removeItem(LS_SAVED_AT);
+    localStorage.removeItem(LS_SESSION);
+    localStorage.removeItem(LS_REG_DONE);
+    setSessionId(null);
+    setWelcomeBack(null);
+    setRegPhase(null);
+    setChatInitialized(false);
+    setMessages([]);
+    autoStartRegistrationFlow();
+  }
+
   // ── Paso 3-5: motor de registro conversacional ────────────────────────────────
 
   async function handleRegistrationInput(text: string) {
@@ -492,7 +623,6 @@ export default function ChatPage() {
 
     switch (regPhase) {
 
-      // ── Respuesta a la invitación ──────────────────────────────────────────
       case "offered": {
         if (acceptedRaffle(text)) {
           addBotMsg("¡Genial! ¿Cómo te llamas? 😊");
@@ -503,7 +633,6 @@ export default function ChatPage() {
         break;
       }
 
-      // ── Nombre ────────────────────────────────────────────────────────────
       case "name": {
         const name = text.trim();
         if (name.length < 2) {
@@ -516,14 +645,12 @@ export default function ChatPage() {
         break;
       }
 
-      // ── DNI ───────────────────────────────────────────────────────────────
       case "dni": {
         const dni = text.trim();
         if (!isDniValid(dni)) {
           addBotMsg("El DNI debe tener exactamente 8 dígitos numéricos. ¿Puedes revisarlo? 👇");
           return;
         }
-        // Validar en tiempo real
         setRegPhase("validating");
         addBotMsg("Verificando...", undefined, true);
         try {
@@ -532,14 +659,13 @@ export default function ChatPage() {
             headers: { ...(tenant ? { "X-Tenant": tenant } : {}) },
           });
           const data = await r.json();
-          // Quitar el mensaje "Verificando..."
           setMessages((m) => m.filter((x) => !x.pending));
 
           if (data.exists) {
             addBotMsg(
               "Este DNI ya está registrado en nuestra campaña. ¿Quieres continuar de todas formas?",
               [
-                { label: "Usar otro DNI",          value: "Quiero usar otro DNI" },
+                { label: "Usar otro DNI",             value: "Quiero usar otro DNI" },
                 { label: "Continuar sin registrarme", value: "Prefiero continuar sin registrarme" },
               ]
             );
@@ -557,7 +683,6 @@ export default function ChatPage() {
         break;
       }
 
-      // ── DNI duplicado ─────────────────────────────────────────────────────
       case "dni_taken": {
         if (text.toLowerCase().includes("otro")) {
           addBotMsg("Escribe tu DNI (8 dígitos) 👇");
@@ -568,7 +693,6 @@ export default function ChatPage() {
         break;
       }
 
-      // ── WhatsApp ─────────────────────────────────────────────────────────
       case "phone": {
         const phone = text.trim();
         setRegData((d) => ({ ...d, phone }));
@@ -577,11 +701,9 @@ export default function ChatPage() {
         break;
       }
 
-      // ── Correo ────────────────────────────────────────────────────────────
       case "email": {
         const email = isSkipWord(text) ? "" : text.trim();
         setRegData((d) => ({ ...d, email }));
-        // Registrar
         setRegPhase("registering");
         const pendingId = addBotMsg("Registrando...", undefined, true);
         try {
@@ -600,6 +722,7 @@ export default function ChatPage() {
               visitor_uuid:    getCookieValue("politicos_visitor_id"),
               source:          "chat",
               consent:         true,
+              ...(geoLocation ? { lat: geoLocation.lat, lng: geoLocation.lng, accuracy: geoLocation.accuracy } : {}),
             }),
           });
           const result = await r.json();
@@ -611,6 +734,9 @@ export default function ChatPage() {
           } else {
             const pts  = result.points ?? 50;
             const code = result.referral_code ?? "";
+            // Guardar datos del ciudadano para la pantalla de bienvenida de regreso
+            localStorage.setItem(LS_CITIZEN_NAME,   regData.name);
+            localStorage.setItem(LS_CITIZEN_POINTS, pts.toString());
             addBotMsg(
               `🎉 ¡Listo, ${regData.name.split(" ")[0]}! Quedaste registrado/a y ganaste **${pts} puntos** de participación.\n\nTu código de referido es **${code}** — compártelo y gana 100 puntos más por cada vecino que se registre.`,
               [
@@ -618,7 +744,7 @@ export default function ChatPage() {
                 { label: "🗺️ Mi distrito",     value: "¿Qué propuestas hay para mi zona?" },
               ]
             );
-            localStorage.setItem("politicos_reg_done", "done");
+            localStorage.setItem(LS_REG_DONE, "done");
             setChatInitialized(true);
             setRegPhase("done");
           }
@@ -638,7 +764,7 @@ export default function ChatPage() {
     addBotMsg(
       `No hay problema. ¿De qué zona eres y qué problema ves en tu comunidad que más te preocupa? Cuéntame y te explico qué propone ${shortName} para resolverlo. 👇`
     );
-    localStorage.setItem("politicos_reg_done", "skipped");
+    localStorage.setItem(LS_REG_DONE, "skipped");
     setChatInitialized(true);
     setRegPhase("done");
   }
@@ -650,6 +776,7 @@ export default function ChatPage() {
     session_id:  sessionId,
     consent:     consent ?? false,
     initialized: chatInitialized,
+    ...(geoLocation ? { lat: geoLocation.lat, lng: geoLocation.lng, accuracy: geoLocation.accuracy } : {}),
   });
 
   // ── Streaming ─────────────────────────────────────────────────────────────────
@@ -692,7 +819,7 @@ export default function ChatPage() {
             if (payload.done) {
               if (payload.sessionId) {
                 setSessionId(payload.sessionId);
-                localStorage.setItem("politicos_session_id", payload.sessionId);
+                localStorage.setItem(LS_SESSION, payload.sessionId);
               }
               if (payload.media?.length) {
                 setMessages((m) =>
@@ -731,7 +858,7 @@ export default function ChatPage() {
       const data = await r.json();
       if (data.sessionId) {
         setSessionId(data.sessionId);
-        localStorage.setItem("politicos_session_id", data.sessionId);
+        localStorage.setItem(LS_SESSION, data.sessionId);
       }
       setMessages((m) =>
         m.map((x) =>
@@ -799,13 +926,11 @@ export default function ChatPage() {
     if (!text || streaming) return;
     setInput("");
 
-    // Durante el flujo de registro: interceptar
     if (regPhase !== null && regPhase !== "done") {
       handleRegistrationInput(text);
       return;
     }
 
-    // Chat normal
     dispatchToAI(text);
   };
 
@@ -824,7 +949,7 @@ export default function ChatPage() {
     return "Escribe tu pregunta...";
   };
 
-  const inputDisabled = streaming || regPhase === "validating" || regPhase === "registering";
+  const inputDisabled = streaming || autoStarting || regPhase === "validating" || regPhase === "registering";
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
@@ -839,100 +964,174 @@ export default function ChatPage() {
             <h1 className="font-bold text-zinc-900">Asistente PoliticOS</h1>
             <AIBadge />
           </div>
-          <a href="/" className="text-sm text-zinc-600 hover:underline">Inicio</a>
+          <TenantLink href="/" className="text-sm text-zinc-600 hover:underline">Inicio</TenantLink>
         </div>
       </header>
 
-      {/* Chat */}
-      <main className="flex-1 max-w-3xl w-full mx-auto px-4 py-5">
-        {messages.length === 0 && regPhase === null && (
+      {/* ── Pantalla de bienvenida de regreso (Mejora 2) ── */}
+      {welcomeBack !== null ? (
+        <main className="flex-1 max-w-3xl w-full mx-auto px-4 flex items-center justify-center py-10">
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center py-10 text-zinc-500"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="w-full max-w-sm"
           >
-            <p className="text-base font-medium">Acepta las condiciones para comenzar a chatear.</p>
-            <p className="text-xs mt-2 text-zinc-400">Soy un asistente entrenado con propuestas oficiales públicas.</p>
-          </motion.div>
-        )}
+            <div className="bg-white border border-zinc-200 rounded-2xl shadow-lg overflow-hidden">
+              {/* Franja superior */}
+              <div className="h-1.5 bg-gradient-to-r from-zinc-800 to-zinc-600" />
 
-        {/* Mensajes */}
-        <AnimatePresence initial={false}>
-          {messages.map((msg) => (
-            <motion.div
-              key={msg.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={`mb-3 flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
-            >
-              <div
-                className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
-                  msg.role === "user"
-                    ? "bg-zinc-900 text-white"
-                    : "bg-white border border-zinc-200 text-zinc-800 shadow-sm"
-                }`}
-              >
-                {msg.pending ? (
-                  <ThinkingAnimation />
-                ) : (
-                  <>
-                    {msg.content}
-                    {msg.media && msg.media.length > 0 && msg.content.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-zinc-100 space-y-2">
-                        <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-widest mb-2">
-                          Recursos relacionados
-                        </p>
-                        {msg.media.slice(0, 8).map((m, i) => (
-                          <MediaBadge key={i} item={m} />
-                        ))}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-              {!msg.pending && msg.role === "james" && msg.quickReplies && msg.quickReplies.length > 0 && (
-                <div className="max-w-[85%] w-full">
-                  <QuickReplyButtons replies={msg.quickReplies} onSelect={sendQuickReply} />
+              <div className="px-6 py-7 flex flex-col gap-5">
+                {/* Avatar + saludo */}
+                <div className="flex flex-col items-center text-center gap-2">
+                  <div className="w-14 h-14 rounded-full bg-zinc-900 flex items-center justify-center text-2xl shadow-md">
+                    🤖
+                  </div>
+                  <div>
+                    <p className="text-xs text-zinc-400 font-medium uppercase tracking-widest mb-0.5">
+                      De vuelta
+                    </p>
+                    <h2 className="text-xl font-bold text-zinc-900">
+                      {welcomeBack.name
+                        ? `Bienvenido/a de nuevo, ${welcomeBack.name.split(" ")[0]}`
+                        : "Bienvenido/a de nuevo"}
+                    </h2>
+                  </div>
                 </div>
-              )}
-            </motion.div>
-          ))}
-        </AnimatePresence>
 
-        {blocked && (
-          <div className="mb-3">
-            <BlockedBanner />
-          </div>
-        )}
+                {/* Info de la conversación anterior */}
+                <div className="bg-zinc-50 border border-zinc-100 rounded-xl px-4 py-3 flex flex-col gap-1.5">
+                  <p className="text-sm text-zinc-700 font-medium">Tienes una conversación anterior</p>
+                  <p className="text-xs text-zinc-400">
+                    {welcomeBack.savedAt
+                      ? `Del ${formatSavedDate(welcomeBack.savedAt)}`
+                      : "Guardada recientemente"}
+                  </p>
+                  {welcomeBack.points !== null && (
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="text-amber-500 text-sm">⭐</span>
+                      <span className="text-xs font-semibold text-amber-600">
+                        {welcomeBack.points} puntos acumulados
+                      </span>
+                    </div>
+                  )}
+                </div>
 
-        <div ref={endRef} />
-      </main>
+                {/* Botones */}
+                <div className="flex flex-col gap-2.5">
+                  <button
+                    onClick={handleContinue}
+                    className="w-full flex items-center justify-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-white font-semibold py-3.5 px-5 rounded-xl transition-colors text-sm shadow-sm"
+                  >
+                    Continuar conversación
+                    <ArrowRight size={16} />
+                  </button>
+                  <button
+                    onClick={handleNewChat}
+                    className="w-full flex items-center justify-center gap-2 bg-white hover:bg-zinc-50 text-zinc-700 font-medium py-3 px-5 rounded-xl border border-zinc-200 transition-colors text-sm"
+                  >
+                    <RotateCcw size={14} className="text-zinc-400" />
+                    Iniciar nueva conversación
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </main>
+      ) : (
+        <>
+          {/* ── Chat normal ── */}
+          <main className="flex-1 max-w-3xl w-full mx-auto px-4 py-5">
+            {messages.length === 0 && regPhase === null && !autoStarting && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-center py-10 text-zinc-500"
+              >
+                <p className="text-base font-medium">Acepta las condiciones para comenzar a chatear.</p>
+                <p className="text-xs mt-2 text-zinc-400">Soy un asistente entrenado con propuestas oficiales públicas.</p>
+              </motion.div>
+            )}
 
-      {/* Composer */}
-      <footer className="sticky bottom-0 bg-white border-t border-zinc-200 px-4 py-3">
-        <div className="max-w-3xl mx-auto flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && send()}
-            placeholder={inputPlaceholder()}
-            disabled={inputDisabled}
-            className="flex-1 px-4 py-3 border border-zinc-300 rounded-full focus:outline-none focus:ring-2 focus:ring-zinc-900 text-sm disabled:opacity-50"
-          />
-          <button
-            onClick={send}
-            disabled={inputDisabled || !input.trim()}
-            className="bg-zinc-900 text-white font-medium px-5 rounded-full hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-          >
-            {streaming ? "..." : "Enviar"}
-          </button>
-        </div>
-        <p className="text-[10px] text-zinc-400 text-center mt-1.5">
-          IA basada en información pública. Verifica decisiones electorales en{" "}
-          <a className="underline" href="https://infogob.jne.gob.pe" target="_blank" rel="noopener noreferrer">infogob.jne.gob.pe</a>
-        </p>
-      </footer>
+            {/* Mensajes */}
+            <AnimatePresence initial={false}>
+              {messages.map((msg) => (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`mb-3 flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
+                >
+                  <div
+                    className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
+                      msg.role === "user"
+                        ? "bg-zinc-900 text-white"
+                        : "bg-white border border-zinc-200 text-zinc-800 shadow-sm"
+                    }`}
+                  >
+                    {msg.pending ? (
+                      <ThinkingAnimation />
+                    ) : (
+                      <>
+                        {msg.content}
+                        {msg.media && msg.media.length > 0 && msg.content.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-zinc-100 space-y-2">
+                            <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-widest mb-2">
+                              Recursos relacionados
+                            </p>
+                            {msg.media.slice(0, 8).map((m, i) => (
+                              <MediaBadge key={i} item={m} />
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  {!msg.pending && msg.role === "james" && msg.quickReplies && msg.quickReplies.length > 0 && (
+                    <div className="max-w-[85%] w-full">
+                      <QuickReplyButtons replies={msg.quickReplies} onSelect={sendQuickReply} />
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+            </AnimatePresence>
+
+            {blocked && (
+              <div className="mb-3">
+                <BlockedBanner />
+              </div>
+            )}
+
+            <div ref={endRef} />
+          </main>
+
+          {/* Composer */}
+          <footer className="sticky bottom-0 bg-white border-t border-zinc-200 px-4 py-3">
+            <div className="max-w-3xl mx-auto flex gap-2">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && send()}
+                placeholder={inputPlaceholder()}
+                disabled={inputDisabled}
+                className="flex-1 px-4 py-3 border border-zinc-300 rounded-full focus:outline-none focus:ring-2 focus:ring-zinc-900 text-sm disabled:opacity-50"
+              />
+              <button
+                onClick={send}
+                disabled={inputDisabled || !input.trim()}
+                className="bg-zinc-900 text-white font-medium px-5 rounded-full hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+              >
+                {streaming ? "..." : "Enviar"}
+              </button>
+            </div>
+            <p className="text-[10px] text-zinc-400 text-center mt-1.5">
+              IA basada en información pública. Verifica decisiones electorales en{" "}
+              <a className="underline" href="https://infogob.jne.gob.pe" target="_blank" rel="noopener noreferrer">infogob.jne.gob.pe</a>
+            </p>
+          </footer>
+        </>
+      )}
 
       {consent === null && (
         <ConsentModal

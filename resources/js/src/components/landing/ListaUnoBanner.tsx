@@ -1,6 +1,6 @@
 "use client";
 import { motion } from "framer-motion";
-import Link from "next/link";
+import { TenantLink } from "@/components/ui/TenantLink";
 import { ArrowRight } from "lucide-react";
 import { useCandidate } from "@/context/CandidateContext";
 
@@ -50,12 +50,12 @@ export function ListaUnoBanner() {
           </div>
         </div>
 
-        <Link
+        <TenantLink
           href="/chat"
           className="flex items-center gap-2 bg-white/15 hover:bg-white/25 border border-white/25 text-white text-xs font-extrabold uppercase tracking-wider px-4 py-2 rounded-full transition-colors shrink-0"
         >
           Hablar con {shortName} <ArrowRight size={12} />
-        </Link>
+        </TenantLink>
       </motion.div>
     </section>
   );

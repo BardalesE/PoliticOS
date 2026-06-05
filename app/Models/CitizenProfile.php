@@ -14,6 +14,9 @@ class CitizenProfile extends Model
         'points_balance', 'referral_code', 'referred_by_code', 'source',
         'consented', 'consent_at', 'consent_ip',
         'is_verified', 'duplicate_score',
+        'browser_lat', 'browser_lng', 'browser_accuracy', 'browser_location_at',
+        'location_district', 'location_province', 'location_department',
+        'location_address', 'location_geocoded_at',
     ];
 
     protected $casts = [

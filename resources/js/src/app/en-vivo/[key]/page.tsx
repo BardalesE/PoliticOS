@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import Link from "next/link";
+import { TenantLink } from "@/components/ui/TenantLink";
 import { ArrowLeft, Clock, Users, Radio, Send, User, Pencil } from "lucide-react";
 import { LivePlayer } from "@/components/live/LivePlayer";
 
@@ -167,9 +167,9 @@ export default function StreamViewerPage() {
         <div>
           <Radio size={44} className="mx-auto mb-4 text-gray-300" />
           <p className="text-gray-700 font-semibold">Transmisión no encontrada</p>
-          <Link href="/en-vivo" className="text-red-600 hover:text-red-700 text-sm mt-3 inline-block">
+          <TenantLink href="/en-vivo" className="text-red-600 hover:text-red-700 text-sm mt-3 inline-block">
             ← Volver a En Vivo
-          </Link>
+          </TenantLink>
         </div>
       </div>
     );
@@ -185,10 +185,10 @@ export default function StreamViewerPage() {
       {/* Top nav */}
       <div className="border-b border-gray-200 bg-white px-6 py-3">
         <div className="max-w-6xl mx-auto flex items-center gap-3">
-          <Link href="/en-vivo" className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 text-sm transition-colors">
+          <TenantLink href="/en-vivo" className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 text-sm transition-colors">
             <ArrowLeft size={15} />
             En vivo
-          </Link>
+          </TenantLink>
           {isLive && (
             <span className="flex items-center gap-1.5 bg-red-600 text-white text-xs font-bold px-2.5 py-0.5 rounded-full ml-2">
               <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />

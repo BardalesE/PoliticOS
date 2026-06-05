@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { TenantLink } from "@/components/ui/TenantLink";
 import { Radio, Users, ArrowRight } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
@@ -35,7 +35,7 @@ export function LiveStreamBanner() {
 
   return (
     <div className="w-full bg-red-600 text-white">
-      <Link
+      <TenantLink
         href={`/en-vivo/${liveStream.stream_key}`}
         className="max-w-6xl mx-auto px-6 py-3 flex items-center gap-3 hover:bg-red-700 transition-colors"
       >
@@ -61,7 +61,7 @@ export function LiveStreamBanner() {
           Ver ahora
           <ArrowRight size={14} />
         </span>
-      </Link>
+      </TenantLink>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 import { motion } from "framer-motion";
-import Link from "next/link";
+import { TenantLink } from "@/components/ui/TenantLink";
 import { MapPin } from "lucide-react";
 import { useCandidate } from "@/context/CandidateContext";
 
@@ -58,7 +58,7 @@ export function Districts() {
                 viewport={{ once: true, margin: "-40px" }}
                 transition={{ duration: 0.35, delay: (i % 6) * 0.05, type: "spring", stiffness: 100 }}
               >
-                <Link
+                <TenantLink
                   href={`/chat?q=${encodeURIComponent(`¿Qué harás en ${district}?`)}`}
                   className="group relative bg-white rounded-[14px] flex flex-col overflow-hidden transition-all duration-250 block"
                   style={{ border: "1px solid var(--page-line)", padding: "18px" }}
@@ -95,7 +95,7 @@ export function Districts() {
                   <span className="text-xs mt-0.5" style={{ color: "#6b7b6f" }}>
                     Ver plan local
                   </span>
-                </Link>
+                </TenantLink>
               </motion.div>
             ))}
           </div>

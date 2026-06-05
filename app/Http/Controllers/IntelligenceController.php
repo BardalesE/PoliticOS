@@ -103,6 +103,12 @@ class IntelligenceController extends Controller
         return response()->json($this->intel->districtAnalysis());
     }
 
+    /** GET /api/admin/intelligence/map */
+    public function map(): JsonResponse
+    {
+        return response()->json($this->intel->mapData());
+    }
+
     /** POST /api/admin/intelligence/regenerate-alerts — útil para testing */
     public function regenerateAlerts(): JsonResponse
     {

@@ -1,8 +1,8 @@
 "use client";
 import { motion } from "framer-motion";
-import Link from "next/link";
 import { MessageCircle } from "lucide-react";
 import { useCandidate } from "@/context/CandidateContext";
+import { TenantLink } from "@/components/ui/TenantLink";
 
 export function FinalCTA() {
   const { profile } = useCandidate();
@@ -93,7 +93,7 @@ export function FinalCTA() {
               whileHover={{ scale: 1.04, y: -2 }}
               whileTap={{ scale: 0.97 }}
             >
-              <Link
+              <TenantLink
                 href="/chat"
                 className="inline-flex items-center gap-2.5 bg-white hover:bg-gray-50 font-bold transition-all duration-200 rounded-full"
                 style={{
@@ -105,7 +105,7 @@ export function FinalCTA() {
               >
                 <MessageCircle size={18} style={{ color: "rgb(var(--brand-primary-rgb))" }} />
                 Conversar con el asistente
-              </Link>
+              </TenantLink>
             </motion.div>
           </motion.div>
 

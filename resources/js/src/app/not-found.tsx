@@ -1,5 +1,6 @@
-import Link from "next/link";
+"use client";
 import { Home } from "lucide-react";
+import { TenantLink } from "@/components/ui/TenantLink";
 
 export default function NotFound() {
   return (
@@ -9,13 +10,13 @@ export default function NotFound() {
       <p className="text-sm text-ink-400 max-w-sm mb-8">
         La página que buscas no existe o fue movida.
       </p>
-      <Link
+      <TenantLink
         href="/"
         className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-colors"
       >
         <Home size={14} />
         Volver al inicio
-      </Link>
+      </TenantLink>
     </div>
   );
 }

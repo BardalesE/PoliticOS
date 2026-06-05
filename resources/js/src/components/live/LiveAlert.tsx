@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { TenantLink } from "@/components/ui/TenantLink";
 import { motion, AnimatePresence } from "framer-motion";
 import { Radio, X, Users, ArrowRight } from "lucide-react";
 
@@ -124,13 +124,13 @@ export function LiveAlert() {
                   </p>
                 )}
 
-                <Link
+                <TenantLink
                   href={`/en-vivo/${stream.stream_key}`}
                   className="w-full flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold py-3.5 rounded-2xl transition-colors mb-2"
                 >
                   <Radio size={16} />
                   Ver transmisión en vivo
-                </Link>
+                </TenantLink>
                 <button
                   onClick={dismissToBar}
                   className="w-full py-2.5 text-zinc-500 hover:text-zinc-300 text-sm rounded-2xl hover:bg-zinc-900 transition-colors"
@@ -152,7 +152,7 @@ export function LiveAlert() {
             exit={{ opacity: 0, y: -40 }}
             className="sticky top-0 z-40"
           >
-            <Link
+            <TenantLink
               href={`/en-vivo/${stream.stream_key}`}
               className="flex items-center gap-2.5 px-4 py-2.5 bg-red-600 hover:bg-red-700 transition-colors text-white"
             >
@@ -171,7 +171,7 @@ export function LiveAlert() {
                 Ver
                 <ArrowRight size={13} />
               </span>
-            </Link>
+            </TenantLink>
           </motion.div>
         )}
       </AnimatePresence>

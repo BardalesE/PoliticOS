@@ -5,6 +5,7 @@ import "./globals.css";
 import { ThemeProvider } from "next-themes";
 import { CandidateProvider } from "@/context/CandidateContext";
 import { DynamicTitle } from "@/components/DynamicTitle";
+import { TenantGuard } from "@/components/TenantGuard";
 import type { CandidatePublicData } from "@/lib/api";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
@@ -98,6 +99,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-screen bg-white font-sans">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <CandidateProvider initialData={initialCandidate}>
+            <TenantGuard />
             <DynamicTitle />
             {children}
           </CandidateProvider>

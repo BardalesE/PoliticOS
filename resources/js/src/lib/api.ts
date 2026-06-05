@@ -9,8 +9,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 const BASE_DOMAIN = process.env.NEXT_PUBLIC_BASE_DOMAIN || "";
 
 export function resolveTenantSlug(): string {
-  // 1. Env var de build — máxima prioridad en dev. Si está configurado, siempre gana.
-  //    En producción no se setea; en dev apunta al candidato activo.
+  // 1. Env var de build — máxima prioridad en dev.
   const envSlug = process.env.NEXT_PUBLIC_TENANT_SLUG;
   if (envSlug) return envSlug;
 
@@ -23,16 +22,45 @@ export function resolveTenantSlug(): string {
       }
     }
 
-    // 3. ?tenant= en la URL — para links del superadmin ("Abrir panel")
+    // 3. ?tenant= en la URL — persiste automáticamente en localStorage
     const urlSlug = new URLSearchParams(window.location.search).get("tenant");
-    if (urlSlug) return urlSlug;
+    if (urlSlug) {
+      try { localStorage.setItem("politicos_tenant", urlSlug); } catch {}
+      return urlSlug;
+    }
 
-    // 4. Slug del login admin — solo como último fallback en prod sin subdominio
-    const fromLogin = localStorage.getItem("admin_tenant_slug");
-    if (fromLogin) return fromLogin;
+    // 4. localStorage ciudadano — persiste entre navegaciones sin ?tenant=
+    try {
+      const citizen = localStorage.getItem("politicos_tenant");
+      if (citizen) return citizen;
+    } catch {}
+
+    // 5. Slug del login admin — último fallback
+    try {
+      const fromLogin = localStorage.getItem("admin_tenant_slug");
+      if (fromLogin) return fromLogin;
+    } catch {}
   }
 
   return "";
+}
+
+/**
+ * Añade ?tenant=X a una ruta interna preservando hash y query params existentes.
+ * Deja intactos links externos, mailto:, // y rutas que ya tienen tenant=.
+ */
+export function withTenant(href: string, tenant: string): string {
+  if (!tenant) return href;
+  if (/^(https?:\/\/|mailto:|\/\/)/.test(href)) return href;
+
+  const hashIdx = href.indexOf("#");
+  const hash    = hashIdx >= 0 ? href.slice(hashIdx) : "";
+  const base    = hashIdx >= 0 ? href.slice(0, hashIdx) : href;
+
+  if (base.includes("tenant=")) return href;
+
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}tenant=${encodeURIComponent(tenant)}${hash}`;
 }
 
 function tenantHeaders(): Record<string, string> {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { TenantLink } from "@/components/ui/TenantLink";
 import { Radio, Clock, Users, Video, Wifi } from "lucide-react";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
@@ -127,7 +127,7 @@ function StreamCard({ stream: s, candidate }: { stream: LiveStream; candidate: C
   const isLive = s.status === "live";
 
   return (
-    <Link
+    <TenantLink
       href={`/en-vivo/${s.stream_key}`}
       className="group block bg-white rounded-2xl overflow-hidden border border-gray-200 hover:border-red-300 hover:shadow-md transition-all duration-200"
     >
@@ -193,6 +193,6 @@ function StreamCard({ stream: s, candidate }: { stream: LiveStream; candidate: C
           )}
         </div>
       </div>
-    </Link>
+    </TenantLink>
   );
 }

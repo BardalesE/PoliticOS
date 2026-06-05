@@ -1,15 +1,14 @@
 "use client";
-import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, Shield, ChevronRight } from "lucide-react";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useCandidate } from "@/context/CandidateContext";
-import { resolveTenantSlug } from "@/lib/api";
+import { TenantLink } from "@/components/ui/TenantLink";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
-const navLinks = [
+const NAV_DEFS = [
   { href: "/",           label: "Inicio" },
   { href: "/propuestas", label: "Propuestas" },
   { href: "/galeria",    label: "Galería" },
@@ -20,18 +19,12 @@ const navLinks = [
 ];
 
 export function Navbar() {
-  const [open, setOpen]       = useState(false);
+  const [open, setOpen]         = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [isLive, setIsLive]   = useState(false);
-  const [chatHref, setChatHref] = useState("/chat");
-  const { profile }           = useCandidate();
-  const pathname              = usePathname();
-  const shortName             = profile.name.split(" ")[0];
-
-  useEffect(() => {
-    const slug = resolveTenantSlug();
-    if (slug) setChatHref(`/chat?tenant=${slug}`);
-  }, []);
+  const [isLive, setIsLive]     = useState(false);
+  const { profile }             = useCandidate();
+  const pathname                = usePathname();
+  const shortName               = profile.name.split(" ")[0];
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -53,9 +46,11 @@ export function Navbar() {
     return () => clearInterval(id);
   }, []);
 
+  // Compara la ruta base (sin query params) para detectar la página activa
   const isActive = (href: string) => {
-    if (href === "/" && pathname === "/") return true;
-    if (href !== "/" && pathname.startsWith(href)) return true;
+    const base = href.split("?")[0];
+    if (base === "/" && pathname === "/") return true;
+    if (base !== "/" && pathname.startsWith(base)) return true;
     return false;
   };
 
@@ -72,7 +67,7 @@ export function Navbar() {
             <span className="text-[11px] font-semibold text-white/80 sm:hidden">
               Lista N°{profile.list_number} · {profile.location}
             </span>
-            <Link
+            <TenantLink
               href="/transparencia"
               className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white
                          text-[10px] sm:text-[11px] font-bold uppercase px-3 py-1.5 rounded-full
@@ -81,7 +76,7 @@ export function Navbar() {
               <Shield size={10} />
               <span className="hidden sm:inline">Portal de Transparencia</span>
               <span className="sm:hidden">Transparencia</span>
-            </Link>
+            </TenantLink>
           </div>
         </div>
 
@@ -98,7 +93,7 @@ export function Navbar() {
             <div className="flex items-center justify-between h-16 sm:h-[68px]">
 
               {/* Logo */}
-              <Link href="/" className="flex items-center gap-3 shrink-0 group">
+              <TenantLink href="/" className="flex items-center gap-3 shrink-0 group">
                 <div
                   className="w-11 h-11 rounded-xl overflow-hidden border-2 border-brand-100 shadow-sm
                               group-hover:border-brand-400 group-hover:shadow-md transition-all duration-200 shrink-0"
@@ -123,18 +118,17 @@ export function Navbar() {
                     {shortName} · {profile.title}
                   </p>
                 </div>
-              </Link>
+              </TenantLink>
 
               {/* Navegación desktop */}
               <nav className="hidden lg:flex items-center gap-1">
-                {navLinks.map((l) => {
+                {NAV_DEFS.map((l) => {
                   const active = isActive(l.href);
                   const showDot = l.live && isLive;
-                  const href = l.href === "/chat" ? chatHref : l.href;
                   return (
-                    <Link
+                    <TenantLink
                       key={l.href}
-                      href={href}
+                      href={l.href}
                       className={`relative px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200
                         ${active
                           ? "text-brand-700 bg-brand-50"
@@ -160,7 +154,7 @@ export function Navbar() {
                       {active && (
                         <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-4 h-0.5 bg-brand-500 rounded-full" />
                       )}
-                    </Link>
+                    </TenantLink>
                   );
                 })}
               </nav>
@@ -172,8 +166,8 @@ export function Navbar() {
                   whileTap={{ scale: 0.97 }}
                   className="hidden lg:block"
                 >
-                  <Link
-                    href={chatHref}
+                  <TenantLink
+                    href="/chat"
                     className="inline-flex items-center gap-2 bg-brand-700 hover:bg-brand-900 text-white
                                px-5 py-2.5 rounded-xl text-sm font-extrabold uppercase tracking-wider
                                transition-all duration-200"
@@ -184,7 +178,7 @@ export function Navbar() {
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
                     </span>
                     Chatear
-                  </Link>
+                  </TenantLink>
                 </motion.div>
 
                 <button
@@ -258,10 +252,9 @@ export function Navbar() {
 
               {/* Links */}
               <nav className="flex-1 flex flex-col px-4 pt-4 overflow-y-auto">
-                {navLinks.map((l, i) => {
+                {NAV_DEFS.map((l, i) => {
                   const active = isActive(l.href);
                   const showDot = l.live && isLive;
-                  const href = l.href === "/chat" ? chatHref : l.href;
                   return (
                     <motion.div
                       key={l.href}
@@ -269,8 +262,8 @@ export function Navbar() {
                       animate={{ x: 0, opacity: 1 }}
                       transition={{ delay: i * 0.05, duration: 0.25, type: "spring", stiffness: 120 }}
                     >
-                      <Link
-                        href={href}
+                      <TenantLink
+                        href={l.href}
                         onClick={() => setOpen(false)}
                         className={`flex items-center justify-between py-3.5 px-4 rounded-xl mb-1
                                     text-base font-semibold transition-colors
@@ -289,7 +282,7 @@ export function Navbar() {
                           )}
                         </span>
                         <ChevronRight size={16} className={active ? "text-brand-500" : "text-ink-300"} />
-                      </Link>
+                      </TenantLink>
                     </motion.div>
                   );
                 })}
@@ -302,8 +295,8 @@ export function Navbar() {
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ delay: 0.35, duration: 0.3 }}
                 >
-                  <Link
-                    href={chatHref}
+                  <TenantLink
+                    href="/chat"
                     onClick={() => setOpen(false)}
                     className="flex items-center justify-center gap-2 w-full bg-brand-700 hover:bg-brand-900
                                text-white py-4 rounded-xl text-base font-extrabold uppercase tracking-wider
@@ -315,7 +308,7 @@ export function Navbar() {
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
                     </span>
                     Conversar con {shortName}
-                  </Link>
+                  </TenantLink>
                   <p className="text-center text-xs text-ink-400 mt-3 font-medium">
                     {profile.party} · {profile.location} 2026
                   </p>

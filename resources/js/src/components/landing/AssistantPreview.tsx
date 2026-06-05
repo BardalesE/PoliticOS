@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import { TenantLink } from "@/components/ui/TenantLink";
 import { motion } from "framer-motion";
 import { MessageCircle, FileText, MapPin, Flag, ArrowRight } from "lucide-react";
 import { useCandidate } from "@/context/CandidateContext";
@@ -87,7 +87,7 @@ export function AssistantPreview() {
                 viewport={{ once: true, margin: "-60px" }}
                 transition={{ duration: 0.4, delay: i * 0.07 }}
               >
-                <Link
+                <TenantLink
                   href={s.href}
                   className="group flex flex-col h-full bg-white rounded-[18px] overflow-hidden transition-all duration-300"
                   style={{ border: "1px solid var(--page-line)", padding: "28px 24px" }}
@@ -145,7 +145,7 @@ export function AssistantPreview() {
                       className="transition-transform duration-200 group-hover:translate-x-1"
                     />
                   </span>
-                </Link>
+                </TenantLink>
               </motion.div>
             );
           })}

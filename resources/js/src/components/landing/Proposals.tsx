@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import Link from "next/link";
+import { TenantLink } from "@/components/ui/TenantLink";
 import { ArrowRight } from "lucide-react";
 import { api, type Proposal } from "@/lib/api";
 
@@ -177,7 +177,7 @@ export function Proposals({ initialData }: { initialData?: ProposalExtended[] })
           transition={{ duration: 0.4, delay: 0.25 }}
           className="mt-10 text-center"
         >
-          <Link
+          <TenantLink
             href="/propuestas"
             className="inline-flex items-center gap-2.5 font-bold text-base pb-1 transition-all duration-200"
             style={{
@@ -187,7 +187,7 @@ export function Proposals({ initialData }: { initialData?: ProposalExtended[] })
           >
             Ver todas las propuestas
             <ArrowRight size={18} style={{ color: "rgb(var(--brand-primary-rgb))" }} />
-          </Link>
+          </TenantLink>
         </motion.div>
       </div>
     </section>

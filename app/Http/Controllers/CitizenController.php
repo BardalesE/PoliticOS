@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ReverseGeocodeJob;
 use App\Models\CitizenProfile;
 use App\Models\CitizenPoint;
 use Illuminate\Http\JsonResponse;
@@ -27,6 +28,9 @@ class CitizenController extends Controller
             'referred_by_code' => ['nullable', 'string', 'max:16'],
             'source'           => ['nullable', 'in:chat,web_form,qr,referral'],
             'consent'          => ['required', 'accepted'],
+            'lat'              => ['nullable', 'numeric', 'between:-90,90'],
+            'lng'              => ['nullable', 'numeric', 'between:-180,180'],
+            'accuracy'         => ['nullable', 'numeric', 'min:0'],
         ]);
 
         // Anti-duplicados: buscar por contacto existente
@@ -62,23 +66,35 @@ class CitizenController extends Controller
         try {
             $referralCode = CitizenProfile::generateReferralCode();
 
+            $hasBrowserGeo = !empty($data['lat']) && !empty($data['lng']);
+
             $citizen = CitizenProfile::create([
-                'visitor_uuid'     => $data['visitor_uuid']     ?? null,
-                'name'             => $data['name'],
-                'phone_whatsapp'   => $data['phone_whatsapp']   ?? null,
-                'email'            => $data['email']            ?? null,
-                'dni'              => $data['dni']              ?? null,
-                'district'         => $data['district']         ?? null,
-                'age_range'        => $data['age_range']        ?? null,
-                'occupation'       => $data['occupation']       ?? null,
-                'voting_intention' => $data['voting_intention'] ?? null,
-                'source'           => $data['source']           ?? 'web_form',
-                'referred_by_code' => $data['referred_by_code'] ?? null,
-                'referral_code'    => $referralCode,
-                'consented'        => true,
-                'consent_at'       => now(),
-                'consent_ip'       => $request->ip(),
+                'visitor_uuid'        => $data['visitor_uuid']     ?? null,
+                'name'                => $data['name'],
+                'phone_whatsapp'      => $data['phone_whatsapp']   ?? null,
+                'email'               => $data['email']            ?? null,
+                'dni'                 => $data['dni']              ?? null,
+                'district'            => $data['district']         ?? null,
+                'age_range'           => $data['age_range']        ?? null,
+                'occupation'          => $data['occupation']       ?? null,
+                'voting_intention'    => $data['voting_intention'] ?? null,
+                'source'              => $data['source']           ?? 'web_form',
+                'referred_by_code'    => $data['referred_by_code'] ?? null,
+                'referral_code'       => $referralCode,
+                'consented'           => true,
+                'consent_at'          => now(),
+                'consent_ip'          => $request->ip(),
+                'browser_lat'         => $hasBrowserGeo ? $data['lat']      : null,
+                'browser_lng'         => $hasBrowserGeo ? $data['lng']      : null,
+                'browser_accuracy'    => $hasBrowserGeo ? ($data['accuracy'] ?? null) : null,
+                'browser_location_at' => $hasBrowserGeo ? now()             : null,
             ]);
+
+            // Reverse geocoding async si hay GPS
+            if ($hasBrowserGeo) {
+                ReverseGeocodeJob::dispatch($citizen->id, (float) $data['lat'], (float) $data['lng'])
+                    ->afterResponse();
+            }
 
             // Puntos por registro
             $citizen->addPoints('registro', CitizenProfile::pointsFor('registro'));

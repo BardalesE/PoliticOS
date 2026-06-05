@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { CalendarDays, MapPin, Clock, ArrowRight, Radio, Zap } from "lucide-react";
-import Link from "next/link";
+import { TenantLink } from "@/components/ui/TenantLink";
 import { homeApi, type CampaignEvent } from "@/lib/api";
 import { useCandidate } from "@/context/CandidateContext";
 
@@ -416,12 +416,12 @@ export function EventsSection({
                         <Radio size={14} /> Ver transmisión
                       </a>
                     )}
-                    <Link
+                    <TenantLink
                       href="/chat"
                       className="inline-flex items-center gap-2 text-sm text-ink-400 hover:text-brand-700 font-semibold transition-colors"
                     >
                       Más información <ArrowRight size={14} />
-                    </Link>
+                    </TenantLink>
                   </div>
                 </div>
               </motion.div>

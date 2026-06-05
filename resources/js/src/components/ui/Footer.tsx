@@ -1,8 +1,8 @@
 "use client";
-import Link from "next/link";
 import { MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCandidate } from "@/context/CandidateContext";
+import { TenantLink } from "@/components/ui/TenantLink";
 
 const contentLinks = [
   { href: "/propuestas", label: "Propuestas" },
@@ -103,7 +103,7 @@ export function Footer() {
               Contenido
             </h4>
             {contentLinks.map((l) => (
-              <Link
+              <TenantLink
                 key={l.href}
                 href={l.href}
                 className="block text-sm font-semibold py-1.5 transition-all duration-200 hover:translate-x-1"
@@ -116,7 +116,7 @@ export function Footer() {
                 }}
               >
                 {l.label}
-              </Link>
+              </TenantLink>
             ))}
           </motion.div>
 
@@ -134,7 +134,7 @@ export function Footer() {
               Participa
             </h4>
             {participaLinks.map((l) => (
-              <Link
+              <TenantLink
                 key={l.href}
                 href={l.href}
                 className="block text-sm font-semibold py-1.5 transition-all duration-200 hover:translate-x-1"
@@ -147,7 +147,7 @@ export function Footer() {
                 }}
               >
                 {l.label}
-              </Link>
+              </TenantLink>
             ))}
           </motion.div>
 
@@ -172,7 +172,7 @@ export function Footer() {
             </p>
 
             <motion.div whileHover={{ scale: 1.03, y: -1 }} whileTap={{ scale: 0.97 }}>
-              <Link
+              <TenantLink
                 href="/chat"
                 className="inline-flex items-center gap-2 bg-white hover:bg-gray-100 font-bold text-sm rounded-full transition-all duration-200"
                 style={{
@@ -193,7 +193,7 @@ export function Footer() {
                   />
                 </span>
                 Chatear con {shortName}
-              </Link>
+              </TenantLink>
             </motion.div>
           </motion.div>
         </div>

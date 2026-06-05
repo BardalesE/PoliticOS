@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
-import Link from "next/link";
+import { TenantLink } from "@/components/ui/TenantLink";
 import { ChevronDown, Sparkles } from "lucide-react";
 import type { HeroSettings } from "@/lib/api";
 import { useCandidate } from "@/context/CandidateContext";
@@ -194,7 +194,7 @@ export function Hero({ initialHero }: HeroProps) {
           <motion.div variants={item} className="flex flex-wrap items-center gap-4 mb-12">
             {d.btn1_label && d.btn1_url && (
               <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
-                <Link
+                <TenantLink
                   href={d.btn1_url}
                   className={`inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl text-base font-extrabold uppercase tracking-wider shadow-lg transition-all duration-200 ${
                     onDark
@@ -204,12 +204,12 @@ export function Hero({ initialHero }: HeroProps) {
                   style={{ boxShadow: onDark ? undefined : "0 8px 30px var(--brand-glow-35)" }}
                 >
                   {d.btn1_label}
-                </Link>
+                </TenantLink>
               </motion.div>
             )}
             {d.btn2_label && d.btn2_url && (
               <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
-                <Link
+                <TenantLink
                   href={d.btn2_url}
                   className={`inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl text-base font-extrabold uppercase tracking-wider transition-all duration-200 ${
                     onDark
@@ -218,12 +218,12 @@ export function Hero({ initialHero }: HeroProps) {
                   }`}
                 >
                   {d.btn2_label}
-                </Link>
+                </TenantLink>
               </motion.div>
             )}
             {d.btn3_label && d.btn3_url && (
               <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
-                <Link
+                <TenantLink
                   href={d.btn3_url}
                   className={`inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl text-base font-extrabold uppercase tracking-wider transition-all duration-200 ${
                     onDark
@@ -232,7 +232,7 @@ export function Hero({ initialHero }: HeroProps) {
                   }`}
                 >
                   {d.btn3_label}
-                </Link>
+                </TenantLink>
               </motion.div>
             )}
           </motion.div>

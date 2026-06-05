@@ -1,7 +1,7 @@
 "use client";
-import Link from "next/link";
 import { motion } from "framer-motion";
 import { useCandidate } from "@/context/CandidateContext";
+import { TenantLink } from "@/components/ui/TenantLink";
 
 const SZ = {
   sm: { pill: "px-3 py-2",  icon: "w-5 h-5", circle: "w-10 h-10", text: "text-xs",   sub: "text-[10px]" },
@@ -45,10 +45,10 @@ export function ChatFAB() {
         transition={{ delay: 0.4, duration: 0.25 }}
         className={`fixed z-50 ${posClass}`}
       >
-        <Link href="/chat" aria-label={label} style={colorStyle}
+        <TenantLink href="/chat" aria-label={label} style={colorStyle}
           className={`${sz.circle} rounded-full flex items-center justify-center ${baseClass}`}>
           <WhatsAppIcon className={sz.icon} />
-        </Link>
+        </TenantLink>
       </motion.div>
     );
   }
@@ -60,14 +60,14 @@ export function ChatFAB() {
       transition={{ delay: 0.4, duration: 0.25 }}
       className={`fixed z-50 ${posClass}`}
     >
-      <Link href="/chat" aria-label={label} style={colorStyle}
+      <TenantLink href="/chat" aria-label={label} style={colorStyle}
         className={`flex items-center gap-3 rounded-full ${sz.pill} ${baseClass}`}>
         <WhatsAppIcon className={`${sz.icon} shrink-0`} />
         <div className="hidden sm:block leading-tight">
           <p className={`font-extrabold ${sz.text}`}>{label}</p>
           <p className={`opacity-75 font-semibold ${sz.sub}`}>{subtitle}</p>
         </div>
-      </Link>
+      </TenantLink>
     </motion.div>
   );
 }

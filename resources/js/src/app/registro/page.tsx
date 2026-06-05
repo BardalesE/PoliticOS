@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { useCandidate } from "@/context/CandidateContext";
 import { request, resolveTenantSlug } from "@/lib/api";
+import { TenantLink } from "@/components/ui/TenantLink";
 import {
   User, Phone, Mail, MapPin, CheckCircle2, Loader2,
   Star, Share2, Gift, AlertCircle,
@@ -134,12 +135,12 @@ export default function RegistroPage() {
             </button>
           </div>
 
-          <a
+          <TenantLink
             href="/chat"
             className="text-sm text-brand-600 hover:text-brand-500 underline"
           >
             Volver al chat con {firstName} →
-          </a>
+          </TenantLink>
         </motion.div>
       </div>
     );

@@ -31,9 +31,22 @@ class ChatController extends Controller
             'consent'     => ['nullable','boolean'],
             'declared'    => ['nullable','array'],
             'initialized' => ['nullable','boolean'],
+            'lat'         => ['nullable','numeric','between:-90,90'],
+            'lng'         => ['nullable','numeric','between:-180,180'],
+            'accuracy'    => ['nullable','numeric','min:0'],
         ]);
 
         $session = $this->resolveSession($request, $data['session_id'] ?? null, $data['consent'] ?? null);
+
+        // ── Guardar GPS del navegador si se envió y no se tenía ───────────
+        if (!empty($data['lat']) && !empty($data['lng']) && !$session->browser_lat) {
+            $session->update([
+                'browser_lat'          => $data['lat'],
+                'browser_lng'          => $data['lng'],
+                'browser_accuracy'     => $data['accuracy'] ?? null,
+                'browser_location_at'  => now(),
+            ]);
+        }
 
         // ── 0. Límite mensual de mensajes del plan ────────────────────────
         $tenant = app('tenant');
@@ -141,9 +154,22 @@ class ChatController extends Controller
             'consent'     => ['nullable','boolean'],
             'declared'    => ['nullable','array'],
             'initialized' => ['nullable','boolean'],
+            'lat'         => ['nullable','numeric','between:-90,90'],
+            'lng'         => ['nullable','numeric','between:-180,180'],
+            'accuracy'    => ['nullable','numeric','min:0'],
         ]);
 
         $session = $this->resolveSession($request, $data['session_id'] ?? null, $data['consent'] ?? null);
+
+        // ── Guardar GPS del navegador si se envió y no se tenía ───────────
+        if (!empty($data['lat']) && !empty($data['lng']) && !$session->browser_lat) {
+            $session->update([
+                'browser_lat'         => $data['lat'],
+                'browser_lng'         => $data['lng'],
+                'browser_accuracy'    => $data['accuracy'] ?? null,
+                'browser_location_at' => now(),
+            ]);
+        }
 
         // ── 0. Límite mensual de mensajes del plan ────────────────────────
         $tenantForStream = app('tenant');

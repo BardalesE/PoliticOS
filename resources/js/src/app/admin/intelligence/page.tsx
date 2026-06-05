@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { request } from "@/lib/api";
+import type { Map as LeafletMap } from "leaflet";
 
 const adminGet = (token: string, path: string) =>
   request<any>(`/admin${path}`, {}, token);
@@ -49,7 +50,20 @@ interface Districts {
   citizen_proposals: { district: string; text: string; date: string }[];
 }
 
-type Tab = "pulse" | "attacks" | "segments" | "districts";
+interface MapPoint {
+  id: string | number;
+  name: string | null;
+  district: string | null;
+  voting_intention: string | null;
+  points: number;
+  lat: number;
+  lng: number;
+  location_department?: string;
+  created_at: string;
+}
+interface MapData { citizens: MapPoint[]; sessions: MapPoint[]; total: number; }
+
+type Tab = "pulse" | "attacks" | "segments" | "districts" | "map";
 
 export default function IntelligencePage() {
   const { token } = useAuth();
@@ -59,6 +73,7 @@ export default function IntelligencePage() {
   const [segments, setSegments] = useState<Segments | null>(null);
   const [realtime, setRealtime] = useState<Realtime | null>(null);
   const [districts, setDistricts] = useState<Districts | null>(null);
+  const [mapData, setMapData]     = useState<MapData | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -73,18 +88,20 @@ export default function IntelligencePage() {
   const loadAll = async () => {
     if (!token) { setLoading(false); return; }
     setLoading(true);
-    const [p, a, s, r, d] = await Promise.allSettled([
+    const [p, a, s, r, d, m] = await Promise.allSettled([
       adminGet(token, "/intelligence/pulse"),
       adminGet(token, "/intelligence/attacks?limit=30"),
       adminGet(token, "/intelligence/segments"),
       adminGet(token, "/intelligence/realtime"),
       adminGet(token, "/intelligence/districts"),
+      adminGet(token, "/intelligence/map"),
     ]);
     if (p.status === "fulfilled") setPulse(p.value);
     if (a.status === "fulfilled") setAttacks(a.value);
     if (s.status === "fulfilled") setSegments(s.value);
     if (r.status === "fulfilled") setRealtime(r.value);
     if (d.status === "fulfilled") setDistricts(d.value);
+    if (m.status === "fulfilled") setMapData(m.value);
     setLoading(false);
   };
 
@@ -122,16 +139,20 @@ export default function IntelligencePage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-5 border-b border-zinc-200">
-        {(["pulse","attacks","segments","districts"] as Tab[]).map((t) => (
+      <div className="flex gap-2 mb-5 border-b border-zinc-200 overflow-x-auto">
+        {(["pulse","attacks","segments","districts","map"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium transition ${
+            className={`px-4 py-2 text-sm font-medium whitespace-nowrap transition ${
               tab === t ? "text-zinc-900 border-b-2 border-zinc-900" : "text-zinc-500 hover:text-zinc-700"
             }`}
           >
-            {t === "pulse" ? "Pulso Ciudadano" : t === "attacks" ? "Ataques" : t === "segments" ? "Segmentación" : "Por Distrito"}
+            {t === "pulse" ? "Pulso Ciudadano"
+              : t === "attacks" ? "Ataques"
+              : t === "segments" ? "Segmentación"
+              : t === "districts" ? "Por Distrito"
+              : "🗺️ Mapa"}
           </button>
         ))}
       </div>
@@ -140,6 +161,7 @@ export default function IntelligencePage() {
       {tab === "attacks"   && (attacks   ? <AttacksTab   data={attacks}   /> : <EmptyTab label="Ataques"         />)}
       {tab === "segments"  && (segments  ? <SegmentsTab  data={segments}  /> : <EmptyTab label="Segmentación"    />)}
       {tab === "districts" && (districts ? <DistrictsTab data={districts} /> : <EmptyTab label="Análisis por distrito" />)}
+      {tab === "map"       && <MapTab data={mapData} />}
     </div>
   );
 }
@@ -451,6 +473,218 @@ function Card({ title, children, className = "" }: { title: string; children: Re
       <h3 className="text-sm font-bold text-zinc-700 mb-3">{title}</h3>
       {children}
     </motion.div>
+  );
+}
+
+// ─── Mapa de participación (Leaflet) ─────────────────────────────────────────
+
+const VOTE_COLORS: Record<string, string> = {
+  alta:     "#10B981",
+  media:    "#34D399",
+  indeciso: "#F59E0B",
+  baja:     "#FB923C",
+  opositor: "#EF4444",
+};
+
+function intentionLabel(v: string | null): string {
+  if (!v) return "Sin datos";
+  return { alta: "A favor", media: "Simpatizante", indeciso: "Indeciso", baja: "Crítico", opositor: "Opositor" }[v] ?? v;
+}
+
+function MapTab({ data }: { data: MapData | null }) {
+  const mapRef  = useRef<HTMLDivElement>(null);
+  const mapInst = useRef<LeafletMap | null>(null);
+
+  useEffect(() => {
+    if (!mapRef.current || mapInst.current) return;
+
+    (async () => {
+      const L = (await import("leaflet")).default;
+
+      // Inject Leaflet CSS once
+      if (!document.getElementById("leaflet-css")) {
+        const link = document.createElement("link");
+        link.id   = "leaflet-css";
+        link.rel  = "stylesheet";
+        link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+        document.head.appendChild(link);
+      }
+
+      // Lima / San Miguel as default center
+      const map = L.map(mapRef.current!, { center: [-12.09, -77.05], zoom: 11 });
+      mapInst.current = map;
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "© <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a>",
+        maxZoom: 18,
+      }).addTo(map);
+
+      const all = [...(data?.citizens ?? []), ...(data?.sessions ?? [])];
+
+      all.forEach((pt) => {
+        const color  = VOTE_COLORS[pt.voting_intention ?? ""] ?? "#94A3B8";
+        const radius = pt.voting_intention ? 9 : 6;
+
+        const marker = L.circleMarker([pt.lat, pt.lng], {
+          color,
+          fillColor: color,
+          fillOpacity: 0.85,
+          radius,
+          weight: 1.5,
+        });
+
+        const dateStr = pt.created_at
+          ? new Date(pt.created_at).toLocaleDateString("es-PE")
+          : "—";
+
+        marker.bindPopup(`
+          <div style="min-width:160px;font-family:sans-serif;font-size:13px;line-height:1.5">
+            <strong style="display:block;margin-bottom:4px">${pt.name ?? "Visitante anónimo"}</strong>
+            ${pt.district ? `<span>📍 ${pt.district}</span><br/>` : ""}
+            ${pt.location_department ? `<span>🏛️ ${pt.location_department}</span><br/>` : ""}
+            <span>⭐ ${pt.points} puntos</span><br/>
+            <span style="color:${color};font-weight:600">${intentionLabel(pt.voting_intention)}</span><br/>
+            <span style="color:#888;font-size:11px">${dateStr}</span>
+          </div>
+        `);
+
+        marker.addTo(map);
+      });
+
+      // Auto-fit bounds if there are points
+      if (all.length > 0) {
+        const bounds = L.latLngBounds(all.map((p) => [p.lat, p.lng]));
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+      }
+
+    })();
+
+    return () => {
+      if (mapInst.current) {
+        mapInst.current.remove();
+        mapInst.current = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const citizens = data?.citizens ?? [];
+  const sessions = data?.sessions ?? [];
+
+  return (
+    <div className="space-y-4">
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white border border-zinc-200 rounded-xl p-3">
+          <p className="text-xs text-zinc-500">Ciudadanos con GPS</p>
+          <p className="text-2xl font-bold text-zinc-900">{citizens.length}</p>
+        </div>
+        <div className="bg-white border border-zinc-200 rounded-xl p-3">
+          <p className="text-xs text-zinc-500">Sesiones anónimas GPS</p>
+          <p className="text-2xl font-bold text-zinc-900">{sessions.length}</p>
+        </div>
+        <div className="bg-white border border-zinc-200 rounded-xl p-3">
+          <p className="text-xs text-zinc-500">A favor</p>
+          <p className="text-2xl font-bold text-emerald-600">
+            {citizens.filter((c) => c.voting_intention === "alta" || c.voting_intention === "media").length}
+          </p>
+        </div>
+        <div className="bg-white border border-zinc-200 rounded-xl p-3">
+          <p className="text-xs text-zinc-500">Opositores / Críticos</p>
+          <p className="text-2xl font-bold text-red-600">
+            {citizens.filter((c) => c.voting_intention === "opositor" || c.voting_intention === "baja").length}
+          </p>
+        </div>
+      </div>
+
+      {/* Map card */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white border border-zinc-200 rounded-xl overflow-hidden"
+      >
+        <div className="px-4 py-3 border-b border-zinc-100 flex items-center justify-between">
+          <h3 className="text-sm font-bold text-zinc-700">Mapa de participación ciudadana</h3>
+          <span className="text-xs text-zinc-400">{(data?.total ?? 0)} puntos totales</span>
+        </div>
+
+        {/* Legend */}
+        <div className="px-4 py-2 flex flex-wrap gap-3 border-b border-zinc-100 bg-zinc-50">
+          {Object.entries(VOTE_COLORS).map(([k, c]) => (
+            <span key={k} className="flex items-center gap-1.5 text-xs text-zinc-600">
+              <span style={{ backgroundColor: c }} className="w-3 h-3 rounded-full inline-block" />
+              {intentionLabel(k)}
+            </span>
+          ))}
+          <span className="flex items-center gap-1.5 text-xs text-zinc-600">
+            <span style={{ backgroundColor: "#94A3B8" }} className="w-3 h-3 rounded-full inline-block" />
+            Anónimo
+          </span>
+        </div>
+
+        {/* Leaflet container */}
+        {data === null || data.total === 0 ? (
+          <div className="flex flex-col items-center justify-center h-80 text-zinc-400 bg-zinc-50">
+            <p className="text-sm">Sin datos de ubicación todavía.</p>
+            <p className="text-xs mt-1">Aparecerán cuando ciudadanos compartan su ubicación en el chat.</p>
+          </div>
+        ) : (
+          <div ref={mapRef} style={{ height: 500, width: "100%" }} />
+        )}
+      </motion.div>
+
+      {/* Table of latest registered citizens with GPS */}
+      {citizens.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white border border-zinc-200 rounded-xl overflow-hidden"
+        >
+          <div className="px-4 py-3 border-b border-zinc-100">
+            <h3 className="text-sm font-bold text-zinc-700">Últimos ciudadanos registrados con ubicación</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-zinc-100 bg-zinc-50 text-xs text-zinc-500">
+                  <th className="text-left px-4 py-2 font-medium">Nombre</th>
+                  <th className="text-left px-4 py-2 font-medium">Distrito declarado</th>
+                  <th className="text-left px-4 py-2 font-medium">Ubicación GPS</th>
+                  <th className="text-left px-4 py-2 font-medium">Intención</th>
+                  <th className="text-right px-4 py-2 font-medium">Puntos</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {citizens.slice(0, 20).map((c) => (
+                  <tr key={c.id} className="hover:bg-zinc-50 transition">
+                    <td className="px-4 py-2 font-medium text-zinc-800">{c.name ?? "—"}</td>
+                    <td className="px-4 py-2 text-zinc-600">{c.district ?? "—"}</td>
+                    <td className="px-4 py-2 text-zinc-500 text-xs">
+                      {c.location_department
+                        ? `${c.district ?? ""}, ${c.location_department}`
+                        : `${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}`}
+                    </td>
+                    <td className="px-4 py-2">
+                      {c.voting_intention ? (
+                        <span
+                          className="px-2 py-0.5 rounded-full text-xs font-medium text-white"
+                          style={{ backgroundColor: VOTE_COLORS[c.voting_intention] ?? "#94A3B8" }}
+                        >
+                          {intentionLabel(c.voting_intention)}
+                        </span>
+                      ) : (
+                        <span className="text-zinc-400 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-right font-bold text-zinc-800">{c.points}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </motion.div>
+      )}
+    </div>
   );
 }
 

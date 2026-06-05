@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Camera, Film, Play, ArrowRight, ImageIcon } from "lucide-react";
-import Link from "next/link";
+import { TenantLink } from "@/components/ui/TenantLink";
 import { mediaApi, type CampaignPhoto, type CampaignVideo } from "@/lib/api";
 
 function getYoutubeId(url: string): string | null {
@@ -182,18 +182,18 @@ export function MediaSection({
             </h2>
           </div>
           <div className="flex gap-3 shrink-0">
-            <Link
+            <TenantLink
               href="/galeria"
               className="inline-flex items-center gap-2 border border-white/30 text-white hover:bg-white/10 px-4 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider transition-colors"
             >
               <Camera size={14} /> Galería
-            </Link>
-            <Link
+            </TenantLink>
+            <TenantLink
               href="/videos"
               className="inline-flex items-center gap-2 bg-white text-[#0f1a12] hover:bg-gray-100 px-4 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider transition-colors"
             >
               <Film size={14} /> Videos
-            </Link>
+            </TenantLink>
           </div>
         </motion.div>
 
@@ -263,7 +263,7 @@ export function MediaSection({
           transition={{ duration: 0.4, delay: 0.2 }}
           className="mt-10 text-center px-5"
         >
-          <Link
+          <TenantLink
             href="/galeria"
             className="inline-flex items-center gap-2 text-sm font-bold pb-1 transition-colors"
             style={{
@@ -272,7 +272,7 @@ export function MediaSection({
             }}
           >
             Ver galería completa <ArrowRight size={14} />
-          </Link>
+          </TenantLink>
         </motion.div>
       </div>
     </section>

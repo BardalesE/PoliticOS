@@ -3,7 +3,7 @@ import { Navbar } from "@/components/ui/Navbar";
 import { Footer } from "@/components/ui/Footer";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { useCandidate } from "@/context/CandidateContext";
-import Link from "next/link";
+import { TenantLink } from "@/components/ui/TenantLink";
 import { ArrowRight } from "lucide-react";
 
 export default function ProposalsPage() {
@@ -31,12 +31,12 @@ export default function ProposalsPage() {
                 <p className="text-sm text-gray-600 leading-relaxed mb-6">
                   Propuestas específicas para cada distrito, con presupuesto detallado y plazos de ejecución claros.
                 </p>
-                <Link
+                <TenantLink
                   href={`/chat?q=${encodeURIComponent(`Cuéntame sobre ${t.label.toLowerCase()}`)}`}
                   className="inline-flex items-center gap-2 text-sm text-brand-500 hover:text-brand-600 font-medium"
                 >
                   Preguntar a {shortName} <ArrowRight size={14} />
-                </Link>
+                </TenantLink>
               </GlassCard>
             ))}
           </div>
