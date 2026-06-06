@@ -13,6 +13,10 @@ class ResolveTenant
 {
     public function handle(Request $request, Closure $next): Response
     {
+        // Siempre bind 'tenant' a null por defecto para evitar BindingResolutionException
+        // en controllers que hacen app('tenant') en modo single-tenant.
+        app()->instance('tenant', null);
+
         $slug = $this->resolveSlug($request);
 
         if (!$slug) {
@@ -20,7 +24,6 @@ class ResolveTenant
         }
 
         $tenant = Tenant::where('slug', $slug)->where('is_active', true)->first();
-
 
         if (!$tenant) {
             return response()->json(['message' => 'Tenant no encontrado.'], 404);
@@ -38,8 +41,6 @@ class ResolveTenant
         DB::purge('mysql');
         DB::reconnect('mysql');
 
-
-        // Disponible globalmente en esta request
         app()->instance('tenant', $tenant);
         $request->attributes->set('tenant', $tenant);
 
@@ -48,28 +49,32 @@ class ResolveTenant
 
     private function resolveSlug(Request $request): ?string
     {
-        // 1. Header explícito (desarrollo local sin subdominios)
+        // 1. Header explícito (desarrollo local o frontend sin subdominios)
         if ($request->hasHeader('X-Tenant')) {
             return strtolower(trim($request->header('X-Tenant')));
         }
 
         // 2. Subdominio (producción): james.politicos.pe → "james"
+        // ⚠ Una IP como 159.89.87.18 tiene 4 partes separadas por "." y se
+        //   interpretaría incorrectamente como subdomain "159". filter_var lo evita.
         $host = $request->getHost();
-        $parts = explode('.', $host);
-        if (count($parts) >= 3) {
-            $sub = strtolower($parts[0]);
-            // Ignorar "www" y "app" (super admin)
-            if (!in_array($sub, ['www', 'app', 'api'])) {
-                return $sub;
+        if (!filter_var($host, FILTER_VALIDATE_IP)) {
+            $parts = explode('.', $host);
+            if (count($parts) >= 3) {
+                $sub = strtolower($parts[0]);
+                if (!in_array($sub, ['www', 'app', 'api'])) {
+                    return $sub;
+                }
             }
         }
 
-        // 3. Query param ?tenant=james (solo en entorno local — jamás en producción)
-        if (app()->environment('local') && $request->query('tenant')) {
+        // 3. Query param ?tenant=james (local Y producción — útil en IP directa)
+        if ($request->query('tenant')) {
             return strtolower($request->query('tenant'));
         }
 
-        // 4. Env var (fallback single-tenant)
-        return env('APP_TENANT_SLUG') ?: null;
+        // 4. Config var (producción single-tenant).
+        // Usa config() y no env() para que funcione con config:cache activo.
+        return config('app.tenant_slug') ?: null;
     }
 }

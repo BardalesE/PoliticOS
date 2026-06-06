@@ -36,6 +36,7 @@ return [
     */
 
     'ai' => [
+        'provider'      => env('AI_PROVIDER', 'groq'),
         'claude_key'    => env('ANTHROPIC_API_KEY'),
         'claude_model'  => env('CLAUDE_MODEL', 'claude-haiku-4-5-20251001'),
         'openai_key'    => env('OPENAI_API_KEY'),

@@ -489,11 +489,21 @@ class JamesAIService
                 $reply = $this->callProvider($provider, $userMessage, $systemPrompt, $history);
                 if (!empty($reply)) return $reply;
             } catch (\Throwable $e) {
-                Log::warning("AI provider '{$provider}' failed", ['error' => $e->getMessage()]);
+                Log::warning("AI provider '{$provider}' failed", [
+                    'error'    => $e->getMessage(),
+                    'provider' => $provider,
+                    'model'    => $this->config->model ?? 'unknown',
+                    'key_set'  => !empty(config("services.ai.{$provider}_key")),
+                ]);
             }
         }
 
-        Log::error('All AI providers failed');
+        Log::error('All AI providers failed', [
+            'providers_tried' => $providers,
+            'groq_key_set'    => !empty(config('services.ai.groq_key')),
+            'claude_key_set'  => !empty(config('services.ai.claude_key')),
+            'openai_key_set'  => !empty(config('services.ai.openai_key')),
+        ]);
         return '__AI_RESTING__';
     }
 
@@ -540,6 +550,12 @@ class JamesAIService
         ]);
 
         if (!$response->ok()) {
+            Log::error('AI HTTP error (OpenAI-compatible)', [
+                'url'    => $url,
+                'model'  => $model,
+                'status' => $response->status(),
+                'body'   => $response->body(),
+            ]);
             throw new \RuntimeException("HTTP {$response->status()}: ".$response->body());
         }
 
@@ -567,6 +583,11 @@ class JamesAIService
         ]);
 
         if (!$response->ok()) {
+            Log::error('AI HTTP error (Claude)', [
+                'model'  => $model,
+                'status' => $response->status(),
+                'body'   => $response->body(),
+            ]);
             throw new \RuntimeException("Claude HTTP {$response->status()}: ".$response->body());
         }
 

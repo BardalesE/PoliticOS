@@ -54,6 +54,12 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    // Slug del tenant por defecto (modo single-tenant / IP directa).
+    // Cuando se accede via subdominio (james.politicos.pe) ResolveTenant lo detecta
+    // automáticamente. Este valor solo se usa si no hay subdominio ni X-Tenant header.
+    // Referenciado aquí para que config:cache lo incluya (env() no funciona en prod cacheado).
+    'tenant_slug' => env('APP_TENANT_SLUG'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone
