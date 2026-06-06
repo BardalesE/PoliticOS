@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# ─── PoliticOS — pre-commit secret scanner ────────────────────────────────────
+# Detecta patrones de claves API y credenciales antes de commitear.
+# Instalación (una sola vez por clon):
+#   git config core.hooksPath .githooks
+#   chmod +x .githooks/pre-commit
+# ──────────────────────────────────────────────────────────────────────────────
+
+set -euo pipefail
+
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+STAGED=$(git diff --cached --name-only 2>/dev/null)
+
+if [[ -z "$STAGED" ]]; then
+    exit 0
+fi
+
+FOUND=0
+
+# ── Patrones de secretos conocidos ────────────────────────────────────────────
+declare -A PATTERNS
+PATTERNS["Groq API key"]="gsk_[a-zA-Z0-9]{40,}"
+PATTERNS["Anthropic API key"]="sk-ant-[a-zA-Z0-9\-]{40,}"
+PATTERNS["OpenAI API key"]="sk-[a-zA-Z0-9]{40,}"
+PATTERNS["AWS access key"]="AKIA[0-9A-Z]{16}"
+PATTERNS["AWS secret key"]="[aA][wW][sS].*['\"][0-9a-zA-Z/+=]{40}['\"]"
+PATTERNS["Bearer token"]="Bearer [a-zA-Z0-9\-_]{32,}"
+PATTERNS["Private key header"]="-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY"
+PATTERNS["Hardcoded password"]="(password|passwd|pwd)\s*=\s*['\"][^'\"]{8,}['\"]"
+
+# ── Archivos que NUNCA deben commitearse ──────────────────────────────────────
+BLOCKED_FILES=(
+    ".env"
+    ".env.local"
+    ".env.production"
+    ".env.development"
+    ".env.production.local"
+    ".env.development.local"
+    "*.pem"
+    "*.key"
+    "*.p12"
+    "*.pfx"
+    "id_rsa"
+    "id_ed25519"
+    "credentials.json"
+    "service-account*.json"
+)
+
+# Verificar archivos bloqueados
+for file in $STAGED; do
+    filename=$(basename "$file")
+    for pattern in "${BLOCKED_FILES[@]}"; do
+        # shellcheck disable=SC2254
+        case "$filename" in
+            $pattern)
+                echo -e "${RED}✗ BLOQUEADO: '$file' no debe commitearse (contiene credenciales).${NC}"
+                FOUND=1
+                ;;
+        esac
+    done
+done
+
+# Escanear contenido de archivos staged en busca de secretos
+for file in $STAGED; do
+    # Saltar archivos binarios y el propio hook
+    [[ "$file" == ".githooks/"* ]] && continue
+    [[ "$file" == "*.png" || "$file" == "*.jpg" || "$file" == "*.pdf" ]] && continue
+    [[ ! -f "$file" ]] && continue
+
+    content=$(git show ":$file" 2>/dev/null) || continue
+
+    for label in "${!PATTERNS[@]}"; do
+        pattern="${PATTERNS[$label]}"
+        if echo "$content" | grep -qE "$pattern" 2>/dev/null; then
+            echo -e "${YELLOW}⚠ POSIBLE SECRETO en '$file': $label${NC}"
+            echo "  Líneas afectadas:"
+            echo "$content" | grep -nE "$pattern" | head -3 | sed 's/^/    /'
+            FOUND=1
+        fi
+    done
+done
+
+if [[ $FOUND -ne 0 ]]; then
+    echo ""
+    echo -e "${RED}Commit bloqueado: se detectaron posibles secretos.${NC}"
+    echo "Revisa los archivos marcados arriba."
+    echo "Si es un falso positivo, usa: git commit --no-verify"
+    echo ""
+    exit 1
+fi
+
+exit 0

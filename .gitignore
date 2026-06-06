@@ -1,3 +1,6 @@
+# ── Secrets — NUNCA commitear estos archivos ─────────────────────────────────
+# Pre-commit hook instalado vía: git config core.hooksPath .githooks
+# .githooks/ SÍ se commitea (contiene el scanner de secretos, no los secretos).
 /.phpunit.cache
 /node_modules
 /public/build
@@ -25,7 +28,13 @@ yarn-error.log
 # Next.js
 /resources/js/node_modules
 /resources/js/.next
+/resources/js/.env
 /resources/js/.env.local
+/resources/js/.env.production
+/resources/js/.env.development
+/resources/js/.env.production.local
+/resources/js/.env.development.local
+/resources/js/.env.test.local
 /resources/js/screenshots
 /resources/js/test-results
 /resources/js/tsconfig.tsbuildinfo
