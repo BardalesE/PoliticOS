@@ -33,7 +33,7 @@ const emptyProvision: ProvisionForm = {
   slug: "", name: "", db_name: "",
   admin_email: "", admin_password: "",
   plan: "starter",
-  db_host: "127.0.0.1", db_user: "root", db_password: "",
+  db_host: "", db_user: "", db_password: "",
   showAdvanced: false,
 };
 
@@ -629,11 +629,11 @@ function ProvisionModal({
                 <div className="grid grid-cols-3 gap-3 p-3 bg-zinc-800/50 rounded-lg border border-zinc-700">
                   <Input
                     label="DB Host" value={form.db_host} onChange={(v) => set("db_host", v)}
-                    placeholder="127.0.0.1"
+                    placeholder="usa el del .env"
                   />
                   <Input
                     label="DB User" value={form.db_user} onChange={(v) => set("db_user", v)}
-                    placeholder="root"
+                    placeholder="usa el del .env"
                   />
                   <Input
                     label="DB Password" value={form.db_password}
@@ -687,8 +687,8 @@ function ManualCreateForm({
   saKey, onSuccess,
 }: { saKey: string; onSuccess: (t: Tenant) => void }) {
   const [form, setForm] = useState({
-    slug: "", name: "", db_name: "", db_host: "127.0.0.1",
-    db_user: "root", db_password: "", plan: "starter" as const,
+    slug: "", name: "", db_name: "", db_host: "",
+    db_user: "", db_password: "", plan: "starter" as const,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState<string | null>(null);
