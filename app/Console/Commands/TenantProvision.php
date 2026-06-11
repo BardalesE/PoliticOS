@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Hash;
  * Opciones:
  *   --db-host=127.0.0.1
  *   --db-port=3306
- *   --db-user=root
+ *   --db-user=politicos_user
  *   --db-password=
  *   --plan=starter|pro|elite
  *   --force   (no pide confirmación)
@@ -32,7 +32,7 @@ class TenantProvision extends Command
         {admin_password : Contraseña del administrador inicial}
         {--db-host=127.0.0.1 : Host de MySQL}
         {--db-port=3306       : Puerto de MySQL}
-        {--db-user=root       : Usuario de MySQL}
+        {--db-user=politicos_user       : Usuario de MySQL}
         {--db-password=       : Contraseña de MySQL}
         {--plan=starter       : Plan del tenant (starter|pro|elite)}
         {--force              : Ejecutar sin confirmación interactiva}';
@@ -50,7 +50,7 @@ class TenantProvision extends Command
 
         $dbHost = $this->option('db-host') ?: config('database.connections.mysql.host', '127.0.0.1');
         $dbPort = (int) ($this->option('db-port') ?: config('database.connections.mysql.port', 3306));
-        $dbUser = $this->option('db-user') ?: config('database.connections.mysql.username', 'root');
+        $dbUser = $this->option('db-user') ?: config('database.connections.mysql.username', 'politicos_user');
         $dbPass = $this->option('db-password') !== null
             ? $this->option('db-password')
             : config('database.connections.mysql.password', '');
