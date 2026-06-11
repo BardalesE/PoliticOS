@@ -87,7 +87,7 @@ class SuperAdminController extends Controller
             '--plan'         => $data['plan']    ?? 'starter',
             '--db-host'      => $data['db_host'] ?? config('database.connections.mysql.host', '127.0.0.1'),
             '--db-port'      => (string) ($data['db_port'] ?? config('database.connections.mysql.port', 3306)),
-            '--db-user'      => $data['db_user'] ?? config('database.connections.mysql.username', 'root'),
+            '--db-user'      => config('database.connections.mysql.username', 'politicos_user'),
             '--db-password'  => $data['db_password'] ?? config('database.connections.mysql.password', ''),
             '--force'        => true,
         ];
