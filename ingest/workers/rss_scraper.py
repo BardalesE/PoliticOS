@@ -23,6 +23,10 @@ LARAVEL_API = os.getenv("LARAVEL_API_URL", "http://localhost:8000/api")
 LARAVEL_TOKEN = os.getenv("LARAVEL_ADMIN_TOKEN", "")
 TENANT_SLUGS = [s.strip() for s in os.getenv("TENANT_SLUGS", "").split(",") if s.strip()]
 RSS_FEEDS = [u.strip() for u in os.getenv("RSS_FEEDS", "").split(",") if u.strip()]
+# ⚠ TARGET_CANDIDATES es una lista GLOBAL del proceso: cada señal que pasa el
+# filtro se replica a TODOS los tenants de TENANT_SLUGS (ver _push_to_laravel).
+# Con tenants que monitorean candidatos distintos esto cruza señales entre
+# campañas — en ese caso corre una instancia de ingest por candidato.
 TARGET_CANDIDATES = [c.strip().lower() for c in os.getenv("TARGET_CANDIDATES", "").split(",") if c.strip()]
 if not TARGET_CANDIDATES:
     log.warning("TARGET_CANDIDATES env var not set — no candidate filter will be applied")
