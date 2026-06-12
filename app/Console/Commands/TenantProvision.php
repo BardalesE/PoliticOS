@@ -253,6 +253,22 @@ class TenantProvision extends Command
 
         $this->line("  <fg=green>✓</> Tenant registrado (ID: {$tenant->id}).");
 
+        // ── 5b. Config de la instancia de ingest (no fatal) ───────────────
+        // Aliases derivados del nombre; se afinan luego regenerando con
+        // tenant:ingest-config --aliases=...
+        $ingestConfigOk = false;
+        try {
+            $ingestConfigOk = Artisan::call('tenant:ingest-config', [
+                'slug'    => $slug,
+                '--force' => true,
+            ]) === 0;
+        } catch (\Throwable $e) {
+            $this->warn("  ⚠ Config de ingest no generada: {$e->getMessage()}");
+        }
+        if (!$ingestConfigOk) {
+            $this->warn("  Genera la config luego con: php artisan tenant:ingest-config {$slug}");
+        }
+
         // ── Resumen ───────────────────────────────────────────────────────
         $this->line('');
         $this->line('<fg=green;options=bold>✓ Tenant provisionado exitosamente.</>');
@@ -265,7 +281,13 @@ class TenantProvision extends Command
             ['Admin email', $email],
             ['URL (prod)', "https://{$slug}.politicos.pe"],
             ['URL (dev)',  "http://localhost:3000?tenant={$slug}"],
+            ['Ingest env', $ingestConfigOk ? "ingest/instances/{$slug}.env" : '⚠ pendiente'],
         ]);
+
+        $this->line('');
+        $this->line('Monitoreo externo del candidato (manual):');
+        $this->line("  1. Afina aliases/keywords:  <fg=cyan>php artisan tenant:ingest-config {$slug} --aliases=\"nombre apellido,apellido\" --keywords=\"nombre apellido alcalde\"</>");
+        $this->line("  2. Levanta la instancia:    <fg=cyan>cd ingest && docker compose -f docker-compose.instance.yml -p ingest-{$slug} --env-file instances/{$slug}.env up -d</>");
 
         return 0;
     }
