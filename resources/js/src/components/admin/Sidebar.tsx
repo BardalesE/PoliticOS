@@ -11,7 +11,7 @@ import {
   LayoutDashboard, MessageSquare, FileText, Video, HelpCircle, Users,
   Brain, Shield, Radio, Settings, LogOut, Image as ImageIcon,
   MapPin, BookOpen, AlertCircle, Tag, FileQuestion, UserCircle, Calendar,
-  Lock, UserCheck,
+  Lock, UserCheck, Rocket,
 } from "lucide-react";
 
 type NavItem = {
@@ -29,6 +29,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Vista general",
     items: [
       { href: "/admin",              label: "Dashboard",              icon: LayoutDashboard },
+      { href: "/admin/onboarding",   label: "Configurar campaña",     icon: Rocket },
       { href: "/admin/intelligence", label: "Inteligencia Electoral", icon: Brain,      badge: "NEW", feature: "intelligence" },
     ],
   },

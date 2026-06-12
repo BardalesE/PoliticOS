@@ -5,10 +5,10 @@ import {
   MessageSquare, Users, FileText, Video,
   HelpCircle, TrendingUp, TrendingDown, Activity,
   Clock, Loader2, ArrowRight, Zap, BarChart2,
-  Flame, Award, Calendar,
+  Flame, Award, Calendar, Rocket,
 } from "lucide-react";
 import Link from "next/link";
-import { adminApi, invalidateCache, type AdminAnalytics } from "@/lib/api";
+import { adminApi, invalidateCache, type AdminAnalytics, type OnboardingStatus } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useCandidate } from "@/context/CandidateContext";
 import { ConversationsChart } from "@/components/admin/charts/ConversationsChart";
@@ -141,6 +141,12 @@ export default function AdminDashboard() {
   const [data, setData]       = useState<AdminAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(false);
+  const [onboarding, setOnboarding] = useState<OnboardingStatus | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    adminApi.onboarding.status(token).then(setOnboarding).catch(() => {});
+  }, [token]);
 
   useEffect(() => {
     if (!token) return;
@@ -200,6 +206,27 @@ export default function AdminDashboard() {
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-5">
+
+      {/* ── Onboarding pendiente ── */}
+      {onboarding && !onboarding.completed_at && (
+        <Link href="/admin/onboarding"
+          className="flex items-center gap-3 px-5 py-4 rounded-2xl bg-brand-50 border border-brand-200 hover:bg-brand-100 transition-colors group">
+          <div className="h-10 w-10 rounded-xl bg-brand-500 flex items-center justify-center shrink-0">
+            <Rocket size={18} className="text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-900">Termina de configurar tu campaña</p>
+            <p className="text-xs text-gray-500">
+              {!onboarding.profile.complete
+                ? "Falta completar el perfil del candidato."
+                : onboarding.knowledge.total === 0
+                ? "Falta subir documentos para que el asistente responda con datos reales."
+                : "Prueba el chat y finaliza el onboarding."}
+            </p>
+          </div>
+          <ArrowRight size={16} className="text-brand-500 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+        </Link>
+      )}
 
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">

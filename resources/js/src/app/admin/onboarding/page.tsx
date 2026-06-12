@@ -5,7 +5,7 @@ import {
   UserCircle, BookOpen, MessageSquare, CheckCircle, Loader2,
   AlertCircle, RefreshCw, ArrowRight, ArrowLeft, Rocket, ExternalLink,
 } from "lucide-react";
-import { adminApi, adminApiExtended, type OnboardingStatus, type CandidateProfile, type CandidatePreset } from "@/lib/api";
+import { adminApi, adminApiExtended, resolveTenantSlug, withTenant, type OnboardingStatus, type CandidateProfile, type CandidatePreset } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { FormField } from "@/components/admin/FormField";
 import { KnowledgeUploadPanel } from "@/components/admin/KnowledgeUploadPanel";
@@ -316,15 +316,22 @@ export default function OnboardingPage() {
           </ul>
 
           <p className="text-sm text-gray-600 leading-relaxed">
-            Abre el chat y hazle 2-3 preguntas sobre las propuestas. Verifica que responda usando los
+            Hazle 2-3 preguntas sobre las propuestas. Verifica que responda usando los
             documentos subidos y que cite las fuentes.
           </p>
 
-          <a href="/chat" target="_blank" rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl border-2 border-dashed border-brand-300 text-brand-600 hover:bg-brand-50 text-sm font-semibold transition-colors">
-            <MessageSquare size={15} />
+          <div className="rounded-2xl border border-gray-200 overflow-hidden bg-gray-50">
+            <iframe
+              src={withTenant("/chat", resolveTenantSlug())}
+              title="Vista previa del chat"
+              className="w-full h-[480px] border-0"
+            />
+          </div>
+
+          <a href={withTenant("/chat", resolveTenantSlug())} target="_blank" rel="noopener noreferrer"
+            className="flex items-center justify-center gap-1.5 text-xs text-gray-400 hover:text-brand-500 transition-colors">
             Abrir el chat en una pestaña nueva
-            <ExternalLink size={13} />
+            <ExternalLink size={11} />
           </a>
 
           {done ? (
