@@ -409,12 +409,76 @@ class CivicAIService
         $docs = $this->embeddings->search($userMessage, 4, $topic ? ['topic' => $topic] : []);
 
         if (!empty($docs)) {
-            $parts[] = "\nDOCUMENTACIÓN OFICIAL (plan de gobierno, entrevistas, declaraciones):";
-            foreach ($docs as $d) {
-                $title = $d['title'] ?: 'Documento';
-                $excerpt = mb_substr($d['excerpt'], 0, 2200);
-                $parts[] = "=== {$title} ===\n{$excerpt}";
+            if (($this->config->mode ?? 'campaign') === 'pepa') {
+                // Modo PEPA: agrupado por candidato con fuente citable
+                $parts[] = $this->formatDocsWithAttribution($docs);
+            } else {
+                // Modo campaña: lista plana (comportamiento original)
+                $parts[] = "\nDOCUMENTACIÓN OFICIAL (plan de gobierno, entrevistas, declaraciones):";
+                foreach ($docs as $d) {
+                    $title = $d['title'] ?: 'Documento';
+                    $excerpt = mb_substr($d['excerpt'], 0, 2200);
+                    $parts[] = "=== {$title} ===\n{$excerpt}";
+                }
             }
+        }
+
+        return implode("\n", $parts);
+    }
+
+    /**
+     * Documentos RAG agrupados por candidato, con la fuente de cada uno en el
+     * formato que el prompt PEPA exige citar: [Candidato] — [Fuente: URL].
+     * Si solo hay documentación de un candidato, instruye decirlo (no aparentar
+     * una comparación equilibrada con evidencia de un solo lado).
+     */
+    private function formatDocsWithAttribution(array $docs): string
+    {
+        $typeLabels = [
+            'pdf'       => 'documento oficial',
+            'interview' => 'entrevista',
+            'debate'    => 'debate',
+            'news'      => 'nota de prensa',
+        ];
+
+        $candidateIds = array_values(array_unique(array_filter(
+            array_map(fn ($d) => $d['metadata']['candidate_id'] ?? null, $docs)
+        )));
+        $names = CandidateProfile::whereIn('id', $candidateIds)
+            ->get(['id', 'name', 'party'])
+            ->keyBy('id');
+
+        $groups = [];
+        foreach ($docs as $d) {
+            $cid = $d['metadata']['candidate_id'] ?? null;
+            $groups[$cid ?? 0][] = $d;
+        }
+
+        $parts = ["\nDOCUMENTACIÓN VERIFICADA POR CANDIDATO (cita siempre con [Candidato] — [Fuente: URL]):"];
+
+        foreach ($groups as $cid => $groupDocs) {
+            if ($cid && isset($names[$cid])) {
+                $party  = $names[$cid]->party && $names[$cid]->party !== 'Por definir'
+                    ? " ({$names[$cid]->party})" : '';
+                $parts[] = "=== {$names[$cid]->name}{$party} ===";
+            } else {
+                $parts[] = '=== Material general (sin candidato específico) ===';
+            }
+
+            foreach ($groupDocs as $d) {
+                $title  = $d['title'] ?: 'Documento';
+                $type   = $typeLabels[$d['metadata']['source_type'] ?? 'pdf'] ?? 'documento';
+                $source = $d['metadata']['source_url'] ?? $d['metadata']['file_url'] ?? '';
+                $excerpt = mb_substr($d['excerpt'], 0, 2200);
+                $parts[] = "— {$title} [{$type}] [Fuente: {$source}]\n{$excerpt}";
+            }
+        }
+
+        if (count($candidateIds) === 1 && isset($names[$candidateIds[0]])) {
+            $only = $names[$candidateIds[0]]->name;
+            $parts[] = "⚠ NOTA: solo hay documentación verificada de {$only} para esta consulta. "
+                . "Si el ciudadano pregunta por otros candidatos, dilo explícitamente "
+                . "(\"de los demás no tengo fuente verificada\") y no inventes propuestas ajenas.";
         }
 
         return implode("\n", $parts);
