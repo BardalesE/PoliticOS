@@ -43,10 +43,14 @@ class PlanService
 
     public static function requiredPlanFor(string $feature): string
     {
-        $proFeatures    = ['proposals', 'media', 'events', 'team', 'external_signals', 'intelligence'];
-        $eliteFeatures  = ['attack_responses', 'livestream'];
-        if (in_array($feature, $eliteFeatures)) return 'elite';
-        if (in_array($feature, $proFeatures))   return 'pro';
+        // 'knowledge' está habilitado desde starter (5 docs) — los planes
+        // superiores solo amplían max_documents (pro: 20, elite: ilimitado).
+        $starterFeatures = ['knowledge'];
+        $proFeatures     = ['proposals', 'media', 'events', 'team', 'external_signals', 'intelligence'];
+        $eliteFeatures   = ['attack_responses', 'livestream'];
+        if (in_array($feature, $eliteFeatures))   return 'elite';
+        if (in_array($feature, $proFeatures))     return 'pro';
+        if (in_array($feature, $starterFeatures)) return 'starter';
         return 'starter';
     }
 }

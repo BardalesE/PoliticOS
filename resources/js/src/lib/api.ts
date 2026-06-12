@@ -758,7 +758,8 @@ export type TenantStats = {
 
 export type TenantCredentials = {
   admin_email: string | null;
-  admin_password: string | null;
+  // La contraseña nunca viaja en este endpoint; solo resetPassword devuelve una nueva
+  has_password: boolean;
   password_changed: boolean;
   password_changed_at: string | null;
   admin_url: string;

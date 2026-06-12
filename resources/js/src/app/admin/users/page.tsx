@@ -10,13 +10,14 @@ import { FormField } from "@/components/admin/FormField";
 import { Pagination } from "@/components/admin/Pagination";
 import { Badge } from "@/components/admin/Badge";
 
+// "editor" reservado para v3 — AuthController::login rechaza ese rol con 403,
+// así que no se ofrece al crear usuarios.
 const ROLES = [
-  { value: "admin",  label: "Admin" },
-  { value: "editor", label: "Editor" },
+  { value: "admin", label: "Admin" },
 ];
 
 type FormData = { name: string; email: string; password: string; role: string };
-const empty: FormData = { name: "", email: "", password: "", role: "editor" };
+const empty: FormData = { name: "", email: "", password: "", role: "admin" };
 const toFormData = (u: AdminUser): FormData => ({
   name: u.name, email: u.email, password: "", role: u.role,
 });

@@ -319,12 +319,20 @@ function CredentialsModal({
               <CredentialField label="URL Panel Admin"     value={creds.admin_url} />
               <CredentialField label="URL Chatbot Público" value={creds.chatbot_url} />
               <CredentialField label="Email de acceso"     value={creds.admin_email} />
-              <CredentialField
-                label="Contraseña"
-                value={resetPass ?? creds.admin_password}
-                secret
-                badge={passwordBadge}
-              />
+
+              {/* La contraseña no se expone: solo estado. Se muestra una sola
+                  vez en el banner post-reset de arriba. */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Contraseña</p>
+                  {passwordBadge}
+                </div>
+                <p className="text-sm text-zinc-300 bg-zinc-950 rounded-lg px-3 py-2">
+                  {creds.has_password
+                    ? "Contraseña configurada ✓ — visible solo al resetearla"
+                    : "Sin contraseña registrada"}
+                </p>
+              </div>
 
               {!creds.admin_email && (
                 <p className="text-xs text-zinc-500 bg-zinc-800/60 rounded-lg px-3 py-2">

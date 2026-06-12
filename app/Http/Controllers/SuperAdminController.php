@@ -28,7 +28,7 @@ class SuperAdminController extends Controller
             'db_port'     => ['nullable', 'integer'],
             'db_user'     => ['nullable', 'string', 'max:100'],
             'db_password' => ['nullable', 'string', 'max:255'],
-            'plan'        => ['nullable', 'in:starter,pro,elite'],
+            'plan'        => ['nullable', 'in:starter,pro,elite,custom'],
             'is_active'   => ['nullable', 'boolean'],
         ]);
 
@@ -48,7 +48,7 @@ class SuperAdminController extends Controller
             'db_port'     => ['nullable', 'integer'],
             'db_user'     => ['nullable', 'string', 'max:100'],
             'db_password' => ['nullable', 'string', 'max:255'],
-            'plan'        => ['nullable', 'in:starter,pro,elite'],
+            'plan'        => ['nullable', 'in:starter,pro,elite,custom'],
             'is_active'   => ['nullable', 'boolean'],
         ]);
         $tenant->update($data);
@@ -121,14 +121,19 @@ class SuperAdminController extends Controller
         $log   = array_slice($log, -20);
         $tenant->update(['credential_log' => json_encode($log)]);
 
-        $password = null;
+        // Solo se comprueba que el hint sea descifrable; la contraseña en claro
+        // nunca sale de aquí — únicamente resetPassword devuelve una nueva.
+        $hasPassword = false;
         if ($tenant->admin_password_hint) {
-            try { $password = \Illuminate\Support\Facades\Crypt::decrypt($tenant->admin_password_hint); } catch (\Throwable) {}
+            try {
+                \Illuminate\Support\Facades\Crypt::decrypt($tenant->admin_password_hint);
+                $hasPassword = true;
+            } catch (\Throwable) {}
         }
 
         return response()->json([
             'admin_email'         => $tenant->admin_email,
-            'has_password'        => !is_null($password),
+            'has_password'        => $hasPassword,
             'password_changed'    => !is_null($tenant->password_changed_at),
             'password_changed_at' => $tenant->password_changed_at,
             'admin_url'           => config('app.frontend_url', 'http://localhost:3000') . "/admin/login?tenant={$tenant->slug}",

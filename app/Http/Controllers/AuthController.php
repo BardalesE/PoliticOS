@@ -26,6 +26,9 @@ class AuthController extends Controller
         /** @var User $user */
         $user = Auth::user();
 
+        // Solo 'admin' puede iniciar sesión en el panel. El rol 'editor' existe
+        // en la BD pero queda reservado para v3 (permisos granulares) — por eso
+        // el UI de usuarios tampoco lo ofrece al crear cuentas.
         if (! $user->isAdmin()) {
             Auth::logout();
             return response()->json(['message' => 'Acceso no autorizado.'], 403);

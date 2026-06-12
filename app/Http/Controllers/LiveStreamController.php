@@ -51,7 +51,8 @@ class LiveStreamController extends Controller
                 ->first();
 
             if ($existing) {
-                $seconds = now()->diffInSeconds($existing->last_ping);
+                // Carbon 3: diffInSeconds es con signo — debe medirse desde el ping anterior
+                $seconds = $existing->last_ping->diffInSeconds(now());
                 $existing->update([
                     'last_ping'     => now(),
                     'total_seconds' => $existing->total_seconds + min($seconds, 30),
