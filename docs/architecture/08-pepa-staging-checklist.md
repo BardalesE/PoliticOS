@@ -1,4 +1,4 @@
-# 08 — Checklist de staging: Fase 3 (PEPA como modo estable)
+# 08 — Checklist de staging: Fases 3 y 4 (PEPA + RAG con atribución)
 
 **Estado**: implementación completa (2026-06-12) · pendiente validación con IA real
 
@@ -39,6 +39,31 @@ atribuido a cada uno vía `/admin/knowledge` → "Candidato (modo PEPA)".
       (`respuesta_usuario` + `metadata_interna`) — si responde texto plano,
       `parseAIResponse()` degrada con gracia pero sin metadata; revisar el
       prompt si pasa seguido.
+
+## Fase 4 — verificado localmente (no repetir)
+
+- ✅ Cadena completa `buildContext` (pepa) → `buildSystemPrompt`: el prompt
+  final lleva la regla de citado, `{{candidatos_con_docs}}` con ambos
+  candidatos, la sección agrupada "DOCUMENTACIÓN VERIFICADA POR CANDIDATO"
+  con `[tipo] [Fuente: URL]` por extracto, y cero placeholders sin resolver.
+- ✅ Driver FULLTEXT: búsqueda con atribución completa en metadata y filtro
+  `candidate_id` aislando correctamente (también en el fallback LIKE).
+- ✅ Nota de candidato único en el contexto cuando solo hay docs de uno.
+- ✅ Modo campaña intacto (lista plana original, byte a byte).
+
+## Fase 4 — pendiente en staging
+
+- [ ] **Qdrant** (no hay container local): el payload de los puntos incluye
+      `candidate_id`/`source_url`/`source_type` tras indexar, y el filtro
+      `candidate_id` en search funciona. ⚠ Docs ya indexados en Qdrant
+      necesitan `POST /admin/knowledge/{id}/reindex` para ganar atribución.
+- [ ] **Comparación con evidencia** (test 3 del roadmap): con planes de dos
+      candidatos etiquetados, PEPA los compara en la misma respuesta citando
+      `[Candidato] — [Fuente: URL]` con las URLs reales del contexto.
+- [ ] **Cita siempre verificable** (test 4): ninguna respuesta cita URLs que
+      no estén en el contexto; las mismas URLs llegan como chips en la UI.
+- [ ] **Candidato único** (test 5): con docs de uno solo, PEPA lo dice
+      explícitamente en la respuesta (la instrucción ya viaja en el contexto).
 
 ## Nota operativa
 
