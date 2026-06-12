@@ -450,12 +450,50 @@ class CivicAIService
             '{{region}}'            => $session->geo_region ?? $segment['district'] ?? 'Perú',
             '{{distrito}}'          => $segment['district'] ?? $session->geo_city ?? 'no detectado',
             '{{tema}}'              => $topic ?? 'no definido',
+            // Multi-candidato: lista desde los documentos indexados con
+            // candidate_id; {{candidatos}} queda como alias legado.
+            '{{candidatos_con_docs}}' => $this->candidatesWithDocs(),
             '{{candidatos}}'        => $this->candidate->name,
             '{{turno}}'             => (string) ($session->messages_count ?? 0),
             '{{postura_inicial}}'   => $session->postura_inicial ?? 'no registrada',
         ];
 
         $prompt = strtr($this->systemPromptTemplate, $replacements);
+
+        return $this->appendPromptGuards($prompt, $context, $attack);
+    }
+
+    /**
+     * "Nombre (Partido): N documentos indexados; ..." para {{candidatos_con_docs}}.
+     * Sin documentos atribuidos cae al candidato del perfil activo, para que un
+     * tenant PEPA recién provisionado no presente una lista vacía.
+     */
+    private function candidatesWithDocs(): string
+    {
+        $rows = KnowledgeDocument::query()
+            ->where('knowledge_documents.is_active', true)
+            ->whereNotNull('knowledge_documents.candidate_id')
+            ->join('candidate_profiles', 'candidate_profiles.id', '=', 'knowledge_documents.candidate_id')
+            ->selectRaw('candidate_profiles.name as name, candidate_profiles.party as party, COUNT(*) as docs')
+            ->groupBy('candidate_profiles.id', 'candidate_profiles.name', 'candidate_profiles.party')
+            ->orderByDesc('docs')
+            ->get();
+
+        if ($rows->isEmpty()) {
+            $party = $this->candidate->party && $this->candidate->party !== 'Por definir'
+                ? " ({$this->candidate->party})" : '';
+            return $this->candidate->name . $party;
+        }
+
+        return $rows
+            ->map(fn ($r) => $r->name
+                . ($r->party && $r->party !== 'Por definir' ? " ({$r->party})" : '')
+                . ": {$r->docs} documento(s) indexado(s)")
+            ->implode('; ');
+    }
+
+    private function appendPromptGuards(string $prompt, string $context, ?array $attack): string
+    {
 
         // Capacidad de media — fija, no puede ser anulada por prompt custom en BD
         $prompt .= "\n\n⚠️ CAPACIDAD DE MEDIA (OBLIGATORIO): Esta plataforma adjunta imágenes, videos y PDFs automáticamente debajo de tu mensaje. NUNCA digas \"no puedo mostrar imágenes\" — eso es incorrecto. Cuando el ciudadano pida fotos, obras, imágenes o videos: confirma con entusiasmo que sí los adjuntas (\"Claro, aquí te muestro...\", \"Te adjunto las fotos...\") porque el sistema los agrega automáticamente. Habla de las imágenes como si ya las estuviera viendo.";

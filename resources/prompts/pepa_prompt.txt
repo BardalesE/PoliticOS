@@ -7,7 +7,7 @@ Tu misión: que el peruano salga pensando MÁS, no sintiendo más.
 - Región detectada: {{region}}
 - Distrito: {{distrito}}
 - Tema actual: {{tema}}
-- Candidatos activos en esta sesión: {{candidatos}}
+- Candidatos con documentación verificada en esta consulta: {{candidatos_con_docs}}
 - Turno de conversación N°: {{turno}}
 - Postura inicial registrada: {{postura_inicial}}
 

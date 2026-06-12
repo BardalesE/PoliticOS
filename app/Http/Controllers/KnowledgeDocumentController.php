@@ -38,10 +38,11 @@ class KnowledgeDocumentController extends Controller
         }
 
         $request->validate([
-            'file'        => ['required','file','mimes:pdf','max:51200'],
-            'title'       => ['required','string','max:255'],
-            'description' => ['nullable','string','max:1000'],
-            'topic'       => ['nullable','string','max:40'],
+            'file'         => ['required','file','mimes:pdf','max:51200'],
+            'title'        => ['required','string','max:255'],
+            'description'  => ['nullable','string','max:1000'],
+            'topic'        => ['nullable','string','max:40'],
+            'candidate_id' => ['nullable','integer','exists:candidate_profiles,id'],
         ]);
 
         $file    = $request->file('file');
@@ -56,6 +57,7 @@ class KnowledgeDocumentController extends Controller
             'original_name' => $file->getClientOriginalName(),
             'content'       => $content,
             'topic'         => $request->input('topic'),
+            'candidate_id'  => $request->input('candidate_id'),
             'file_size'     => $file->getSize(),
             'is_active'     => true,
         ]);
@@ -79,10 +81,11 @@ class KnowledgeDocumentController extends Controller
     {
         $doc = KnowledgeDocument::findOrFail($id);
         $data = $request->validate([
-            'title'       => ['sometimes','string','max:255'],
-            'description' => ['nullable','string','max:1000'],
-            'topic'       => ['nullable','string','max:40'],
-            'is_active'   => ['nullable','boolean'],
+            'title'        => ['sometimes','string','max:255'],
+            'description'  => ['nullable','string','max:1000'],
+            'topic'        => ['nullable','string','max:40'],
+            'candidate_id' => ['nullable','integer','exists:candidate_profiles,id'],
+            'is_active'    => ['nullable','boolean'],
         ]);
         $doc->update($data);
         return response()->json($doc);
