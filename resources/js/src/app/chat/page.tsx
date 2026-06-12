@@ -385,6 +385,27 @@ function QuickReplyButtons({ replies, onSelect }: { replies: QuickReply[]; onSel
   );
 }
 
+// ─── Chip de fuente citada (modo PEPA) ────────────────────────────────────────
+
+function SourceChip({ url }: { url: string }) {
+  let label = url;
+  try {
+    label = new URL(url).hostname.replace(/^www\./, "");
+  } catch {}
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={url}
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-[11px] text-indigo-700 font-medium hover:bg-indigo-100 transition-colors max-w-[200px]"
+    >
+      <span className="w-1 h-1 bg-indigo-400 rounded-full shrink-0" />
+      <span className="truncate">{label}</span>
+    </a>
+  );
+}
+
 // ─── Banner de sesión bloqueada ───────────────────────────────────────────────
 
 function BlockedBanner() {
@@ -1058,17 +1079,11 @@ export default function ChatPage() {
                             <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-widest mb-1.5">
                               Fuentes verificadas
                             </p>
-                            {msg.sources.slice(0, 5).map((url, i) => (
-                              <a
-                                key={i}
-                                href={url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="block text-xs text-indigo-600 hover:underline truncate"
-                              >
-                                {url}
-                              </a>
-                            ))}
+                            <div className="flex flex-wrap gap-1.5">
+                              {msg.sources.slice(0, 5).map((url, i) => (
+                                <SourceChip key={i} url={url} />
+                              ))}
+                            </div>
                           </div>
                         )}
                       </>

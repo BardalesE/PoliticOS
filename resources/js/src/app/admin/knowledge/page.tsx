@@ -35,6 +35,8 @@ export default function KnowledgePage() {
   const [newDesc, setNewDesc]         = useState("");
   const [newTopic, setNewTopic]       = useState("");
   const [newCandidateId, setNewCandidateId] = useState("");
+  const [newSourceUrl, setNewSourceUrl]     = useState("");
+  const [newSourceType, setNewSourceType]   = useState("pdf");
   const [candidates, setCandidates]   = useState<CandidatePreset[]>([]);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
 
@@ -90,6 +92,8 @@ export default function KnowledgePage() {
       fd.append("description", newDesc.trim());
       if (newTopic) fd.append("topic", newTopic);
       if (newCandidateId) fd.append("candidate_id", newCandidateId);
+      if (newSourceUrl.trim()) fd.append("source_url", newSourceUrl.trim());
+      if (newSourceType !== "pdf") fd.append("source_type", newSourceType);
 
       const doc = await adminApi.knowledge.upload(token, fd);
       clearInterval(interval);
@@ -100,6 +104,7 @@ export default function KnowledgePage() {
         setUploadState("idle");
         setPendingFile(null);
         setNewTitle(""); setNewDesc(""); setNewTopic(""); setNewCandidateId("");
+        setNewSourceUrl(""); setNewSourceType("pdf");
         setProgress(0);
       }, 2000);
     } catch (err: any) {
@@ -231,6 +236,24 @@ export default function KnowledgePage() {
                     ...candidates.map((c) => ({ value: String(c.id), label: c.name })),
                   ]}
                 />
+                <FormField
+                  as="select"
+                  label="Tipo de fuente"
+                  value={newSourceType}
+                  onChange={(e) => setNewSourceType(e.target.value)}
+                  options={[
+                    { value: "pdf",       label: "📄 Documento oficial (PDF)" },
+                    { value: "interview", label: "🎙 Entrevista" },
+                    { value: "debate",    label: "🗣 Debate" },
+                    { value: "news",      label: "📰 Nota de prensa" },
+                  ]}
+                />
+                <FormField
+                  label="URL de la fuente original (opcional)"
+                  value={newSourceUrl}
+                  onChange={(e) => setNewSourceUrl(e.target.value)}
+                  placeholder="https://... (si se omite, se cita el PDF subido)"
+                />
               </div>
             )}
 
@@ -321,6 +344,11 @@ export default function KnowledgePage() {
                         {doc.candidate_id && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-100 text-[10px] text-indigo-600 font-medium">
                             {candidates.find((c) => c.id === doc.candidate_id)?.name ?? `candidato #${doc.candidate_id}`}
+                          </span>
+                        )}
+                        {doc.source_type && doc.source_type !== "pdf" && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-50 border border-amber-100 text-[10px] text-amber-700 font-medium">
+                            {{ interview: "entrevista", debate: "debate", news: "prensa" }[doc.source_type]}
                           </span>
                         )}
                         {!doc.is_active && (

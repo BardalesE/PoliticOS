@@ -528,6 +528,8 @@ export type KnowledgeDocument = {
   content: string | null;
   topic: string | null;
   candidate_id: number | null;
+  source_url: string | null;
+  source_type: "pdf" | "interview" | "debate" | "news";
   file_size: number | null;
   is_active: boolean;
   created_at: string;
