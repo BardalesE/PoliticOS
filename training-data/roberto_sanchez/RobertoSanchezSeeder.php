@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\AttackResponse;
 use App\Models\CandidateProfile;
+use App\Services\TenantContext;
 use App\Models\Faq;
 use App\Models\Proposal;
 use App\Models\Topic;
@@ -26,7 +27,7 @@ class RobertoSanchezSeeder extends Seeder
         $this->seedFaqs();
         $this->seedAttackResponses();
 
-        Cache::forget('attack_responses_map');
+        Cache::forget(TenantContext::cacheKey('attack_responses_map'));
         $this->command->info('✅ Tenant Roberto Sánchez cargado completamente.');
     }
 

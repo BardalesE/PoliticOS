@@ -25,7 +25,67 @@ Cada seeder es **un único archivo PHP** que carga TODO lo necesario para que el
 
 Las plantillas de ataque son **instrucciones a la IA**, no texto literal — la IA las lee y construye una respuesta natural usando el plan de gobierno (RAG) y el contexto del visitante.
 
-## Cómo se ejecutan
+## Cómo agregar un candidato nuevo
+
+Flujo vigente (multi-tenant con `tenant:provision`, ciclo octubre 2026 en adelante):
+
+### 1. Provisionar el tenant
+
+```bash
+php artisan tenant:provision <slug> "<Nombre de la campaña>" <db_name> <admin_email> <admin_password> --plan=starter --force
+```
+
+Crea la BD, corre migraciones, siembra los datos base (topics, ai_settings,
+plantillas de ataque genéricas) y registra el tenant. También se puede hacer
+desde el panel `/superadmin` (pestaña Provisionar).
+
+### 2. Crear el seeder del candidato
+
+```bash
+mkdir training-data/<slug>
+cp training-data/keiko/KeikoSeeder.php training-data/<slug>/<Slug>Seeder.php
+```
+
+Renombra la clase y rellena los cinco bloques (usa el seeder de Keiko como
+referencia de profundidad — esos volúmenes demostraron funcionar):
+
+| Bloque | Método | Volumen recomendado |
+|---|---|---|
+| Perfil (bio + personalidad + frases firma) | `seedProfile()` | 1 |
+| Topics con keywords | `seedTopics()` | 5-10 |
+| Propuestas del plan oficial | `seedProposals()` | ~30 |
+| FAQs con respuestas listas | `seedFaqs()` | ~25 |
+| Plantillas de ataque específicas | `seedAttackResponses()` | ~15 |
+
+Las plantillas específicas se superponen a las genéricas por mayor `priority`.
+La invalidación de caché del final debe usar la clave por tenant:
+`Cache::forget(TenantContext::cacheKey('attack_responses_map'))`.
+
+### 3. Ejecutar el seeder contra la BD del tenant
+
+```bash
+cp training-data/<slug>/<Slug>Seeder.php database/seeders/
+
+php artisan tinker
+>>> \App\Services\TenantContext::run('<slug>', fn () => Artisan::call('db:seed', ['--class' => '<Slug>Seeder', '--force' => true]));
+```
+
+`TenantContext::run()` cambia la conexión a la BD del tenant y la restaura al
+salir — no hace falta editar el `.env`.
+
+### 4. Carga manual desde `/admin/` del tenant
+
+Plan de gobierno PDF (`/admin/knowledge` — se chunkea e indexa solo), videos,
+galería, hero settings y equipo. Ver sección "Lo que NO está en los seeders".
+
+### 5. Smoke test
+
+Igual que los ejemplos de la sección de smoke test de abajo, apuntando al
+subdominio del tenant (o con header `X-Tenant: <slug>` en desarrollo).
+Verifica los indicadores de éxito de la sección "Cómo saber si el chatbot
+quedó bien entrenado".
+
+## Cómo se ejecutan (flujo histórico de la 2da vuelta, pre `tenant:provision`)
 
 Ya copiaste los archivos del patch al backend. Ahora:
 
