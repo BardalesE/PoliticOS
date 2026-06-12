@@ -408,6 +408,13 @@ export const adminApi = {
       request<HomeSettings>("/admin/settings", { method: "PUT", body: JSON.stringify({ settings }) }, token),
   },
 
+  onboarding: {
+    status: (token: string) =>
+      request<OnboardingStatus>("/admin/onboarding/status", {}, token),
+    complete: (token: string) =>
+      request<{ completed_at: string }>("/admin/onboarding/complete", { method: "POST" }, token),
+  },
+
   knowledge: {
     list: (token: string, page = 1) =>
       request<Paginated<KnowledgeDocument>>(`/admin/knowledge?page=${page}`, {}, token),
@@ -517,6 +524,12 @@ export const homeApi = {
   featuredEvent:() => request<CampaignEvent | null>("/events/featured"),
   teamMembers:  () => request<TeamMember[]>("/team-members"),
   settings:     () => request<HomeSettings>("/home-settings"),
+};
+
+export type OnboardingStatus = {
+  completed_at: string | null;
+  profile: { complete: boolean; missing: string[]; optional_missing: string[] };
+  knowledge: { total: number; indexed: number };
 };
 
 export type KnowledgeDocument = {
