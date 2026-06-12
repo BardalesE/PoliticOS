@@ -70,10 +70,7 @@ class KnowledgeDocumentController extends Controller
         // Indexar para RAG (FULLTEXT o Qdrant según driver)
         if (!empty($content)) {
             try {
-                $this->embeddings->index($doc->id, $content, [
-                    'title' => $doc->title,
-                    'topic' => $doc->topic,
-                ]);
+                $this->embeddings->index($doc->id, $content, $this->indexMetadata($doc));
             } catch (\Throwable $e) {
                 Log::warning('Embeddings index failed', ['doc_id' => $doc->id, 'error' => $e->getMessage()]);
             }
@@ -127,12 +124,25 @@ class KnowledgeDocumentController extends Controller
         }
 
         $this->embeddings->delete($doc->id);
-        $this->embeddings->index($doc->id, $doc->content, [
-            'title' => $doc->title,
-            'topic' => $doc->topic,
-        ]);
+        $this->embeddings->index($doc->id, $doc->content, $this->indexMetadata($doc));
 
         return response()->json(['ok' => true, 'doc' => $doc->fresh()]);
+    }
+
+    /**
+     * Metadata que viaja a cada chunk indexado (Fase 4: atribución de fuente).
+     * En Qdrant queda en el payload del punto; en FULLTEXT se resuelve desde
+     * el propio row, pero la firma es la misma para ambos drivers.
+     */
+    private function indexMetadata(KnowledgeDocument $doc): array
+    {
+        return [
+            'title'        => $doc->title,
+            'topic'        => $doc->topic,
+            'candidate_id' => $doc->candidate_id,
+            'source_url'   => $doc->source_url ?: $doc->file_url,
+            'source_type'  => $doc->source_type ?? 'pdf',
+        ];
     }
 
     private function extractText(string $filePath): string

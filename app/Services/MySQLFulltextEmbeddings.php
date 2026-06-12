@@ -40,7 +40,7 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
 
         try {
             $q = KnowledgeDocument::query()
-                ->select('id','title','content','topic','file_url')
+                ->select('id','title','content','topic','file_url','candidate_id','source_url','source_type')
                 ->selectRaw(
                     'MATCH(title, content) AGAINST(? IN NATURAL LANGUAGE MODE) as relevance',
                     [$cleanQuery]
@@ -52,6 +52,9 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
 
             if (!empty($filter['topic'])) {
                 $q->where('topic', $filter['topic']);
+            }
+            if (!empty($filter['candidate_id'])) {
+                $q->where('candidate_id', $filter['candidate_id']);
             }
 
             $docs = $q->get();
@@ -65,7 +68,7 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
             'title'       => $d->title,
             'excerpt'     => $this->extractExcerpt($d->content, $query),
             'score'       => (float) $d->relevance,
-            'metadata'    => ['topic' => $d->topic, 'file_url' => $d->file_url],
+            'metadata'    => $this->docMetadata($d),
         ])->all();
     }
 
@@ -144,6 +147,9 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
         if (!empty($filter['topic'])) {
             $q->where('topic', $filter['topic']);
         }
+        if (!empty($filter['candidate_id'])) {
+            $q->where('candidate_id', $filter['candidate_id']);
+        }
 
         if (!empty($words)) {
             $q->where(function ($sub) use ($words) {
@@ -159,7 +165,19 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
             'title'       => $d->title,
             'excerpt'     => $this->extractExcerpt($d->content, $query),
             'score'       => 0.5,
-            'metadata'    => ['topic' => $d->topic, 'file_url' => $d->file_url],
+            'metadata'    => $this->docMetadata($d),
         ])->all();
+    }
+
+    /** Atribución de fuente (Fase 4) — mismo shape que el payload de Qdrant. */
+    private function docMetadata(KnowledgeDocument $d): array
+    {
+        return [
+            'topic'        => $d->topic,
+            'file_url'     => $d->file_url,
+            'candidate_id' => $d->candidate_id,
+            'source_url'   => $d->source_url ?: $d->file_url,
+            'source_type'  => $d->source_type ?? 'pdf',
+        ];
     }
 }

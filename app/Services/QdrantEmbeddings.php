@@ -101,13 +101,16 @@ class QdrantEmbeddings implements EmbeddingsServiceInterface
             'with_payload' => true,
         ];
 
-        // Filtro Qdrant si hay topic
+        // Filtros Qdrant (topic y/o candidate_id — Fase 4)
+        $must = [];
         if (!empty($filter['topic'])) {
-            $body['filter'] = [
-                'must' => [
-                    ['key' => 'topic', 'match' => ['value' => $filter['topic']]],
-                ],
-            ];
+            $must[] = ['key' => 'topic', 'match' => ['value' => $filter['topic']]];
+        }
+        if (!empty($filter['candidate_id'])) {
+            $must[] = ['key' => 'candidate_id', 'match' => ['value' => (int) $filter['candidate_id']]];
+        }
+        if (!empty($must)) {
+            $body['filter'] = ['must' => $must];
         }
 
         try {
