@@ -86,11 +86,7 @@ class AnalyzeMessageJob implements ShouldQueue
         $segment   = $this->detectSegment($text);
         $intention = $this->detectVoterIntention($text);
 
-        return compact(
-            'sentiment', 'emotion', 'intent', 'concerns',
-            'district_mentioned', 'proposals_detected', 'problems_mentioned',
-            'segment', 'intention', 'isAttack', 'category'
-        ) + [
+        return compact('sentiment', 'emotion', 'intent', 'concerns') + [
             'district_mentioned'  => $district,
             'proposals_detected'  => $proposals,
             'problems_mentioned'  => $problems,
