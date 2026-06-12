@@ -19,7 +19,12 @@ from .rss_scraper import _push_to_laravel, _mentions_candidate
 log = logging.getLogger(__name__)
 
 BEARER = os.getenv("TWITTER_BEARER_TOKEN")
-KEYWORDS = [k.strip() for k in os.getenv("TWITTER_KEYWORDS", "").split(",") if k.strip()]
+# TARGET_KEYWORDS (por instancia) con fallback al nombre legado TWITTER_KEYWORDS
+KEYWORDS = [
+    k.strip()
+    for k in (os.getenv("TARGET_KEYWORDS") or os.getenv("TWITTER_KEYWORDS", "")).split(",")
+    if k.strip()
+]
 
 @shared_task(name="workers.twitter_listener.search_recent")
 def search_recent():

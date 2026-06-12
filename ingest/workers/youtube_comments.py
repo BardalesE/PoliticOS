@@ -17,7 +17,8 @@ log = logging.getLogger(__name__)
 
 API_KEY = os.getenv("YOUTUBE_API_KEY")
 CHANNELS = [c.strip() for c in os.getenv("YOUTUBE_CHANNELS", "").split(",") if c.strip()]
-SEARCH_KEYWORDS = os.getenv("TWITTER_KEYWORDS", "")  # reusa lista
+# Reusa los keywords de búsqueda de la instancia (TWITTER_KEYWORDS = legado)
+SEARCH_KEYWORDS = os.getenv("TARGET_KEYWORDS") or os.getenv("TWITTER_KEYWORDS", "")
 
 @shared_task(name="workers.youtube_comments.fetch_all_channels")
 def fetch_all_channels():

@@ -21,28 +21,41 @@ log = logging.getLogger(__name__)
 
 LARAVEL_API = os.getenv("LARAVEL_API_URL", "http://localhost:8000/api")
 INGEST_KEY = os.getenv("INGEST_KEY", "")
-TENANT_SLUGS = [s.strip() for s in os.getenv("TENANT_SLUGS", "").split(",") if s.strip()]
 RSS_FEEDS = [u.strip() for u in os.getenv("RSS_FEEDS", "").split(",") if u.strip()]
-# ⚠ TARGET_CANDIDATES es una lista GLOBAL del proceso: cada señal que pasa el
-# filtro se replica a TODOS los tenants de TENANT_SLUGS (ver _push_to_laravel).
-# Con tenants que monitorean candidatos distintos esto cruza señales entre
-# campañas — en ese caso corre una instancia de ingest por candidato.
-TARGET_CANDIDATES = [c.strip().lower() for c in os.getenv("TARGET_CANDIDATES", "").split(",") if c.strip()]
-if not TARGET_CANDIDATES:
-    log.warning("TARGET_CANDIDATES env var not set — no candidate filter will be applied")
 
-# Filtro: solo procesar items cuyo título/summary mencione algún candidato
+# Instancia por candidato: UN solo tenant destino (config generada por
+# `php artisan tenant:ingest-config <slug>`). TENANT_SLUGS (lista, legado)
+# se acepta como fallback tomando el primer slug — el push ya no replica.
+_legacy_slugs = [s.strip() for s in os.getenv("TENANT_SLUGS", "").split(",") if s.strip()]
+TENANT_SLUG = os.getenv("TENANT_SLUG", "").strip() or (_legacy_slugs[0] if _legacy_slugs else "")
+if len(_legacy_slugs) > 1:
+    log.warning(
+        "TENANT_SLUGS con múltiples slugs ya no se soporta — usando solo '%s'. "
+        "Levanta una instancia de ingest por candidato.", TENANT_SLUG
+    )
+
+# Aliases del candidato de ESTA instancia. TARGET_CANDIDATES (legado) se
+# acepta como fallback mientras existan .env viejos.
+TARGET_ALIASES = [
+    c.strip().lower()
+    for c in (os.getenv("TARGET_ALIASES") or os.getenv("TARGET_CANDIDATES", "")).split(",")
+    if c.strip()
+]
+if not TARGET_ALIASES:
+    log.warning("TARGET_ALIASES env var not set — no candidate filter will be applied")
+
+# Filtro: solo procesar items cuyo título/summary mencione al candidato
 def _mentions_candidate(text: str) -> bool:
     text_low = text.lower()
-    return any(c in text_low for c in TARGET_CANDIDATES)
+    return any(c in text_low for c in TARGET_ALIASES)
 
 @shared_task(name="workers.rss_scraper.scrape_all_feeds")
 def scrape_all_feeds():
     if not RSS_FEEDS:
         log.warning("No RSS_FEEDS configured, skipping")
         return {"feeds_processed": 0, "signals_pushed": 0}
-    if not TARGET_CANDIDATES:
-        log.warning("TARGET_CANDIDATES not configured — all articles will be skipped")
+    if not TARGET_ALIASES:
+        log.warning("TARGET_ALIASES not configured — all articles will be skipped")
         return {"feeds_processed": 0, "signals_pushed": 0}
 
     total_pushed = 0
@@ -104,36 +117,31 @@ def scrape_all_feeds():
 
 
 def _push_to_laravel(signals: list) -> int:
-    """POST al backend. Si hay multi-tenant, replica a cada slug."""
+    """POST al backend del tenant de esta instancia."""
     if not signals:
         return 0
     if not INGEST_KEY:
         log.warning("INGEST_KEY not set, skipping push")
         return 0
 
-    total = 0
-    targets = TENANT_SLUGS if TENANT_SLUGS else [None]
+    headers = {
+        "X-Ingest-Key": INGEST_KEY,
+        "Content-Type": "application/json",
+    }
+    if TENANT_SLUG:
+        headers["X-Tenant"] = TENANT_SLUG
 
-    for slug in targets:
-        try:
-            headers = {
-                "X-Ingest-Key": INGEST_KEY,
-                "Content-Type": "application/json",
-            }
-            if slug:
-                headers["X-Tenant"] = slug
+    try:
+        r = httpx.post(
+            f"{LARAVEL_API}/admin/external-signals/ingest",
+            json={"signals": signals},
+            headers=headers,
+            timeout=30,
+        )
+        if r.status_code in (200, 201):
+            return r.json().get("ingested", 0)
+        log.warning(f"Push failed [{TENANT_SLUG}]: {r.status_code} {r.text[:200]}")
+    except Exception as e:
+        log.warning(f"Push exception [{TENANT_SLUG}]: {e}")
 
-            r = httpx.post(
-                f"{LARAVEL_API}/admin/external-signals/ingest",
-                json={"signals": signals},
-                headers=headers,
-                timeout=30,
-            )
-            if r.status_code in (200, 201):
-                total += r.json().get("ingested", 0)
-            else:
-                log.warning(f"Push failed [{slug}]: {r.status_code} {r.text[:200]}")
-        except Exception as e:
-            log.warning(f"Push exception [{slug}]: {e}")
-
-    return total
+    return 0

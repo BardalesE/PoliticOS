@@ -22,9 +22,15 @@ def get_client():
         _client = Groq(api_key=os.getenv("GROQ_API_KEY"))
     return _client
 
-TARGET_CANDIDATES = [c.strip().lower() for c in os.getenv("TARGET_CANDIDATES", "").split(",") if c.strip()]
-if not TARGET_CANDIDATES:
-    log.warning("TARGET_CANDIDATES env var not set — classification will match no candidates")
+# Aliases del candidato de ESTA instancia (un proceso de ingest por candidato).
+# TARGET_CANDIDATES (legado) se acepta como fallback mientras existan .env viejos.
+TARGET_ALIASES = [
+    c.strip().lower()
+    for c in (os.getenv("TARGET_ALIASES") or os.getenv("TARGET_CANDIDATES", "")).split(",")
+    if c.strip()
+]
+if not TARGET_ALIASES:
+    log.warning("TARGET_ALIASES env var not set — classification will match no candidates")
 
 def classify(text: str) -> dict:
     """Clasificación rápida con Groq Llama-8B."""
@@ -32,7 +38,7 @@ def classify(text: str) -> dict:
     if not client:
         return _fallback_classify(text)
 
-    candidates_str = ", ".join(TARGET_CANDIDATES)
+    candidates_str = ", ".join(TARGET_ALIASES)
     prompt = f"""Analiza este texto sobre política peruana. Responde SOLO JSON válido.
 
 Texto: "{text[:1500]}"
@@ -67,7 +73,7 @@ JSON:
 def _fallback_classify(text: str) -> dict:
     """Fallback heurístico sin LLM (cuando Groq no responde)."""
     text_low = text.lower()
-    mentions = [c for c in TARGET_CANDIDATES if c in text_low]
+    mentions = [c for c in TARGET_ALIASES if c in text_low]
     attack_keywords = ["corrupto", "ladrón", "mentiroso", "fracaso", "incompetente", "estafa"]
     is_attack = any(k in text_low for k in attack_keywords) and bool(mentions)
     return {
