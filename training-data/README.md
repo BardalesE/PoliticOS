@@ -85,6 +85,27 @@ subdominio del tenant (o con header `X-Tenant: <slug>` en desarrollo).
 Verifica los indicadores de éxito de la sección "Cómo saber si el chatbot
 quedó bien entrenado".
 
+### 6. Monitoreo externo (instancia de ingest del candidato)
+
+El provisioning ya generó `ingest/instances/<slug>.env` con aliases derivados
+del nombre del tenant. Afínalos con los del candidato real y levanta la
+instancia (cada candidato corre la suya, con su propio broker):
+
+```bash
+# Afinar aliases/keywords (regenerable las veces que haga falta)
+php artisan tenant:ingest-config <slug> \
+  --aliases="nombre apellido,apellido" \
+  --keywords="nombre apellido alcalde,elecciones <region> 2026"
+
+# Levantar la instancia (requiere el stack base de Qdrant arriba:
+# cd ingest && docker compose up -d)
+cd ingest && docker compose -f docker-compose.instance.yml \
+  -p ingest-<slug> --env-file instances/<slug>.env up -d
+```
+
+Las señales aparecen en `/admin/external-signals` y alimentan el feed de
+ataques del panel de inteligencia del tenant.
+
 ## Cómo se ejecutan (flujo histórico de la 2da vuelta, pre `tenant:provision`)
 
 Ya copiaste los archivos del patch al backend. Ahora:
