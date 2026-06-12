@@ -9,7 +9,8 @@ class KnowledgeDocument extends Model
 {
     protected $fillable = [
         'title', 'description', 'file_url', 'original_name',
-        'content', 'topic', 'candidate_id', 'file_size', 'is_active',
+        'content', 'topic', 'candidate_id', 'source_url', 'source_type',
+        'file_size', 'is_active',
         'chunks', 'embeddings_meta', 'embeddings_indexed',
     ];
 

@@ -43,6 +43,8 @@ class KnowledgeDocumentController extends Controller
             'description'  => ['nullable','string','max:1000'],
             'topic'        => ['nullable','string','max:40'],
             'candidate_id' => ['nullable','integer','exists:candidate_profiles,id'],
+            'source_url'   => ['nullable','url','max:500'],
+            'source_type'  => ['nullable','in:pdf,interview,debate,news'],
         ]);
 
         $file    = $request->file('file');
@@ -58,6 +60,9 @@ class KnowledgeDocumentController extends Controller
             'content'       => $content,
             'topic'         => $request->input('topic'),
             'candidate_id'  => $request->input('candidate_id'),
+            // Toda cita debe tener URL verificable: sin fuente externa, el PDF subido
+            'source_url'    => $request->input('source_url') ?: $url,
+            'source_type'   => $request->input('source_type') ?: 'pdf',
             'file_size'     => $file->getSize(),
             'is_active'     => true,
         ]);
@@ -85,6 +90,8 @@ class KnowledgeDocumentController extends Controller
             'description'  => ['nullable','string','max:1000'],
             'topic'        => ['nullable','string','max:40'],
             'candidate_id' => ['nullable','integer','exists:candidate_profiles,id'],
+            'source_url'   => ['nullable','url','max:500'],
+            'source_type'  => ['sometimes','in:pdf,interview,debate,news'],
             'is_active'    => ['nullable','boolean'],
         ]);
         $doc->update($data);
