@@ -1,0 +1,65 @@
+# ── Instancia de ingest de UN candidato ──────────────────────────────────────
+# Cada candidato corre su propia instancia (config en instances/<slug>.env,
+# generada por `php artisan tenant:ingest-config <slug>`).
+#
+# Levantar:
+#   docker compose -f docker-compose.instance.yml -p ingest-<slug> \
+#     --env-file instances/<slug>.env up -d
+#
+# -p aísla nombres de contenedores y volúmenes entre instancias (por eso aquí
+# NO hay container_name fijos); --env-file alimenta la interpolación de
+# ${TENANT_SLUG} y la config de los servicios.
+#
+# Redis es propio de la instancia (broker Celery aislado — compartirlo
+# cruzaría las colas entre candidatos) y no expone puertos al host.
+# Qdrant es compartido: vive en el stack base (docker-compose.yml), que crea
+# la red `politicos-net`; levanta ese stack primero.
+#
+# Disparo manual de un scrape (sin esperar al beat):
+#   docker compose -p ingest-<slug> exec worker \
+#     python -m celery -A app.celery_app call workers.rss_scraper.scrape_all_feeds
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+
+  worker:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - redis
+    env_file:
+      - instances/${TENANT_SLUG}.env
+    environment:
+      REDIS_URL: redis://redis:6379
+      QDRANT_URL: http://qdrant:6333
+    extra_hosts:
+      # host.docker.internal también en Linux (dev: API Laravel en el host)
+      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - politicos-net
+    command: python -m celery -A app.celery_app worker --loglevel=info --concurrency=2
+
+  beat:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - redis
+    env_file:
+      - instances/${TENANT_SLUG}.env
+    environment:
+      REDIS_URL: redis://redis:6379
+    command: python -m celery -A app.celery_app beat --loglevel=info
+
+networks:
+  default:
+  politicos-net:
+    external: true
+
+volumes:
+  redis_data:

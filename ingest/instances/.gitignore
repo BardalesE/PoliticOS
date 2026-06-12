@@ -1,0 +1,5 @@
+# .env de instancias generados por `php artisan tenant:ingest-config <slug>`.
+# Contienen INGEST_KEY y credenciales — nunca se commitean. Se regeneran
+# desde el registro central cuando haga falta.
+*
+!.gitignore
