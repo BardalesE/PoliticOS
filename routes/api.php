@@ -103,6 +103,14 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
     // ─── Configuración home (público) ────────────────────────────────
     Route::get('/home-settings', [SettingController::class, 'publicIndex']);
 
+    // ─── Ingest service (Python) ─────────────────────────────────────
+    // Key dedicada en vez de auth:sanctum: los tokens Sanctum viven en la BD
+    // de cada tenant, así que un solo token no puede postear a varios tenants.
+    // Mismo path /admin/... para conservar el gate de plan (CheckPlanFeature
+    // matchea por path) y la URL que ya usa el servicio Python.
+    Route::post('/admin/external-signals/ingest', [ExternalSignalController::class, 'ingest'])
+        ->middleware(['ingest_key', 'plan_feature', 'throttle:60,1']);
+
     // ─── Admin (sanctum + rol admin + plan check) ────────────────────
     Route::middleware(['auth:sanctum', 'admin', 'plan_feature'])->prefix('admin')->group(function () {
 
@@ -131,8 +139,8 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
         Route::delete('/attack-responses/{id}', [AttackResponseController::class, 'destroy']);
 
         // ━━━ EXTERNAL SIGNALS (NUEVO en v2) ━━━━━━━━━━━━━━━━━━━━━━━━━━
-        Route::post('/external-signals/ingest', [ExternalSignalController::class, 'ingest']);
-        Route::get ('/external-signals',        [ExternalSignalController::class, 'index']);
+        // El POST de ingest está fuera de este grupo (key dedicada, ver arriba)
+        Route::get('/external-signals', [ExternalSignalController::class, 'index']);
 
         // Plan del tenant
         Route::get('/plan', [PlanController::class, 'adminShow']);

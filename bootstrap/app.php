@@ -31,6 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant'       => \App\Http\Middleware\ResolveTenant::class,
             'superadmin'   => \App\Http\Middleware\EnsureSuperAdmin::class,
             'plan_feature' => \App\Http\Middleware\CheckPlanFeature::class,
+            'ingest_key'   => \App\Http\Middleware\EnsureIngestKey::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

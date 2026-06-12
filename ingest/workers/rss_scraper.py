@@ -20,7 +20,7 @@ from processors.classifier import classify
 log = logging.getLogger(__name__)
 
 LARAVEL_API = os.getenv("LARAVEL_API_URL", "http://localhost:8000/api")
-LARAVEL_TOKEN = os.getenv("LARAVEL_ADMIN_TOKEN", "")
+INGEST_KEY = os.getenv("INGEST_KEY", "")
 TENANT_SLUGS = [s.strip() for s in os.getenv("TENANT_SLUGS", "").split(",") if s.strip()]
 RSS_FEEDS = [u.strip() for u in os.getenv("RSS_FEEDS", "").split(",") if u.strip()]
 # ⚠ TARGET_CANDIDATES es una lista GLOBAL del proceso: cada señal que pasa el
@@ -107,8 +107,8 @@ def _push_to_laravel(signals: list) -> int:
     """POST al backend. Si hay multi-tenant, replica a cada slug."""
     if not signals:
         return 0
-    if not LARAVEL_TOKEN:
-        log.warning("LARAVEL_ADMIN_TOKEN not set, skipping push")
+    if not INGEST_KEY:
+        log.warning("INGEST_KEY not set, skipping push")
         return 0
 
     total = 0
@@ -117,7 +117,7 @@ def _push_to_laravel(signals: list) -> int:
     for slug in targets:
         try:
             headers = {
-                "Authorization": f"Bearer {LARAVEL_TOKEN}",
+                "X-Ingest-Key": INGEST_KEY,
                 "Content-Type": "application/json",
             }
             if slug:

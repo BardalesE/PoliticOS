@@ -78,8 +78,10 @@ return [
     */
 
     'ingest' => [
-        'url'    => env('INGEST_SERVICE_URL', 'http://localhost:8001'),
-        'key'    => env('INGEST_SERVICE_KEY'),
+        'url' => env('INGEST_SERVICE_URL', 'http://localhost:8001'),
+        // Secreto compartido con el servicio Python. Valida el header
+        // X-Ingest-Key en POST /api/admin/external-signals/ingest.
+        'key' => env('INGEST_KEY'),
     ],
 
 ];
