@@ -25,7 +25,7 @@ class IntelligenceService
 {
     public function citizenPulse(): array
     {
-        return Cache::remember('intel.pulse', 60, function () {
+        return Cache::remember(TenantContext::cacheKey('intel.pulse'), 60, function () {
             $today    = today();
             $weekAgo  = now()->subDays(7);
 
@@ -91,7 +91,7 @@ class IntelligenceService
 
     public function attackFeed(int $limit = 30): array
     {
-        return Cache::remember("intel.attacks.{$limit}", 120, function () use ($limit) {
+        return Cache::remember(TenantContext::cacheKey("intel.attacks.{$limit}"), 120, function () use ($limit) {
             $weekAgo = now()->subDays(7);
 
             // Ataques internos (en el chat)
@@ -157,7 +157,7 @@ class IntelligenceService
 
     public function segmentAnalysis(): array
     {
-        return Cache::remember('intel.segments', 300, function () {
+        return Cache::remember(TenantContext::cacheKey('intel.segments'), 300, function () {
             $weekAgo = now()->subDays(7);
 
             // Concerns por segmento
@@ -212,7 +212,7 @@ class IntelligenceService
 
     public function realtimeMetrics(): array
     {
-        return Cache::remember('intel.realtime', 10, function () {
+        return Cache::remember(TenantContext::cacheKey('intel.realtime'), 10, function () {
             $last10min = now()->subMinutes(10);
 
             return [
@@ -279,7 +279,7 @@ class IntelligenceService
 
     public function districtAnalysis(): array
     {
-        return Cache::remember('intel.districts', 120, function () {
+        return Cache::remember(TenantContext::cacheKey('intel.districts'), 120, function () {
             $weekAgo = now()->subDays(7);
 
             // Menciones y sentimiento promedio por distrito

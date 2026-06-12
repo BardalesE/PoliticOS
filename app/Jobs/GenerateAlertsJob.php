@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Services\IntelligenceService;
+use App\Services\TenantContext;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -19,8 +20,13 @@ class GenerateAlertsJob implements ShouldQueue
 
     public int $timeout = 60;
 
+    public function __construct(public ?string $tenantSlug = null)
+    {
+        $this->tenantSlug ??= TenantContext::currentSlug();
+    }
+
     public function handle(IntelligenceService $intel): void
     {
-        $intel->generateAlerts();
+        TenantContext::run($this->tenantSlug, fn () => $intel->generateAlerts());
     }
 }

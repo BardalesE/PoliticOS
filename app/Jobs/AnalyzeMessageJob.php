@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\ChatMessage;
 use App\Models\ChatSession;
 use App\Models\VisitorProfile;
+use App\Services\TenantContext;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -24,9 +25,17 @@ class AnalyzeMessageJob implements ShouldQueue
     public int $tries   = 1;
     public int $timeout = 15;
 
-    public function __construct(public int $messageId) {}
+    public function __construct(public int $messageId, public ?string $tenantSlug = null)
+    {
+        $this->tenantSlug ??= TenantContext::currentSlug();
+    }
 
     public function handle(): void
+    {
+        TenantContext::run($this->tenantSlug, fn () => $this->process());
+    }
+
+    private function process(): void
     {
         $message = ChatMessage::find($this->messageId);
         if (!$message || $message->role !== 'user') return;
@@ -50,10 +59,12 @@ class AnalyzeMessageJob implements ShouldQueue
         $this->updateSession($message->session_id, $analysis);
         $this->updateVisitor($message, $analysis);
 
-        // Clustering cada 30 mensajes ciudadanos
+        // Clustering cada 30 mensajes ciudadanos.
+        // Va a la cola Redis: el slug debe viajar explícito o el worker
+        // clusterizaría sobre la DB por defecto.
         $userMsgCount = ChatMessage::where('role', 'user')->count();
         if ($userMsgCount > 0 && $userMsgCount % 30 === 0) {
-            ClusterTopQuestionsJob::dispatch()->delay(now()->addSeconds(10));
+            ClusterTopQuestionsJob::dispatch($this->tenantSlug)->delay(now()->addSeconds(10));
         }
     }
 

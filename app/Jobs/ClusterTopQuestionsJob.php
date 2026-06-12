@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\ChatMessage;
 use App\Models\QuestionCluster;
+use App\Services\TenantContext;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -30,7 +31,17 @@ class ClusterTopQuestionsJob implements ShouldQueue
 
     public int $timeout = 120;
 
+    public function __construct(public ?string $tenantSlug = null)
+    {
+        $this->tenantSlug ??= TenantContext::currentSlug();
+    }
+
     public function handle(): void
+    {
+        TenantContext::run($this->tenantSlug, fn () => $this->cluster());
+    }
+
+    private function cluster(): void
     {
         $date = today();
 

@@ -4,10 +4,11 @@
 # Uso: sudo bash /var/www/politicos/deploy/setup-vps.sh
 #
 # Qué hace este script:
+#   0. Instala redis-server y la extensión php-redis si faltan
 #   1. Crea el .env de producción en /var/www/politicos/.env
 #   2. Crea el .env.production del frontend en resources/js/.env.production
 #   3. Reconstruye el bundle de Next.js con la URL correcta
-#   4. Corre migraciones y calienta los caches de Laravel
+#   4. Corre migraciones, calienta los caches y registra el crontab del scheduler
 #   5. Reinicia todos los servicios
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -21,6 +22,18 @@ cd "$APP_DIR"
 git config core.hooksPath .githooks
 chmod +x .githooks/pre-commit
 echo "✓ Pre-commit hook de secretos instalado"
+
+# ── Instalar Redis (cache + colas, compartido entre tenants) ──────────────────
+PHP_VER=$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')
+if ! command -v redis-server >/dev/null 2>&1 || ! php -m | grep -qi '^redis$'; then
+    apt-get update -qq
+    apt-get install -y -qq redis-server "php${PHP_VER}-redis"
+    systemctl enable --now redis-server
+    systemctl reload "php${PHP_VER}-fpm" 2>/dev/null || true
+    echo "✓ redis-server y php${PHP_VER}-redis instalados"
+else
+    echo "✓ Redis ya instalado (redis-server + extensión php-redis)"
+fi
 
 # ── Detectar IP pública del servidor ──────────────────────────────────────────
 VPS_IP=$(curl -s https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')
@@ -76,16 +89,20 @@ DB_USERNAME=root
 DB_PASSWORD=${DB_PASSWORD}
 
 # ─── Session / Cache / Queue ──────────────────────────────────────────────────
-# Usa "database" si no tienes Redis configurado.
-# Cambia a "redis" si Redis está corriendo en el VPS.
 SESSION_DRIVER=database
 SESSION_LIFETIME=120
 SESSION_ENCRYPT=false
 SESSION_PATH=/
 SESSION_DOMAIN=${VPS_IP}
 
-CACHE_STORE=database
-QUEUE_CONNECTION=database
+# Store compartido entre tenants — claves aisladas con TenantContext::cacheKey()
+CACHE_STORE=redis
+QUEUE_CONNECTION=redis
+
+REDIS_CLIENT=phpredis
+REDIS_HOST=127.0.0.1
+REDIS_PASSWORD=null
+REDIS_PORT=6379
 
 BROADCAST_CONNECTION=log
 FILESYSTEM_DISK=local
@@ -170,6 +187,15 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 echo "   ✓ Migraciones y caches OK"
+
+# Crontab del scheduler de Laravel (routes/console.php itera todos los tenants)
+CRON_LINE="* * * * * cd ${APP_DIR} && php artisan schedule:run >> /dev/null 2>&1"
+if ! crontab -u www-data -l 2>/dev/null | grep -Fq "artisan schedule:run"; then
+    ( crontab -u www-data -l 2>/dev/null || true; echo "${CRON_LINE}" ) | crontab -u www-data -
+    echo "   ✓ Crontab de schedule:run instalado (usuario www-data)"
+else
+    echo "   ✓ Crontab de schedule:run ya estaba instalado"
+fi
 
 # ── STEP 5: Reiniciar servicios ────────────────────────────────────────────────
 echo ""

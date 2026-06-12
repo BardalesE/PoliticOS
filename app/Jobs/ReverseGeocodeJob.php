@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\CitizenProfile;
+use App\Services\TenantContext;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -23,12 +24,20 @@ class ReverseGeocodeJob implements ShouldQueue
     public int $timeout = 15;
 
     public function __construct(
-        public int   $citizenProfileId,
-        public float $lat,
-        public float $lng
-    ) {}
+        public int     $citizenProfileId,
+        public float   $lat,
+        public float   $lng,
+        public ?string $tenantSlug = null
+    ) {
+        $this->tenantSlug ??= TenantContext::currentSlug();
+    }
 
     public function handle(): void
+    {
+        TenantContext::run($this->tenantSlug, fn () => $this->geocode());
+    }
+
+    private function geocode(): void
     {
         $citizen = CitizenProfile::find($this->citizenProfileId);
         if (!$citizen || $citizen->location_geocoded_at) return;

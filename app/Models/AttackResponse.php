@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 
 class AttackResponse extends Model
@@ -26,7 +27,7 @@ class AttackResponse extends Model
      */
     public static function detectionMap(): array
     {
-        $cache = cache()->remember('attack_responses_map', 300, function () {
+        $cache = cache()->remember(TenantContext::cacheKey('attack_responses_map'), 300, function () {
             return static::active()
                 ->orderByDesc('priority')
                 ->get()

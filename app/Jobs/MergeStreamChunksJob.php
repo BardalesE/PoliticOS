@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\LiveStream;
+use App\Services\TenantContext;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -19,9 +20,19 @@ class MergeStreamChunksJob implements ShouldQueue
     public int    $tries  = 1;
     public int    $timeout = 7200; // 2 horas máx para streams largos
 
-    public function __construct(public int $streamId) {}
+    public function __construct(public int $streamId, public ?string $tenantSlug = null)
+    {
+        // Capturado en el request (o en TenantContext::run); el worker de cola
+        // corre con la DB por defecto y necesita reconectar a la del tenant.
+        $this->tenantSlug ??= TenantContext::currentSlug();
+    }
 
     public function handle(): void
+    {
+        TenantContext::run($this->tenantSlug, fn () => $this->merge());
+    }
+
+    private function merge(): void
     {
         $stream = LiveStream::find($this->streamId);
 

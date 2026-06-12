@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AttackResponse;
+use App\Services\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -20,7 +21,7 @@ class AttackResponseController extends Controller
     {
         $data = $this->validateInput($request);
         $resp = AttackResponse::create($data);
-        Cache::forget('attack_responses_map');
+        Cache::forget(TenantContext::cacheKey('attack_responses_map'));
         return response()->json($resp, 201);
     }
 
@@ -28,14 +29,14 @@ class AttackResponseController extends Controller
     {
         $resp = AttackResponse::findOrFail($id);
         $resp->update($this->validateInput($request, true));
-        Cache::forget('attack_responses_map');
+        Cache::forget(TenantContext::cacheKey('attack_responses_map'));
         return response()->json($resp);
     }
 
     public function destroy(int $id): JsonResponse
     {
         AttackResponse::where('id', $id)->delete();
-        Cache::forget('attack_responses_map');
+        Cache::forget(TenantContext::cacheKey('attack_responses_map'));
         return response()->json(['deleted' => true]);
     }
 
