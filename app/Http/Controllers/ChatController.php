@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Jobs\AnalyzeMessageJob;
 use App\Jobs\GeolocateSessionJob;
+use App\Models\AiSetting;
 use App\Models\ChatMessage;
 use App\Models\ChatSession;
 use App\Models\CitizenProfile;
@@ -296,6 +297,8 @@ class ChatController extends Controller
                         'nonsense'       => false,
                         'blocked'        => false,
                         'quickReplies'   => $meta['quickReplies'] ?? [],
+                        'mode'           => $this->assistantMode(),
+                        'pepa'           => $this->pepaPayload($meta['pepa_metadata'] ?? null),
                     ])."\n\n";
                     flush();
                 } catch (\Throwable $e) {
@@ -403,6 +406,30 @@ class ChatController extends Controller
         }
     }
 
+    /**
+     * Subconjunto de pepa_metadata que sí viaja al navegador: fuentes citadas
+     * y tema. La metadata interna completa (postura_actual, cambio_de_opinion)
+     * es analítica del tenant y se queda en el backend.
+     */
+    private function pepaPayload(?array $meta): ?array
+    {
+        if (empty($meta)) {
+            return null;
+        }
+
+        $payload = array_filter([
+            'fuentes_citadas' => $meta['fuentes_citadas'] ?? null,
+            'tema_dominante'  => $meta['tema_dominante'] ?? null,
+        ]);
+
+        return $payload ?: null;
+    }
+
+    private function assistantMode(): string
+    {
+        return AiSetting::current()->mode ?? 'campaign';
+    }
+
     private function jsonChatResponse(array $response, ChatSession $session, Request $request): JsonResponse
     {
         return response()->json([
@@ -414,6 +441,8 @@ class ChatController extends Controller
             'nonsense'       => $response['nonsense'] ?? false,
             'blocked'        => $response['blocked'] ?? false,
             'quickReplies'   => $response['quickReplies'] ?? [],
+            'mode'           => $this->assistantMode(),
+            'pepa'           => $this->pepaPayload($response['pepa_metadata'] ?? null),
         ])->cookie(
             'politicos_visitor_id',
             $session->visitor_uuid,
@@ -440,6 +469,8 @@ class ChatController extends Controller
                     'nonsense'       => $response['nonsense'] ?? false,
                     'blocked'        => $response['blocked'] ?? false,
                     'quickReplies'   => $response['quickReplies'] ?? [],
+                    'mode'           => $this->assistantMode(),
+                    'pepa'           => $this->pepaPayload($response['pepa_metadata'] ?? null),
                 ])."\n\n";
                 flush();
             },
