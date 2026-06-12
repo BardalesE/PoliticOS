@@ -185,9 +185,10 @@ class TenantProvision extends Command
                 'updated_at'    => $now,
             ]);
 
-            // AI Setting
-            $promptPath = base_path('resources/prompts/politicos_v2_prompt.txt');
-            $prompt = file_exists($promptPath) ? file_get_contents($promptPath) : 'Eres el asistente virtual del candidato.';
+            // AI Setting — modo PEPA (asistente cívico) por defecto para tenants
+            // nuevos; el modo campaña es opt-in desde /admin/ai-settings.
+            $promptPath = base_path('resources/prompts/pepa_prompt.txt');
+            $prompt = file_exists($promptPath) ? file_get_contents($promptPath) : 'Eres un asistente cívico neutral.';
 
             $conn->table('ai_settings')->insert([
                 'provider'          => 'groq',
@@ -196,6 +197,7 @@ class TenantProvision extends Command
                 'temperature'       => 0.65,
                 'max_tokens'        => 700,
                 'system_prompt'     => $prompt,
+                'mode'              => 'pepa',
                 'created_at'        => $now,
                 'updated_at'        => $now,
             ]);

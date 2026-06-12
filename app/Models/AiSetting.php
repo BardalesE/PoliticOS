@@ -8,7 +8,7 @@ class AiSetting extends Model
 {
     protected $fillable = [
         'provider', 'model', 'max_tokens', 'temperature',
-        'fallback_provider', 'system_prompt',
+        'fallback_provider', 'system_prompt', 'mode',
         'chat_subtitle', 'chat_btn_text', 'chat_btn_image_url',
         'chat_btn_shape', 'chat_btn_color', 'chat_btn_size', 'chat_btn_position',
     ];

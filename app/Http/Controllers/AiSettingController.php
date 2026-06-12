@@ -128,6 +128,7 @@ class AiSettingController extends Controller
             'temperature'       => ['sometimes', 'numeric', 'between:0,1'],
             'fallback_provider' => ['nullable', 'in:groq,claude,openai'],
             'system_prompt'      => ['sometimes', 'string'],
+            'mode'               => ['sometimes', 'in:campaign,pepa'],
             'chat_subtitle'      => ['nullable', 'string', 'max:100'],
             'chat_btn_text'      => ['nullable', 'string', 'max:100'],
             'chat_btn_image_url' => ['nullable', 'string', 'max:500'],
