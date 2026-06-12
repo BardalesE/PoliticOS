@@ -56,8 +56,6 @@ type RegPhase =
   | "offered"     // esperando que el usuario acepte/decline la rifa
   | "name"        // esperando nombre
   | "dni"         // esperando DNI
-  | "validating"  // verificando DNI duplicado vía API
-  | "dni_taken"   // DNI ya registrado, esperando respuesta
   | "phone"       // esperando WhatsApp
   | "email"       // esperando correo
   | "registering" // POST /api/citizen/register en progreso
@@ -651,45 +649,9 @@ export default function ChatPage() {
           addBotMsg("El DNI debe tener exactamente 8 dígitos numéricos. ¿Puedes revisarlo? 👇");
           return;
         }
-        setRegPhase("validating");
-        addBotMsg("Verificando...", undefined, true);
-        try {
-          const tenant = resolveTenantSlug();
-          const r = await fetch(`${API}/citizen/check-dni/${dni}`, {
-            headers: { ...(tenant ? { "X-Tenant": tenant } : {}) },
-          });
-          const data = await r.json();
-          setMessages((m) => m.filter((x) => !x.pending));
-
-          if (data.exists) {
-            addBotMsg(
-              "Este DNI ya está registrado en nuestra campaña. ¿Quieres continuar de todas formas?",
-              [
-                { label: "Usar otro DNI",             value: "Quiero usar otro DNI" },
-                { label: "Continuar sin registrarme", value: "Prefiero continuar sin registrarme" },
-              ]
-            );
-            setRegPhase("dni_taken");
-          } else {
-            setRegData((d) => ({ ...d, dni }));
-            addBotMsg("Perfecto. Ahora tu número de WhatsApp (ej: 51987654321) 📱");
-            setRegPhase("phone");
-          }
-        } catch {
-          setMessages((m) => m.filter((x) => !x.pending));
-          addBotMsg("No pude verificar el DNI en este momento. ¿Lo intentamos de nuevo? 👇");
-          setRegPhase("dni");
-        }
-        break;
-      }
-
-      case "dni_taken": {
-        if (text.toLowerCase().includes("otro")) {
-          addBotMsg("Escribe tu DNI (8 dígitos) 👇");
-          setRegPhase("dni");
-        } else {
-          finishWithoutReg();
-        }
+        setRegData((d) => ({ ...d, dni }));
+        addBotMsg("Perfecto. Ahora tu número de WhatsApp (ej: 51987654321) 📱");
+        setRegPhase("phone");
         break;
       }
 
@@ -940,8 +902,6 @@ export default function ChatPage() {
     if (regPhase === "offered")    return "Escribe sí o no...";
     if (regPhase === "name")       return "Tu nombre completo...";
     if (regPhase === "dni")        return "Tu DNI (8 dígitos)...";
-    if (regPhase === "validating") return "Verificando...";
-    if (regPhase === "dni_taken")  return "Responde con una opción...";
     if (regPhase === "phone")      return "Tu WhatsApp (ej: 51987654321)...";
     if (regPhase === "email")      return "Tu correo o escribe 'omitir'...";
     if (regPhase === "registering")return "Registrando...";
@@ -949,7 +909,7 @@ export default function ChatPage() {
     return "Escribe tu pregunta...";
   };
 
-  const inputDisabled = streaming || autoStarting || regPhase === "validating" || regPhase === "registering";
+  const inputDisabled = streaming || autoStarting || regPhase === "registering";
 
   // ── Render ────────────────────────────────────────────────────────────────────
 

@@ -8,6 +8,7 @@ use App\Models\CitizenPoint;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class CitizenController extends Controller
 {
@@ -41,23 +42,37 @@ class CitizenController extends Controller
         );
 
         if ($existing) {
-            // Actualizar datos faltantes sin sobreescribir lo que ya tenía
-            $updates = array_filter([
-                'name'             => $existing->name     ?: ($data['name']          ?? null),
-                'district'         => $existing->district ?: ($data['district']       ?? null),
-                'age_range'        => $existing->age_range?: ($data['age_range']      ?? null),
-                'occupation'       => $existing->occupation?:($data['occupation']     ?? null),
-                'voting_intention' => $existing->voting_intention ?: ($data['voting_intention'] ?? null),
-                'visitor_uuid'     => $existing->visitor_uuid ?: ($data['visitor_uuid'] ?? null),
-            ]);
-            $existing->update($updates);
+            // Solo si la petición viene del mismo dispositivo (visitor_uuid ya
+            // vinculado al perfil) se trata como el propio ciudadano.
+            $sameVisitor = !empty($data['visitor_uuid'])
+                && $existing->visitor_uuid === $data['visitor_uuid'];
 
+            if ($sameVisitor) {
+                // Actualizar datos faltantes sin sobreescribir lo que ya tenía
+                $updates = array_filter([
+                    'name'             => $existing->name     ?: ($data['name']          ?? null),
+                    'district'         => $existing->district ?: ($data['district']       ?? null),
+                    'age_range'        => $existing->age_range?: ($data['age_range']      ?? null),
+                    'occupation'       => $existing->occupation?:($data['occupation']     ?? null),
+                    'voting_intention' => $existing->voting_intention ?: ($data['voting_intention'] ?? null),
+                ]);
+                $existing->update($updates);
+
+                return response()->json([
+                    'status'        => 'existing',
+                    'citizen_id'    => $existing->id,
+                    'referral_code' => $existing->referral_code,
+                    'points'        => $existing->points_balance,
+                    'message'       => 'Ya tienes un perfil registrado.',
+                ]);
+            }
+
+            // Respuesta neutra: no confirma que el contacto ya estaba registrado
+            // ni expone datos del perfil existente (anti-enumeración), y no
+            // escribe nada controlado por el solicitante en ese perfil.
             return response()->json([
-                'status'        => 'existing',
-                'citizen_id'    => $existing->id,
-                'referral_code' => $existing->referral_code,
-                'points'        => $existing->points_balance,
-                'message'       => 'Ya tienes un perfil registrado.',
+                'status'  => 'ok',
+                'message' => 'Registro recibido. Si ya tenías un perfil, conservas tus puntos y tu código de referido.',
             ]);
         }
 
@@ -129,6 +144,7 @@ class CitizenController extends Controller
 
         } catch (\Throwable $e) {
             DB::rollBack();
+            Log::error($e);
             return response()->json(['message' => 'Error al registrar. Por favor intenta de nuevo.'], 500);
         }
     }
@@ -259,17 +275,6 @@ class CitizenController extends Controller
             });
             fclose($handle);
         }, 'ciudadanos.csv', $headers);
-    }
-
-    // ─── GET /api/citizen/check-dni/{dni} ────────────────────────────────────
-    // Verifica si un DNI ya está registrado (validación en tiempo real durante el chat)
-    public function checkDni(string $dni): JsonResponse
-    {
-        if (!preg_match('/^\d{8}$/', $dni)) {
-            return response()->json(['exists' => false, 'valid' => false]);
-        }
-        $exists = CitizenProfile::where('dni', $dni)->exists();
-        return response()->json(['exists' => $exists, 'valid' => true]);
     }
 
     // ─── POST /api/citizen/chat-award ─────────────────────────────────────

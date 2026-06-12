@@ -35,11 +35,12 @@ type ReferralInfo = {
 };
 type RegisterResult = {
     status: string;
-    citizen_id: number;
-    referral_code: string;
-    points: number;
-    share_url: string;
     message: string;
+    // Ausentes en la respuesta neutra (contacto ya registrado desde otro dispositivo)
+    citizen_id?: number;
+    referral_code?: string;
+    points?: number;
+    share_url?: string;
 };
 
 function RegistroContent() {
@@ -114,7 +115,7 @@ function RegistroContent() {
     }
 
     function shareReferral() {
-        if (!result) return;
+        if (!result?.share_url) return;
         const text = `Únete a la campaña de ${firstName} y participa en su plan de gobierno. ¡Ya soy parte del movimiento! ${result.share_url}`;
         if (navigator.share) {
             navigator.share({
@@ -144,39 +145,43 @@ function RegistroContent() {
                     <p className="text-gray-500 text-sm mb-6">
                         {result.message}
                     </p>
-                    <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm mb-5">
-                        <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">
-                            Tus puntos
-                        </p>
-                        <div className="flex items-center justify-center gap-2">
-                            <Star size={20} className="text-amber-500" />
-                            <span className="font-serif text-3xl font-bold text-gray-900">
-                                {result.points}
-                            </span>
-                            <span className="text-gray-500 text-sm">
-                                puntos
-                            </span>
-                        </div>
-                    </div>
-                    <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 mb-5">
-                        <div className="flex items-center gap-2 mb-2">
-                            <Gift size={16} className="text-amber-600" />
-                            <p className="text-sm font-semibold text-amber-800">
-                                ¡Invita y gana más puntos!
+                    {result.points != null && (
+                        <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm mb-5">
+                            <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">
+                                Tus puntos
                             </p>
+                            <div className="flex items-center justify-center gap-2">
+                                <Star size={20} className="text-amber-500" />
+                                <span className="font-serif text-3xl font-bold text-gray-900">
+                                    {result.points}
+                                </span>
+                                <span className="text-gray-500 text-sm">
+                                    puntos
+                                </span>
+                            </div>
                         </div>
-                        <p className="text-xs text-amber-700 mb-3">
-                            Por cada persona que se registre con tu enlace,
-                            ganas <strong>100 puntos</strong>.
-                        </p>
-                        <button
-                            onClick={shareReferral}
-                            className="w-full flex items-center justify-center gap-2 py-2.5 bg-amber-500 hover:bg-amber-400 text-white font-semibold text-sm rounded-xl transition"
-                        >
-                            <Share2 size={15} />
-                            Compartir mi enlace
-                        </button>
-                    </div>
+                    )}
+                    {result.share_url && (
+                        <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 mb-5">
+                            <div className="flex items-center gap-2 mb-2">
+                                <Gift size={16} className="text-amber-600" />
+                                <p className="text-sm font-semibold text-amber-800">
+                                    ¡Invita y gana más puntos!
+                                </p>
+                            </div>
+                            <p className="text-xs text-amber-700 mb-3">
+                                Por cada persona que se registre con tu enlace,
+                                ganas <strong>100 puntos</strong>.
+                            </p>
+                            <button
+                                onClick={shareReferral}
+                                className="w-full flex items-center justify-center gap-2 py-2.5 bg-amber-500 hover:bg-amber-400 text-white font-semibold text-sm rounded-xl transition"
+                            >
+                                <Share2 size={15} />
+                                Compartir mi enlace
+                            </button>
+                        </div>
+                    )}
                     <TenantLink
                         href="/chat"
                         className="text-sm text-brand-600 hover:text-brand-500 underline"

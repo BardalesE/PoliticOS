@@ -37,7 +37,7 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
 
     // ─── Auth ─────────────────────────────────────────────────────────
     Route::prefix('auth')->group(function () {
-        Route::post('/login', [AuthController::class, 'login']);
+        Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
         Route::middleware('auth:sanctum')->group(function () {
             Route::post('/logout', [AuthController::class, 'logout']);
             Route::get('/me', [AuthController::class, 'me']);
@@ -59,7 +59,6 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
     Route::post('/citizen/register',        [CitizenController::class, 'register'])->middleware('throttle:5,1');
     Route::get ('/citizen/profile/{uuid}',  [CitizenController::class, 'showByUuid']);
     Route::get ('/citizen/referral/{code}', [CitizenController::class, 'referralInfo']);
-    Route::get ('/citizen/check-dni/{dni}', [CitizenController::class, 'checkDni'])->middleware('throttle:10,1');
 
     // ─── Perfil del candidato (público) ──────────────────────────────
     Route::get('/candidate', [CandidateProfileController::class, 'show']);
@@ -72,7 +71,7 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
     Route::get('/videos', [VideoController::class, 'index']);
 
     // ─── Analytics (público — métricas resumen) ──────────────────────
-    Route::get('/analytics/summary', [AnalyticsController::class, 'summary']);
+    Route::get('/analytics/summary', [AnalyticsController::class, 'summary'])->middleware('throttle:20,1');
 
     // ─── Live Streams (público) ───────────────────────────────────────
     Route::get ('/livestreams',              [LiveStreamController::class, 'index']);
@@ -80,7 +79,7 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
     Route::get ('/livestreams/{key}/info',        [LiveStreamController::class, 'info']);
     Route::get ('/livestreams/{key}/chunk/{seq}',  [LiveStreamController::class, 'serveChunk']);
     Route::get ('/livestreams/{key}/recording',    [LiveStreamController::class, 'recording']);
-    Route::post('/livestreams/{key}/ping',        [LiveStreamController::class, 'ping']);
+    Route::post('/livestreams/{key}/ping',        [LiveStreamController::class, 'ping'])->middleware('throttle:60,1');
     Route::get ('/livestreams/{key}/comments',    [LiveStreamController::class, 'getComments']);
     Route::post('/livestreams/{key}/comments',    [LiveStreamController::class, 'postComment'])->middleware('throttle:15,1');
 

@@ -49,32 +49,60 @@ class ResolveTenant
 
     private function resolveSlug(Request $request): ?string
     {
-        // 1. Header explícito (desarrollo local o frontend sin subdominios)
+        // SuperAdmin opera siempre sobre la DB central, sin importar host o header.
+        if ($request->is('api/superadmin/*')) {
+            return null;
+        }
+
+        $subdomain = $this->subdomainSlug($request);
+
+        // En producción el subdominio manda: así un header X-Tenant falsificado
+        // no puede desviar una petición de james.politicos.pe a otro tenant.
+        if (app()->environment('production') && $subdomain) {
+            return $subdomain;
+        }
+
+        // Header explícito (desarrollo local o frontend sin subdominios)
         if ($request->hasHeader('X-Tenant')) {
             return strtolower(trim($request->header('X-Tenant')));
         }
 
-        // 2. Subdominio (producción): james.politicos.pe → "james"
-        // ⚠ Una IP como 159.89.87.18 tiene 4 partes separadas por "." y se
-        //   interpretaría incorrectamente como subdomain "159". filter_var lo evita.
-        $host = $request->getHost();
-        if (!filter_var($host, FILTER_VALIDATE_IP)) {
-            $parts = explode('.', $host);
-            if (count($parts) >= 3) {
-                $sub = strtolower($parts[0]);
-                if (!in_array($sub, ['www', 'app', 'api'])) {
-                    return $sub;
-                }
-            }
+        if ($subdomain) {
+            return $subdomain;
         }
 
-        // 3. Query param ?tenant=james (local Y producción — útil en IP directa)
+        // Query param ?tenant=james (local Y producción — útil en IP directa)
         if ($request->query('tenant')) {
             return strtolower($request->query('tenant'));
         }
 
-        // 4. Config var (producción single-tenant).
+        // Config var (producción single-tenant).
         // Usa config() y no env() para que funcione con config:cache activo.
         return config('app.tenant_slug') ?: null;
+    }
+
+    // Subdominio (producción): james.politicos.pe → "james"
+    // ⚠ Una IP como 159.89.87.18 tiene 4 partes separadas por "." y se
+    //   interpretaría incorrectamente como subdomain "159". filter_var lo evita.
+    private function subdomainSlug(Request $request): ?string
+    {
+        $host = $request->getHost();
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            return null;
+        }
+
+        $parts = explode('.', $host);
+        if (count($parts) < 3) {
+            return null;
+        }
+
+        $sub = strtolower($parts[0]);
+
+        // Subdominios de infraestructura — nunca son un tenant.
+        if (in_array($sub, ['www', 'app', 'api', 'admin', 'superadmin'])) {
+            return null;
+        }
+
+        return $sub;
     }
 }
