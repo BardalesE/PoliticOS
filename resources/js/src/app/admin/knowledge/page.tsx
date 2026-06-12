@@ -5,7 +5,7 @@ import {
   AlertCircle, Eye, EyeOff, BookOpen, Tag, RefreshCw, X,
 } from "lucide-react";
 import { FilePreviewModal } from "@/components/admin/FilePreviewModal";
-import { adminApi, type KnowledgeDocument } from "@/lib/api";
+import { adminApi, adminApiExtended, type KnowledgeDocument, type CandidatePreset } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { useCandidate } from "@/context/CandidateContext";
 import { FormField } from "@/components/admin/FormField";
@@ -34,6 +34,8 @@ export default function KnowledgePage() {
   const [newTitle, setNewTitle]       = useState("");
   const [newDesc, setNewDesc]         = useState("");
   const [newTopic, setNewTopic]       = useState("");
+  const [newCandidateId, setNewCandidateId] = useState("");
+  const [candidates, setCandidates]   = useState<CandidatePreset[]>([]);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -44,6 +46,8 @@ export default function KnowledgePage() {
     try {
       const res = await adminApi.knowledge.list(token);
       setDocs(res.data);
+      const presets = await adminApiExtended.candidatePresets.list(token);
+      setCandidates(presets);
     } catch {}
     finally { setLoading(false); }
   }, [token]);
@@ -85,6 +89,7 @@ export default function KnowledgePage() {
       fd.append("title",       newTitle.trim());
       fd.append("description", newDesc.trim());
       if (newTopic) fd.append("topic", newTopic);
+      if (newCandidateId) fd.append("candidate_id", newCandidateId);
 
       const doc = await adminApi.knowledge.upload(token, fd);
       clearInterval(interval);
@@ -94,7 +99,7 @@ export default function KnowledgePage() {
       setTimeout(() => {
         setUploadState("idle");
         setPendingFile(null);
-        setNewTitle(""); setNewDesc(""); setNewTopic("");
+        setNewTitle(""); setNewDesc(""); setNewTopic(""); setNewCandidateId("");
         setProgress(0);
       }, 2000);
     } catch (err: any) {
@@ -216,6 +221,16 @@ export default function KnowledgePage() {
                     ...topics.map((t) => ({ value: t.name, label: `${t.emoji} ${t.label}` })),
                   ]}
                 />
+                <FormField
+                  as="select"
+                  label="Candidato (modo PEPA)"
+                  value={newCandidateId}
+                  onChange={(e) => setNewCandidateId(e.target.value)}
+                  options={[
+                    { value: "", label: "Material general del tenant" },
+                    ...candidates.map((c) => ({ value: String(c.id), label: c.name })),
+                  ]}
+                />
               </div>
             )}
 
@@ -301,6 +316,11 @@ export default function KnowledgePage() {
                         {doc.topic && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-brand-50 border border-brand-100 text-[10px] text-brand-600 font-medium">
                             <Tag size={9} /> {doc.topic}
+                          </span>
+                        )}
+                        {doc.candidate_id && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-100 text-[10px] text-indigo-600 font-medium">
+                            {candidates.find((c) => c.id === doc.candidate_id)?.name ?? `candidato #${doc.candidate_id}`}
                           </span>
                         )}
                         {!doc.is_active && (

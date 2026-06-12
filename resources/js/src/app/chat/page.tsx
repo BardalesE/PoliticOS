@@ -32,6 +32,7 @@ interface ChatMessage {
   pending?: boolean;
   media?: MediaItem[];
   quickReplies?: QuickReply[];
+  sources?: string[]; // fuentes citadas (modo PEPA)
 }
 
 interface WelcomeBack {
@@ -413,6 +414,7 @@ export default function ChatPage() {
   const [consent, setConsent]    = useState<boolean | null>(null);
   const [showNonsense, setShowNonsense] = useState(false);
   const [blocked, setBlocked]    = useState(false);
+  const [assistantMode, setAssistantMode] = useState<string | null>(null);
   const endRef                   = useRef<HTMLDivElement>(null);
 
   // ── Geolocalización (browser GPS) ───────────────────────────────────────────
@@ -793,6 +795,12 @@ export default function ChatPage() {
                   m.map((x) => (x.id === aiId ? { ...x, quickReplies: payload.quickReplies } : x))
                 );
               }
+              if (payload.mode) setAssistantMode(payload.mode);
+              if (payload.pepa?.fuentes_citadas?.length) {
+                setMessages((m) =>
+                  m.map((x) => (x.id === aiId ? { ...x, sources: payload.pepa.fuentes_citadas } : x))
+                );
+              }
               setBlocked(payload.blocked ?? false);
               if (payload.nonsense || payload.attackDetected) setShowNonsense(true);
             }
@@ -825,10 +833,11 @@ export default function ChatPage() {
       setMessages((m) =>
         m.map((x) =>
           x.id === aiId
-            ? { ...x, content: data.reply ?? "Sin respuesta.", media: data.media ?? [], quickReplies: data.quickReplies ?? [], pending: false }
+            ? { ...x, content: data.reply ?? "Sin respuesta.", media: data.media ?? [], quickReplies: data.quickReplies ?? [], sources: data.pepa?.fuentes_citadas ?? undefined, pending: false }
             : x
         )
       );
+      if (data.mode) setAssistantMode(data.mode);
       setBlocked(data.blocked ?? false);
       if (data.nonsense || data.attackDetected) setShowNonsense(true);
       return true;
@@ -922,7 +931,7 @@ export default function ChatPage() {
         <div className="max-w-3xl mx-auto flex items-center justify-between">
           <div>
             <h1 className="font-bold text-zinc-900">Asistente PoliticOS</h1>
-            <AIBadge />
+            <AIBadge mode={assistantMode} />
           </div>
           <TenantLink href="/" className="text-sm text-zinc-600 hover:underline">Inicio</TenantLink>
         </div>
@@ -1041,6 +1050,24 @@ export default function ChatPage() {
                             </p>
                             {msg.media.slice(0, 8).map((m, i) => (
                               <MediaBadge key={i} item={m} />
+                            ))}
+                          </div>
+                        )}
+                        {msg.sources && msg.sources.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-zinc-100">
+                            <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-widest mb-1.5">
+                              Fuentes verificadas
+                            </p>
+                            {msg.sources.slice(0, 5).map((url, i) => (
+                              <a
+                                key={i}
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block text-xs text-indigo-600 hover:underline truncate"
+                              >
+                                {url}
+                              </a>
                             ))}
                           </div>
                         )}

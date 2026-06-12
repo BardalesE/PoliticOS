@@ -413,7 +413,7 @@ export const adminApi = {
       request<Paginated<KnowledgeDocument>>(`/admin/knowledge?page=${page}`, {}, token),
     upload: (token: string, formData: FormData) =>
       upload<KnowledgeDocument>("/admin/knowledge", formData, token),
-    update: (token: string, id: number, data: { title?: string; description?: string; topic?: string; is_active?: boolean }) =>
+    update: (token: string, id: number, data: { title?: string; description?: string; topic?: string; candidate_id?: number | null; is_active?: boolean }) =>
       request<KnowledgeDocument>(`/admin/knowledge/${id}`, { method: "PUT", body: JSON.stringify(data) }, token),
     delete: (token: string, id: number) =>
       request<{ deleted: boolean }>(`/admin/knowledge/${id}`, { method: "DELETE" }, token),
@@ -527,6 +527,7 @@ export type KnowledgeDocument = {
   original_name: string | null;
   content: string | null;
   topic: string | null;
+  candidate_id: number | null;
   file_size: number | null;
   is_active: boolean;
   created_at: string;
@@ -625,6 +626,7 @@ export type AiSetting = {
   temperature: number;
   fallback_provider: "groq" | "claude" | "openai" | null;
   system_prompt: string;
+  mode?: "campaign" | "pepa";
   chat_subtitle:     string | null;
   chat_btn_text:     string | null;
   chat_btn_shape:    "pill" | "circle";

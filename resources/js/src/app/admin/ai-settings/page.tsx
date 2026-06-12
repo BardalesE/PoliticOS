@@ -262,6 +262,36 @@ export default function AiSettingsPage() {
           {/* ── Columna principal ── */}
           <div className="xl:col-span-2 space-y-6">
 
+            {/* Modo de operación */}
+            <section className="bg-white rounded-xl border border-ink-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-ink-100 flex items-center gap-2">
+                <Bot size={16} className="text-brand-500" />
+                <h2 className="font-extrabold text-ink-800 text-sm uppercase tracking-wide">Modo de operación</h2>
+              </div>
+              <div className="p-6 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <CardOption
+                    value="pepa"
+                    current={form.mode ?? "campaign"}
+                    label="PEPA — Asistente Cívico Neutral"
+                    desc="Compara propuestas de varios candidatos con fuentes verificadas. No hace campaña."
+                    onClick={() => set("mode", "pepa")}
+                  />
+                  <CardOption
+                    value="campaign"
+                    current={form.mode ?? "campaign"}
+                    label="Campaña"
+                    desc="Chatbot del candidato del tenant, con su identidad y propuestas."
+                    onClick={() => set("mode", "campaign")}
+                  />
+                </div>
+                <p className="text-[11px] text-ink-400 font-medium">
+                  El modo controla el badge del chat y la metadata que viaja al frontend.
+                  Recuerda alinear también el prompt del sistema (pepa_prompt vs politicos_v2_prompt).
+                </p>
+              </div>
+            </section>
+
             {/* Proveedor y modelo */}
             <section className="bg-white rounded-xl border border-ink-200 shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-ink-100 flex items-center gap-2">
