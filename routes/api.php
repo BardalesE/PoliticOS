@@ -26,6 +26,7 @@ use App\Http\Controllers\IntelligenceController;
 use App\Http\Controllers\AttackResponseController;
 use App\Http\Controllers\ExternalSignalController;
 use App\Http\Controllers\LiveStreamController;
+use App\Http\Controllers\OnboardingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -251,6 +252,10 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
         Route::post  ('/livestreams/{id}/stop',                [LiveStreamController::class, 'stop']);
         Route::post  ('/livestreams/{key}/chunk',              [LiveStreamController::class, 'uploadChunk']);
         Route::get   ('/livestreams/{id}/viewers',             [LiveStreamController::class, 'viewers']);
+
+        // Onboarding (wizard de primer uso)
+        Route::get ('/onboarding/status',   [OnboardingController::class, 'status']);
+        Route::post('/onboarding/complete', [OnboardingController::class, 'complete']);
 
         // Base de conocimiento
         Route::get   ('/knowledge',      [KnowledgeDocumentController::class, 'index']);
