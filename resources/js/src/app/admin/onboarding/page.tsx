@@ -5,9 +5,10 @@ import {
   UserCircle, BookOpen, MessageSquare, CheckCircle, Loader2,
   AlertCircle, RefreshCw, ArrowRight, ArrowLeft, Rocket, ExternalLink,
 } from "lucide-react";
-import { adminApi, adminApiExtended, type OnboardingStatus, type CandidateProfile } from "@/lib/api";
+import { adminApi, adminApiExtended, type OnboardingStatus, type CandidateProfile, type CandidatePreset } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { FormField } from "@/components/admin/FormField";
+import { KnowledgeUploadPanel } from "@/components/admin/KnowledgeUploadPanel";
 import { cn } from "@/lib/utils";
 
 // El provisioning siembra estos placeholders; en el form se muestran vacíos
@@ -51,6 +52,7 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(true);
 
   const [form, setForm]       = useState<ProfileForm>(emptyForm);
+  const [candidates, setCandidates] = useState<CandidatePreset[]>([]);
   const [saving, setSaving]   = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
@@ -69,11 +71,13 @@ export default function OnboardingPage() {
     (async () => {
       setLoading(true);
       try {
-        const [s, profile] = await Promise.all([
+        const [s, profile, presets] = await Promise.all([
           adminApi.onboarding.status(token),
           adminApiExtended.candidateProfile.get(token),
+          adminApiExtended.candidatePresets.list(token),
         ]);
         setStatus(s);
+        setCandidates(presets);
         setForm({
           name:          cleanPlaceholder(profile?.name),
           title:         cleanPlaceholder(profile?.title),
@@ -260,11 +264,15 @@ export default function OnboardingPage() {
             </button>
           </div>
 
+          <KnowledgeUploadPanel
+            candidates={candidates}
+            onUploaded={() => refreshStatus()}
+          />
+
           <Link href="/admin/knowledge"
-            className="flex items-center justify-center gap-2 px-6 py-3 rounded-xl border-2 border-dashed border-brand-300 text-brand-600 hover:bg-brand-50 text-sm font-semibold transition-colors">
-            <BookOpen size={15} />
-            Abrir base de conocimiento para subir documentos
-            <ExternalLink size={13} />
+            className="flex items-center justify-center gap-1.5 text-xs text-gray-400 hover:text-brand-500 transition-colors">
+            Ver y gestionar todos los documentos en la base de conocimiento
+            <ExternalLink size={11} />
           </Link>
 
           <div className="flex justify-between pt-2">
