@@ -5,7 +5,7 @@
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 // Dev: set NEXT_PUBLIC_TENANT_SLUG in .env.local
-// Prod: auto-detected from subdomain (james.politicos.pe → "james")
+// Prod: auto-detected from subdomain (maria.politicos.pe → "maria")
 const BASE_DOMAIN = process.env.NEXT_PUBLIC_BASE_DOMAIN || "";
 
 export function resolveTenantSlug(): string {
@@ -216,7 +216,7 @@ export type ChatSession = {
 
 export type ChatMessage = {
   id: number;
-  role: "user" | "james";
+  role: "user" | "assistant";
   content: string;
   topic: string | null;
   created_at: string;

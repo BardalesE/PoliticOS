@@ -29,7 +29,7 @@ class AnalyticsController extends Controller
             ->limit(10)
             ->get();
 
-        $topTopics = ChatMessage::where('role', 'james')
+        $topTopics = ChatMessage::where('role', 'assistant')
             ->select(
                 DB::raw("COALESCE(topic, 'general') as topic"),
                 DB::raw('COUNT(*) as count')
@@ -108,7 +108,7 @@ class AnalyticsController extends Controller
         }
 
         // ── Top topics (incluye mensajes sin topic como "general") ──
-        $topTopics = ChatMessage::where('role', 'james')
+        $topTopics = ChatMessage::where('role', 'assistant')
             ->select(
                 DB::raw("COALESCE(topic, 'general') as topic"),
                 DB::raw('COUNT(*) as count')

@@ -81,7 +81,7 @@ class ResolveTenant
         return config('app.tenant_slug') ?: null;
     }
 
-    // Subdominio (producción): james.politicos.pe → "james"
+    // Subdominio (producción): maria.politicos.pe → "maria"
     // ⚠ Una IP como 159.89.87.18 tiene 4 partes separadas por "." y se
     //   interpretaría incorrectamente como subdomain "159". filter_var lo evita.
     private function subdomainSlug(Request $request): ?string

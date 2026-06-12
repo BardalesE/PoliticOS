@@ -7,7 +7,7 @@ export type MediaAttachment = {
 
 export type Message = {
   id: string;
-  role: "user" | "james";
+  role: "user" | "assistant";
   content: string;
   media?: MediaAttachment[];
   topic?: string;

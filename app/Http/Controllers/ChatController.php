@@ -11,7 +11,7 @@ use App\Models\CitizenPoint;
 use App\Services\PlanService;
 use App\Models\CitizenData;
 use App\Models\VisitorProfile;
-use App\Services\JamesAIService;
+use App\Services\CivicAIService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -20,7 +20,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ChatController extends Controller
 {
-    public function __construct(private JamesAIService $ai) {}
+    public function __construct(private CivicAIService $ai) {}
 
     /** POST /api/chat — respuesta completa, no streaming */
     public function send(Request $request): JsonResponse
@@ -105,7 +105,7 @@ class ChatController extends Controller
             }
 
             ChatMessage::create(['session_id' => $session->id, 'role' => 'user',  'content' => $data['message']]);
-            ChatMessage::create(['session_id' => $session->id, 'role' => 'james', 'content' => $response['reply'], 'media' => '[]']);
+            ChatMessage::create(['session_id' => $session->id, 'role' => 'assistant', 'content' => $response['reply'], 'media' => '[]']);
             return $this->jsonChatResponse($response, $session, $request);
         }
 
@@ -125,7 +125,7 @@ class ChatController extends Controller
 
         ChatMessage::create([
             'session_id'      => $session->id,
-            'role'            => 'james',
+            'role'            => 'assistant',
             'content'         => $response['reply'],
             'topic'           => $response['topic'] ?? null,
             'media'           => json_encode($response['media'] ?? []),
@@ -228,7 +228,7 @@ class ChatController extends Controller
             }
 
             ChatMessage::create(['session_id' => $session->id, 'role' => 'user',  'content' => $data['message']]);
-            ChatMessage::create(['session_id' => $session->id, 'role' => 'james', 'content' => $response['reply'], 'media' => '[]']);
+            ChatMessage::create(['session_id' => $session->id, 'role' => 'assistant', 'content' => $response['reply'], 'media' => '[]']);
             return $this->streamPrebuilt($response, $session);
         }
 
@@ -270,7 +270,7 @@ class ChatController extends Controller
                     try {
                         ChatMessage::create([
                             'session_id'      => $session->id,
-                            'role'            => 'james',
+                            'role'            => 'assistant',
                             'content'         => $fullReply,
                             'topic'           => $meta['topic'] ?? null,
                             'media'           => json_encode($meta['media'] ?? []),
@@ -382,7 +382,7 @@ class ChatController extends Controller
         ChatMessage::create(['session_id' => $session->id, 'role' => 'user',  'content' => $userMessage]);
         ChatMessage::create([
             'session_id' => $session->id,
-            'role'       => 'james',
+            'role'       => 'assistant',
             'content'    => $aiResponse['reply'],
             'media'      => json_encode($aiResponse['media'] ?? []),
         ]);

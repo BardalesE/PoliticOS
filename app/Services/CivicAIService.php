@@ -32,10 +32,9 @@ use Illuminate\Support\Facades\Log;
  *   - Memoria conversacional cross-sesión vía VisitorProfile.
  *   - Detección de divulgación obligatoria ("¿eres el candidato?").
  *
- * NOTA: el nombre "JamesAIService" se mantiene por compatibilidad con código existente.
- * Internamente este servicio funciona para CUALQUIER candidato del tenant activo.
+ * Funciona para CUALQUIER candidato del tenant activo.
  */
-class JamesAIService
+class CivicAIService
 {
     private ?AiSetting $config = null;
     private ?CandidateProfile $candidate = null;

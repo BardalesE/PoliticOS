@@ -26,7 +26,7 @@ interface QuickReply {
 
 interface ChatMessage {
   id: string;
-  role: "user" | "james";
+  role: "user" | "assistant";
   content: string;
   timestamp?: number;
   pending?: boolean;
@@ -514,7 +514,7 @@ export default function ChatPage() {
   function addBotMsg(content: string, quickReplies?: QuickReply[], pending = false) {
     const msg: ChatMessage = {
       id: `b-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      role: "james",
+      role: "assistant",
       content,
       quickReplies,
       pending,
@@ -537,7 +537,7 @@ export default function ChatPage() {
   function autoStartRegistrationFlow() {
     setAutoStarting(true);
     const typingId = `auto-typing-${Date.now()}`;
-    setMessages([{ id: typingId, role: "james", content: "", pending: true }]);
+    setMessages([{ id: typingId, role: "assistant", content: "", pending: true }]);
 
     setTimeout(() => {
       setAutoStarting(false);
@@ -556,7 +556,7 @@ export default function ChatPage() {
 
     setMessages([{
       id: `welcome-${Date.now()}`,
-      role: "james",
+      role: "assistant",
       content: `¡Hola! 👋 Soy el asistente de ${name}, candidato a ${cargo} por ${party}.\n\nTenemos una rifa especial para los vecinos que se registren hoy. 🎁 ¿Te animas a participar? Solo necesito tu nombre, DNI, WhatsApp y correo — te lleva menos de un minuto.`,
       quickReplies: [
         { label: "✅ Sí, quiero participar", value: "Sí, quiero participar en la rifa" },
@@ -584,7 +584,7 @@ export default function ChatPage() {
 
     setMessages([
       ...saved,
-      { id: typingId, role: "james", content: "", pending: true },
+      { id: typingId, role: "assistant", content: "", pending: true },
     ]);
 
     setTimeout(() => {
@@ -859,7 +859,7 @@ export default function ChatPage() {
     const userMsg: ChatMessage = { id: `u-${Date.now()}`, role: "user", content: text, timestamp: Date.now() };
     setMessages((m) => [...m, userMsg]);
     const aiId = `a-${Date.now()}`;
-    setMessages((m) => [...m, { id: aiId, role: "james", content: "", pending: true }]);
+    setMessages((m) => [...m, { id: aiId, role: "assistant", content: "", pending: true }]);
     (async () => {
       try {
         const streamed = await sendStreaming(text, aiId);
@@ -1047,7 +1047,7 @@ export default function ChatPage() {
                       </>
                     )}
                   </div>
-                  {!msg.pending && msg.role === "james" && msg.quickReplies && msg.quickReplies.length > 0 && (
+                  {!msg.pending && msg.role === "assistant" && msg.quickReplies && msg.quickReplies.length > 0 && (
                     <div className="max-w-[85%] w-full">
                       <QuickReplyButtons replies={msg.quickReplies} onSelect={sendQuickReply} />
                     </div>

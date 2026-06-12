@@ -77,10 +77,10 @@ Models/
   Video.php           → title, url, thumbnail, views, topic, published_at
   Faq.php             → question, answer, topic, priority
   ChatSession.php     → session_id (UUID), ip, user_agent, started_at → hasMany ChatMessage
-  ChatMessage.php     → session_id (FK), role (user|james), content, topic, media (JSON)
+  ChatMessage.php     → session_id (FK), role (user|assistant), content, topic, media (JSON)
 
 Services/
-  JamesAIService.php  → RAG simple + llamada a Claude/OpenAI + resolución de media
+  CivicAIService.php  → RAG simple + llamada a Claude/OpenAI + resolución de media
 ```
 
 ### Rutas API — `routes/api.php`
@@ -169,7 +169,7 @@ types/
 - Validación **siempre en el controller** con `$request->validate([...])`
 - Respuestas siempre `JsonResponse`
 - Rutas admin protegidas con doble middleware: `['auth:sanctum', 'admin']`
-- No modificar `JamesAIService` sin probar contra el prompt completo
+- No modificar `CivicAIService` sin probar contra el prompt completo
 
 ### Frontend
 - Todos los componentes de cliente llevan `"use client"` al inicio
@@ -210,7 +210,7 @@ NEXT_PUBLIC_USE_MOCK=false
 
 ## Reglas importantes
 
-- No modificar `JamesAIService` sin validar contra los seeders (propuestas y FAQs deben existir)
+- No modificar `CivicAIService` sin validar contra los seeders (propuestas y FAQs deben existir)
 - No eliminar la migración de `role` en `users` — el middleware `EnsureIsAdmin` depende de ese campo
 - Siempre validar inputs en `FormRequest` o `$request->validate()`, nunca confiar en el frontend
 - El token Sanctum se guarda en `localStorage` con key `admin_token`

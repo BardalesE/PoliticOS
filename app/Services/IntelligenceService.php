@@ -191,7 +191,7 @@ class IntelligenceService
             ];
 
             // Top temas por segmento
-            $topicsBySegment = ChatMessage::where('chat_messages.role','james')
+            $topicsBySegment = ChatMessage::where('chat_messages.role','assistant')
                 ->where('chat_messages.created_at','>=',$weekAgo)
                 ->whereNotNull('chat_messages.topic')
                 ->join('chat_sessions','chat_messages.session_id','=','chat_sessions.id')

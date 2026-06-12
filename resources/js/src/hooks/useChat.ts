@@ -32,7 +32,7 @@ export function useChat(initialMessages: Message[] = []) {
     };
     const placeholderId = uid();
     const placeholder: Message = {
-      id: placeholderId, role: "james", content: "", timestamp: Date.now(), pending: true,
+      id: placeholderId, role: "assistant", content: "", timestamp: Date.now(), pending: true,
     };
 
     setMessages((prev) => [...prev, userMsg, placeholder]);
