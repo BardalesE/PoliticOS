@@ -1,4 +1,4 @@
-# 08 — Checklist de staging: Fases 3 y 4 (PEPA + RAG con atribución)
+# 08 — Checklist de staging: Fases 3, 4 y 5 (PEPA + RAG con atribución + onboarding)
 
 **Estado**: implementación completa (2026-06-12) · pendiente validación con IA real
 
@@ -64,6 +64,41 @@ atribuido a cada uno vía `/admin/knowledge` → "Candidato (modo PEPA)".
       no estén en el contexto; las mismas URLs llegan como chips en la UI.
 - [ ] **Candidato único** (test 5): con docs de uno solo, PEPA lo dice
       explícitamente en la respuesta (la instrucción ya viaja en el contexto).
+
+## Fase 5 — verificado localmente (no repetir)
+
+El backend de provisioning (comando `tenant:provision` + endpoint
+`POST /superadmin/tenants/provision` + modal en el superadmin) ya existía de
+las fases 1-2; la Fase 5 añadió el wizard de onboarding del admin del tenant.
+
+- ✅ `GET /api/admin/onboarding/status` end-to-end contra el tenant camilo:
+  perfil completo detectado correctamente (`missing: []`), conteo de docs
+  activos/indexados, y 401 sin token. Los placeholders del provisioning
+  ("Por definir", bio "Editar desde el panel...") cuentan como faltantes.
+- ✅ `POST /api/admin/onboarding/complete` idempotente: dos llamadas
+  consecutivas devuelven el mismo `completed_at`, persistido en `settings`
+  de la DB del tenant.
+- ✅ `/admin/onboarding`: stepper de 3 pasos que retoma según el estado
+  (perfil → docs → chat); el paso 2 reusa `KnowledgeUploadPanel` (mismo
+  componente que `/admin/knowledge`, con los campos de fuente de la Fase 4);
+  el paso 3 embebe el chat público vía iframe con `withTenant`.
+- ✅ Banner de onboarding pendiente en el dashboard (desaparece al completar)
+  y entrada "Configurar campaña" en el sidebar. `tsc --noEmit` limpio.
+- ✅ `/admin/onboarding/*` no está en `CheckPlanFeature::ROUTE_FEATURES`:
+  disponible en todos los planes.
+
+## Fase 5 — pendiente en staging
+
+- [ ] **Criterio de done del roadmap (<10 min)**: provisionar un tenant nuevo
+      desde el superadmin, entrar como su admin, completar el wizard (perfil +
+      1 PDF + prueba de chat) y cronometrar de punta a punta.
+- [ ] **Tenant recién provisionado**: el status debe reportar el perfil como
+      incompleto (placeholders sembrados) y el dashboard mostrar el banner.
+- [ ] **Iframe del chat en producción**: verificar que el chat carga embebido
+      con subdominio real (CSP/X-Frame-Options del nginx no deben bloquearlo;
+      es same-origin, pero `frame-ancestors 'none'` lo rompería).
+- [ ] **Indexado tras subir desde el wizard**: el contador "indexados" sube
+      tras el upload (con Qdrant real, no solo FULLTEXT).
 
 ## Nota operativa
 
