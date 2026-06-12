@@ -39,6 +39,12 @@ Crea la BD, corre migraciones, siembra los datos base (topics, ai_settings,
 plantillas de ataque genéricas) y registra el tenant. También se puede hacer
 desde el panel `/superadmin` (pestaña Provisionar).
 
+> ⚠ **Desde la Fase 3, los tenants nuevos nacen en modo PEPA** (asistente
+> cívico neutral). Para un tenant de **campaña** (chatbot del candidato, como
+> los de este directorio): en `/admin/ai-settings` cambia el modo a "Campaña"
+> y reemplaza el prompt del sistema por el contenido de
+> `resources/prompts/politicos_v2_prompt.txt` antes de correr el seeder.
+
 ### 2. Crear el seeder del candidato
 
 ```bash
