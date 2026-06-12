@@ -48,7 +48,10 @@ yarn-error.log
 /generate_pptx.py
 /landing_bento_*.png
 /politicos-v2-patch*/
-/training-data/
+
+# training-data/ SÍ se versiona (decisión 2026-06-12, ver
+# docs/architecture/07-training-data-versioning.md). Contiene estrategia de
+# campaña de clientes reales: si este repo se hace público, sacarla antes.
 
 # Redis dump (generado automáticamente por Redis)
 dump.rdb
