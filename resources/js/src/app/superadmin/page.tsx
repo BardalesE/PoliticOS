@@ -1020,6 +1020,174 @@ function StatChip({
   );
 }
 
+// ─── Card de tenant (mobile <md) ──────────────────────────────────────────
+
+function TenantCard({
+  tenant, saKey,
+  onEdit, onDelete, onToggle, onCredentials,
+}: {
+  tenant: Tenant; saKey: string;
+  onEdit: () => void;
+  onDelete: () => void;
+  onToggle: () => void;
+  onCredentials: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [stats, setStats]       = useState<TenantStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError]     = useState(false);
+
+  async function loadStats() {
+    if (stats || statsLoading) return;
+    setStatsLoading(true); setStatsError(false);
+    try {
+      const res = await superadminApi.tenants.stats(saKey, tenant.id);
+      const s = res.stats;
+      if ("error" in s) { setStatsError(true); return; }
+      setStats(s);
+    } catch { setStatsError(true); }
+    finally { setStatsLoading(false); }
+  }
+
+  function toggle() {
+    setExpanded((v) => {
+      if (!v) loadStats();
+      return !v;
+    });
+  }
+
+  const adminUrl = `http://localhost:3000/admin/login?tenant=${tenant.slug}`;
+  const voterUrl = `http://localhost:3000?tenant=${tenant.slug}`;
+
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
+      {/* Encabezado: slug + plan */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            {statusDot(tenant.is_active)}
+            <code className="text-sm font-mono text-zinc-200 truncate">{tenant.slug}</code>
+            <CopyBtn text={tenant.slug} />
+          </div>
+          <p className="text-sm text-zinc-300 mt-1 truncate">{tenant.name}</p>
+        </div>
+        <div className="shrink-0">{planBadge(tenant.plan)}</div>
+      </div>
+
+      {/* Meta: base de datos + fecha */}
+      <div className="flex items-center justify-between gap-3 text-[11px]">
+        <code className="text-zinc-500 font-mono truncate min-w-0">{tenant.db_name}</code>
+        <span className="text-zinc-500 shrink-0">
+          {new Date(tenant.created_at).toLocaleDateString("es-PE")}
+        </span>
+      </div>
+
+      {/* Acciones */}
+      <div className="flex items-center gap-1 flex-wrap border-t border-zinc-800 pt-3">
+        <button
+          onClick={toggle}
+          title="Ver stats"
+          className="p-1.5 rounded-lg text-zinc-500 hover:text-blue-400 hover:bg-zinc-800 transition"
+        >
+          <BarChart2 className="w-4 h-4" />
+        </button>
+        <button
+          onClick={onCredentials}
+          title="Ver credenciales"
+          className="p-1.5 rounded-lg text-zinc-500 hover:text-amber-400 hover:bg-zinc-800 transition"
+        >
+          <KeyRound className="w-4 h-4" />
+        </button>
+        <a
+          href={adminUrl} target="_blank" rel="noopener noreferrer"
+          title="Abrir panel admin"
+          className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition"
+        >
+          <ExternalLink className="w-4 h-4" />
+        </a>
+        <button
+          onClick={onEdit}
+          title="Editar"
+          className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition"
+        >
+          <Pencil className="w-4 h-4" />
+        </button>
+        <button
+          onClick={onToggle}
+          title={tenant.is_active ? "Desactivar" : "Activar"}
+          className={`p-1.5 rounded-lg transition ${
+            tenant.is_active
+              ? "text-zinc-500 hover:text-amber-400 hover:bg-zinc-800"
+              : "text-zinc-500 hover:text-emerald-400 hover:bg-zinc-800"
+          }`}
+        >
+          {tenant.is_active ? <XCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
+        </button>
+        <button
+          onClick={onDelete}
+          title="Eliminar"
+          className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-zinc-800 transition ml-auto"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Stats expandibles */}
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="pt-1 space-y-3">
+              {statsLoading && (
+                <div className="flex items-center gap-2 text-xs text-zinc-500">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Conectando a la DB del tenant...
+                </div>
+              )}
+              {statsError && (
+                <p className="text-xs text-amber-400">
+                  No se pudo conectar a la DB del tenant. Verifica las credenciales.
+                </p>
+              )}
+              {stats && (
+                <div className="flex flex-wrap gap-2">
+                  <StatChip icon={MessageSquare} label="Conversaciones" value={stats.chat_sessions} />
+                  <StatChip icon={MessageSquare} label="Mensajes" value={stats.chat_messages} />
+                  <StatChip icon={FileText} label="Propuestas" value={stats.proposals} />
+                </div>
+              )}
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-zinc-600 w-16 shrink-0">Admin:</span>
+                  <code className="text-[11px] text-zinc-500 font-mono flex-1 truncate min-w-0">{adminUrl}</code>
+                  <CopyBtn text={adminUrl} />
+                  <a href={adminUrl} target="_blank" rel="noopener noreferrer"
+                     className="text-zinc-600 hover:text-emerald-400 transition shrink-0">
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-zinc-600 w-16 shrink-0">Votantes:</span>
+                  <code className="text-[11px] text-zinc-500 font-mono flex-1 truncate min-w-0">{voterUrl}</code>
+                  <CopyBtn text={voterUrl} />
+                  <a href={voterUrl} target="_blank" rel="noopener noreferrer"
+                     className="text-zinc-600 hover:text-emerald-400 transition shrink-0">
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 // ─── Modal de confirmación de borrado ─────────────────────────────────────
 
 function DeleteConfirm({
@@ -1322,9 +1490,9 @@ export default function SuperAdminPage() {
   return (
     <>
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold text-zinc-100">PoliticOS</h1>
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2 mb-4">
+        <h1 className="text-xl font-bold text-zinc-100 truncate">PoliticOS</h1>
+        <div className="flex items-center gap-2 shrink-0">
           {activeTab === "tenants" && (
             <>
               <button onClick={load} className="p-2 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition" title="Recargar">
@@ -1332,9 +1500,11 @@ export default function SuperAdminPage() {
               </button>
               <button
                 onClick={() => setProvisionOpen(true)}
-                className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold text-sm px-4 py-2 rounded-xl transition"
+                className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap shrink-0"
               >
-                <Plus className="w-4 h-4" /> Nuevo Candidato
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Nuevo Candidato</span>
+                <span className="sm:hidden">Nuevo</span>
               </button>
             </>
           )}
@@ -1377,7 +1547,7 @@ export default function SuperAdminPage() {
 
       {/* Resumen por plan */}
       {tenants.length > 0 && (
-        <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
           {PLANS.map((p) => {
             const count = tenants.filter((t) => t.plan === p.value).length;
             return (
@@ -1418,7 +1588,24 @@ export default function SuperAdminPage() {
           </button>
         </div>
       ) : (
-        <div className="rounded-xl border border-zinc-800 overflow-hidden">
+        <>
+        {/* Mobile (<md): cards apiladas por tenant */}
+        <div className="md:hidden space-y-3">
+          {tenants.map((t) => (
+            <TenantCard
+              key={t.id}
+              tenant={t}
+              saKey={saKey!}
+              onEdit={() => setEditTarget(t)}
+              onDelete={() => setDeleteTarget(t)}
+              onToggle={() => toggleActive(t)}
+              onCredentials={() => setCredsTarget(t)}
+            />
+          ))}
+        </div>
+
+        {/* Tablet / Desktop (≥md): tabla */}
+        <div className="hidden md:block rounded-xl border border-zinc-800 overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-zinc-800/60">
               <tr>
@@ -1444,6 +1631,7 @@ export default function SuperAdminPage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {/* Modales */}

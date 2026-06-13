@@ -21,20 +21,23 @@ function SuperAdminGuard({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      <header className="border-b border-zinc-800 px-6 py-3 flex items-center justify-between sticky top-0 z-30 bg-zinc-950">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="w-5 h-5 text-emerald-400" />
-          <span className="font-bold text-sm tracking-wide">PoliticOS SuperAdmin</span>
-          <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-mono ml-2">
+      <header className="border-b border-zinc-800 px-4 sm:px-6 py-3 flex items-center justify-between gap-2 sticky top-0 z-30 bg-zinc-950">
+        <div className="flex items-center gap-2 min-w-0">
+          <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+          <span className="font-bold text-sm tracking-wide truncate">
+            <span className="sm:hidden">SuperAdmin</span>
+            <span className="hidden sm:inline">PoliticOS SuperAdmin</span>
+          </span>
+          <span className="hidden sm:inline-block text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-mono ml-2 shrink-0">
             PLATFORM OWNER
           </span>
         </div>
         <button
           onClick={() => { logout(); router.replace("/superadmin/login"); }}
-          className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-red-400 transition-colors"
+          className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-red-400 transition-colors shrink-0"
         >
           <LogOut className="w-3.5 h-3.5" />
-          Salir
+          <span className="hidden sm:inline">Salir</span>
         </button>
       </header>
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
