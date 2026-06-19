@@ -608,6 +608,27 @@ class CivicAIService
         return '__AI_RESTING__';
     }
 
+    /**
+     * Límite de tokens efectivo para la generación. En modo PEPA el output es un
+     * JSON estructurado (respuesta_usuario + metadata_interna); con poco techo el
+     * modelo trunca el JSON a media generación y dispara el fallback. Aplicamos un
+     * piso para garantizar el contrato, incluso en tenants ya provisionados cuyo
+     * AiSetting tiene un max_tokens bajo guardado en su DB. El admin puede subirlo
+     * (se respeta con max()), nunca bajarlo por debajo del piso en modo PEPA.
+     * Como max_tokens es un TOPE (no una reserva) y Groq/OpenAI facturan por token
+     * generado, subir el piso no encarece la respuesta típica corta.
+     */
+    private const PEPA_MIN_MAX_TOKENS = 1200;
+
+    private function effectiveMaxTokens(): int
+    {
+        $configured = (int) ($this->config->max_tokens ?? 600);
+
+        return ($this->config->mode ?? 'campaign') === 'pepa'
+            ? max($configured, self::PEPA_MIN_MAX_TOKENS)
+            : $configured;
+    }
+
     private function callProvider(string $provider, string $userMessage, string $systemPrompt, array $history): string
     {
         return match ($provider) {
@@ -643,12 +664,20 @@ class CivicAIService
         $messages = array_merge($messages, $history);
         $messages[] = ['role' => 'user', 'content' => $userMessage];
 
-        $response = Http::timeout(30)->withToken($apiKey)->post($url, [
+        $body = [
             'model'       => $model,
             'temperature' => $this->config->temperature,
-            'max_tokens'  => $this->config->max_tokens,
+            'max_tokens'  => $this->effectiveMaxTokens(),
             'messages'    => $messages,
-        ]);
+        ];
+
+        // En modo PEPA forzamos JSON estricto a nivel de API (Groq/OpenAI lo
+        // soportan; el prompt contiene la palabra "JSON" que exige este modo).
+        if (($this->config->mode ?? 'campaign') === 'pepa') {
+            $body['response_format'] = ['type' => 'json_object'];
+        }
+
+        $response = Http::timeout(30)->withToken($apiKey)->post($url, $body);
 
         if (!$response->ok()) {
             Log::error('AI HTTP error (OpenAI-compatible)', [
@@ -678,7 +707,7 @@ class CivicAIService
             'content-type'      => 'application/json',
         ])->post('https://api.anthropic.com/v1/messages', [
             'model'      => $model,
-            'max_tokens' => $this->config->max_tokens,
+            'max_tokens' => $this->effectiveMaxTokens(),
             'system'     => $systemPrompt,
             'messages'   => $messages,
         ]);
@@ -756,13 +785,15 @@ class CivicAIService
                 'Content-Type'  => 'application/json',
                 'Accept'        => 'text/event-stream',
             ],
-            'body' => json_encode([
+            'body' => json_encode(array_merge([
                 'model' => $model,
                 'temperature' => $this->config->temperature,
-                'max_tokens'  => $this->config->max_tokens,
+                'max_tokens'  => $this->effectiveMaxTokens(),
                 'messages'    => $messages,
                 'stream'      => true,
-            ]),
+            ], ($this->config->mode ?? 'campaign') === 'pepa'
+                ? ['response_format' => ['type' => 'json_object']]
+                : [])),
             'stream' => true,
         ]);
 
@@ -792,7 +823,7 @@ class CivicAIService
             ],
             'body' => json_encode([
                 'model' => $model,
-                'max_tokens' => $this->config->max_tokens,
+                'max_tokens' => $this->effectiveMaxTokens(),
                 'system' => $systemPrompt,
                 'messages' => $messages,
                 'stream' => true,
@@ -1126,24 +1157,137 @@ class CivicAIService
     // ─── PARSEO DEL OUTPUT ESTRUCTURADO (Pepa JSON) ──────────────────────
     private function parseAIResponse(string $raw): array
     {
+        $isPepa  = ($this->config->mode ?? 'campaign') === 'pepa';
+        $decoded = $this->extractJsonObject($raw);
+
+        if (is_array($decoded) && isset($decoded['respuesta_usuario'])) {
+            $reply = trim((string) $decoded['respuesta_usuario']);
+            if ($reply !== '') {
+                return [
+                    'reply'         => $reply,
+                    'pepa_metadata' => is_array($decoded['metadata_interna'] ?? null)
+                        ? $decoded['metadata_interna']
+                        : null,
+                ];
+            }
+        }
+
+        // No se pudo extraer respuesta_usuario del output.
+        if ($isPepa) {
+            // En modo PEPA la IA SIEMPRE debe devolver el JSON con respuesta_usuario.
+            // Si falló (Llama rompió el formato, truncó por max_tokens, envolvió en
+            // prosa, etc.) NUNCA exponemos el crudo: filtraría metadata_interna
+            // (emoción, NSE, postura). Logueamos el raw para debug y devolvemos un
+            // mensaje genérico seguro.
+            Log::warning('PEPA: output del LLM sin JSON válido — fallback aplicado', [
+                'raw_snippet' => mb_substr($raw, 0, 800),
+                'provider'    => $this->config->provider ?? null,
+                'model'       => $this->config->model ?? null,
+            ]);
+            return ['reply' => $this->parseFallbackReply(), 'pepa_metadata' => null];
+        }
+
+        // Modo campaña: el prompt devuelve texto plano. Pero si por error el
+        // texto contiene el contrato JSON de PEPA, tampoco lo mostramos crudo.
+        if ($this->looksLikeStructuredLeak($raw)) {
+            Log::warning('Campaign: output contiene estructura JSON inesperada — fallback aplicado', [
+                'raw_snippet' => mb_substr($raw, 0, 800),
+            ]);
+            return ['reply' => $this->parseFallbackReply(), 'pepa_metadata' => null];
+        }
+
+        return ['reply' => trim($raw), 'pepa_metadata' => null];
+    }
+
+    /**
+     * Intenta obtener el objeto JSON del output del LLM de forma tolerante:
+     *   1. Decode directo.
+     *   2. Bloque ```json ... ``` (fences de markdown).
+     *   3. Primer objeto {...} balanceado embebido en prosa.
+     * Devuelve el array decodificado o null si nada es JSON válido.
+     */
+    private function extractJsonObject(string $raw): ?array
+    {
         $clean = trim($raw);
+        if ($clean === '') return null;
 
-        // Eliminar fences de markdown si la IA los añade
-        if (preg_match('/```(?:json)?\s*(\{.*\})\s*```/s', $clean, $m)) {
-            $clean = trim($m[1]);
-        }
-
+        // 1. Intento directo
         $decoded = json_decode($clean, true);
-
-        if (json_last_error() === JSON_ERROR_NONE && isset($decoded['respuesta_usuario'])) {
-            return [
-                'reply'         => trim($decoded['respuesta_usuario']),
-                'pepa_metadata' => $decoded['metadata_interna'] ?? null,
-            ];
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            return $decoded;
         }
 
-        // El prompt no es Pepa o la IA respondió en texto plano — pasa tal cual
-        return ['reply' => $raw, 'pepa_metadata' => null];
+        // 2. Fence de markdown ```json ... ```
+        if (preg_match('/```(?:json)?\s*(\{.*\})\s*```/s', $clean, $m)) {
+            $decoded = json_decode(trim($m[1]), true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        // 3. Primer objeto {...} balanceado dentro de texto con prosa alrededor
+        $candidate = $this->firstBalancedJson($clean);
+        if ($candidate !== null) {
+            $decoded = json_decode($candidate, true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Extrae el primer objeto JSON balanceado ({...}) de un string, respetando
+     * llaves dentro de strings y secuencias de escape. Devuelve null si el JSON
+     * está truncado/sin cerrar. Opera a nivel de byte: solo se apoya en chars
+     * estructurales ASCII, así el contenido multibyte (UTF-8) se preserva intacto.
+     */
+    private function firstBalancedJson(string $s): ?string
+    {
+        $start = strpos($s, '{');
+        if ($start === false) return null;
+
+        $depth = 0;
+        $inStr = false;
+        $esc   = false;
+        $len   = strlen($s);
+
+        for ($i = $start; $i < $len; $i++) {
+            $ch = $s[$i];
+
+            if ($inStr) {
+                if ($esc)            { $esc = false; }
+                elseif ($ch === '\\') { $esc = true; }
+                elseif ($ch === '"')  { $inStr = false; }
+                continue;
+            }
+
+            if ($ch === '"')      { $inStr = true; }
+            elseif ($ch === '{')  { $depth++; }
+            elseif ($ch === '}') {
+                $depth--;
+                if ($depth === 0) {
+                    return substr($s, $start, $i - $start + 1);
+                }
+            }
+        }
+
+        return null; // JSON sin cerrar (truncado)
+    }
+
+    /** Mensaje seguro cuando el output del LLM no se pudo parsear. */
+    private function parseFallbackReply(): string
+    {
+        return 'Disculpa, no pude formular bien mi respuesta esta vez. '
+            . '¿Puedes repetir tu pregunta o decirla de otra forma?';
+    }
+
+    /** Heurística: el texto contiene el contrato JSON de PEPA en bruto. */
+    private function looksLikeStructuredLeak(string $raw): bool
+    {
+        return str_contains($raw, 'respuesta_usuario')
+            && str_contains($raw, 'metadata_interna');
     }
 
     private function mediaFromSources(array $urls): array
