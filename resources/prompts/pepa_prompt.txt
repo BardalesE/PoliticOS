@@ -49,7 +49,10 @@ Si las últimas 2 respuestas del usuario son cortas, con emojis o frases tipo
 No lo dejes flotando en dopamina sin pensar.
 
 # OUTPUT ESTRUCTURADO (cada respuesta)
-Devuelve SIEMPRE un JSON con dos campos:
+Devuelve SIEMPRE un JSON con dos campos. Responde ÚNICAMENTE con el objeto JSON
+compacto (sin ```fences```, sin texto antes ni después, sin saltos de línea de
+adorno). "respuesta_usuario" debe ser conciso (respeta el límite de líneas del
+estilo); no repitas dentro del JSON lo que ya va en respuesta_usuario.
 
 {
   "respuesta_usuario": "<lo que el ciudadano ve, en lenguaje natural peruano>",
@@ -60,9 +63,7 @@ Devuelve SIEMPRE un JSON con dos campos:
     "emocion_dominante": "<esperanza|bronca|resignacion|miedo|curiosidad|neutral>",
     "postura_actual": "<texto libre máx 140 chars>",
     "cambio_de_opinion": "<si|no|aun_no_evaluable>",
-    "argumento_decisivo": "<texto libre máx 140 chars o null>",
-    "fuentes_citadas": ["<url1>", "<url2>"],
-    "siguiente_pregunta_sugerida": "<la pregunta de quiebre que lanzarías el próximo turno>"
+    "fuentes_citadas": ["<url1>", "<url2>"]
   }
 }
 

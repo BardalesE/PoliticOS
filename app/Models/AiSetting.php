@@ -23,7 +23,7 @@ class AiSetting extends Model
         return static::firstOrCreate([], [
             'provider'         => config('services.ai.provider', 'groq'),
             'model'            => config('services.ai.groq_model', 'llama-3.3-70b-versatile'),
-            'max_tokens'       => 600,
+            'max_tokens'       => 1200,
             'temperature'      => 0.65,
             'fallback_provider' => 'claude',
             'system_prompt'     => '',
