@@ -18,9 +18,13 @@ import { readdirSync, statSync, readFileSync, existsSync } from "node:fs";
 import { join, relative } from "node:path";
 import {
   API_URL, FRONTEND_URL, SUPER_ADMIN_KEY, QA_TENANT,
-  SRC_APP, SRC_COMPONENTS, JS_ROOT, FIXTURES_DIR,
+  SRC_APP, SRC_COMPONENTS, JS_ROOT, FIXTURES_DIR, assertLocalTarget,
 } from "./qa-env";
 import { QA, monitorPage, shot, type Severity } from "./qa-collector";
+
+// El suite provisiona y BORRA tenants: aborta de entrada si el target no es
+// local, para que nunca pueda eliminar un tenant real de staging/producción.
+test.beforeAll(() => assertLocalTarget());
 
 // ─── Estado compartido entre fases ─────────────────────────────────────────
 const state = {
@@ -225,7 +229,10 @@ test.describe.serial("PoliticOS QA Agent", () => {
     test.setTimeout(5 * 60 * 1000);
     const mon = monitorPage(page);
 
-    // Pre-limpieza idempotente: si roberto-futuro-peru ya existe, lo borramos
+    // Pre-limpieza idempotente: si el tenant efímero del QA ya existe, lo
+    // borramos. assertLocalTarget() (beforeAll) garantiza que esto solo corre
+    // contra localhost; defensa adicional aquí por ser la primera op destructiva.
+    assertLocalTarget();
     try {
       const res = await saFetch("/superadmin/tenants");
       if (res.ok) {
@@ -311,7 +318,7 @@ test.describe.serial("PoliticOS QA Agent", () => {
       await closeModal(page);
     }
 
-    // 4. Provisionar candidato roberto-futuro-peru
+    // 4. Provisionar el candidato efímero del QA (slug qa-ephemeral-tenant)
     try {
       await page.getByRole("button", { name: /nuevo candidato|nuevo/i }).first().click();
       await expect(page.getByRole("heading", { name: /nuevo candidato/i })).toBeVisible({ timeout: 10_000 });
@@ -410,7 +417,7 @@ test.describe.serial("PoliticOS QA Agent", () => {
               error: `admin_url=${creds.admin_url} chatbot_url=${creds.chatbot_url}`,
               repro: "Abrir el modal de credenciales de un tenant.",
               actual: "Las URLs entregadas al cliente usan localhost:3000 (hardcoded), inservibles en producción.",
-              expected: "Construir URLs a partir del dominio configurado (subdominio del tenant, ej. roberto-futuro-peru.politicos.pe).",
+              expected: "Construir URLs a partir del dominio configurado (subdominio del tenant, ej. mi-candidato.politicos.pe).",
               fixPrompt: "Reemplaza las URLs hardcodeadas 'http://localhost:3000' en el backend de credenciales y en superadmin/page.tsx por una base configurable (NEXT_PUBLIC_BASE_DOMAIN / APP_URL). Genera admin_url y chatbot_url según el dominio del tenant.",
             });
           }

@@ -55,14 +55,46 @@ export const FRONTEND_URL = (rootEnv.FRONTEND_URL || "http://localhost:3000").re
 // SuperAdmin key
 export const SUPER_ADMIN_KEY = rootEnv.SUPER_ADMIN_KEY || "";
 
+// ─── Guarda anti-destrucción ──────────────────────────────────────────────
+// El suite PROVISIONA y BORRA tenants por slug. Debe correr SOLO contra un
+// entorno local desechable: si se apunta a staging/producción podría eliminar
+// un tenant real. Estas utilidades dejan abortar antes de cualquier op
+// destructiva cuando el target no es localhost.
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
+export const IS_LOCAL_TARGET =
+  LOCAL_HOSTS.has(hostOf(API_ORIGIN)) && LOCAL_HOSTS.has(hostOf(FRONTEND_URL));
+
+/** Lanza si el target no es local. Llamar antes de provisionar/borrar tenants. */
+export function assertLocalTarget(): void {
+  if (!IS_LOCAL_TARGET) {
+    throw new Error(
+      `QA destructivo abortado: API_URL=${API_URL} / FRONTEND_URL=${FRONTEND_URL} ` +
+        `no apuntan a localhost. Este suite provisiona y BORRA tenants; ` +
+        `solo debe correr contra un entorno local desechable.`,
+    );
+  }
+}
+
 // ─── Datos del candidato de prueba (FASE 2/3/6) ───────────────────────────
 // El email y la contraseña los fija el propio test DURANTE el provisioning,
 // por eso son deterministas: no son secretos externos, son entradas del test.
+// El slug es deliberadamente efímero y prefijado `qa-` para que NUNCA coincida
+// con un tenant/instancia real (p.ej. `roberto-futuro-peru`, `camilo`): la
+// pre-limpieza idempotente borra el tenant que tenga este slug.
 export const QA_TENANT = {
-  slug: "roberto-futuro-peru",
-  name: "Futuro Perú",
+  slug: "qa-ephemeral-tenant",
+  name: "QA Ephemeral Tenant",
   plan: "starter" as const,
-  adminEmail: "qa-admin@roberto-futuro-peru.pe",
+  adminEmail: "qa-admin@qa-ephemeral-tenant.test",
   adminPassword: "QaTest2026!",
 };
 
