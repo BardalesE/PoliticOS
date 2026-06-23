@@ -205,21 +205,62 @@ El flujo completo de "añadir un candidato nuevo" es self-service desde el super
 
 ---
 
-## Fase 6 — Detección automática de entidades en ingest
+## Fase 6 — Detección automática de entidades en ingest  ✅ IMPLEMENTADA (2026-06-12)
 **Tiempo estimado**: 5-7 días | **Prioridad**: BAJA (post-elecciones 2026)
 
 ### Objetivo
-El clasificador Python detecta candidatos/partidos/regiones sin configuración manual.
+El clasificador Python canonicaliza candidatos/partidos/regiones a slugs JNE,
+para que la inteligencia electoral pueda agregar por rival/partido/región
+(las `mentions` del LLM son strings libres: "Keiko", "Fujimori" y "la lideresa
+de Fuerza Popular" llegaban como tres strings distintos).
+
+### Cambios de diseño respecto al plan original
+- **NER ya existía desde Fase 1**: `classifier.py` detecta cualquier político
+  vía Groq (`mentioned_politicians`). La Fase 6 NO agrega NER; agrega la capa
+  de **canonicalización** contra un diccionario JNE.
+- **`POST /entities/sync` → invertido a pull (`GET /api/ingest/entities`)**:
+  tras la Fase 1B las instancias por candidato corren solo redis + worker +
+  beat (sin FastAPI), así que un endpoint HTTP en el ingest no tendría quién lo
+  escuche. En su lugar, una task de beat (diaria + al boot) pullea el
+  diccionario de Laravel con la `X-Ingest-Key` existente y lo cachea en el
+  Redis de la instancia. Cero puertos nuevos, cero auth nueva.
 
 ### Archivos tocados
 | Archivo | Cambio |
 |---------|--------|
-| `ingest/processors/classifier.py` | Agregar NER (Named Entity Recognition) usando spaCy o el mismo Groq como extractor |
-| `ingest/` | Nuevo `processors/entity_detector.py` con lista de entidades del JNE (candidatos registrados, partidos, circunscripciones) |
-| `ingest/` | Endpoint `POST /entities/sync` para recibir lista actualizada del backend Laravel |
+| `database/data/jne_entities_2026.json` | Dataset: candidatos presidenciales 2026 + partidos + 27 circunscripciones, con aliases y slugs. ⚠ Generado de conocimiento general — validar contra padrón JNE antes de producción |
+| `app/Http/Controllers/IngestEntityController.php` | `GET /api/ingest/entities` (global, protegido con `ingest_key`, sin `plan_feature`) |
+| `routes/api.php` | Ruta del endpoint |
+| `ingest/data/jne_entities_2026.json` | Copia bundled del dataset (fallback offline) |
+| `ingest/processors/entity_detector.py` | Matching por diccionario (sin tildes, case-insensitive, word-boundary; aliases-sigla exigen mayúsculas). Lee Redis con fallback al bundled |
+| `ingest/workers/entities_sync.py` | Task de sync pull (beat diario 4:30 + `worker_ready`) → Redis |
+| `ingest/app.py` | Registra la task en `include` y `beat_schedule` |
+| `ingest/processors/classifier.py` | `_normalize`/`_fallback_classify` pasan texto+menciones por el detector → campo `entities`. `is_attack` intacto |
+| `ingest/workers/{rss_scraper,twitter_listener,youtube_comments}.py` | Propagan `entities` al payload |
+| `database/migrations/2026_06_12_000001_add_entities_to_external_signals.php` | Columna JSON nullable `entities` (retrocompatible) |
+| `app/Http/Controllers/ExternalSignalController.php` | Valida `entities` en el ingest (reglas extraídas a `ingestRules()`) |
+| `app/Models/ExternalSignal.php` | `entities` en `$fillable` + cast `array` |
 
 ### Criterio de "done"
-- Sin configurar `TARGET_CANDIDATES`, el sistema detecta al menos el 80% de los candidatos presidenciales peruanos 2026
+- ✅ Sin configurar `TARGET_CANDIDATES`, el detector reconoce ≥80% de los
+  candidatos presidenciales del dataset 2026 en titulares de prensa
+  (`ingest/tests/test_entity_detector.py::test_detects_at_least_80_percent_of_candidates`,
+  hoy 16/16 = 100%).
+
+### Tests
+- `ingest/tests/test_entity_detector.py` (15) — matching, criterio 80%, partidos, distritos
+- `ingest/tests/test_classifier_entities.py` (5) — integración fallback + canonicalización
+- `tests/Feature/IngestEntityTest.php` (3) — endpoint + auth `ingest_key`
+- `tests/Feature/ExternalSignalEntitiesTest.php` (6) — validación + cast + retrocompat
+
+### Deuda / seguimiento
+- Validar `jne_entities_2026.json` contra el padrón oficial JNE/Infogob antes
+  de producción (la lista nace de conocimiento general, cutoff ene-2026).
+- La cola larga municipal/regional (4-oct-2026) no se seedea: queda al LLM.
+- Bug latente pre-existente (no de Fase 6): `CheckPlanFeature` hace
+  `app('tenant')`, que lanza si el binding es `null` (quirk `isset`+null del
+  container) en vez de devolver null. No se manifiesta en prod porque siempre
+  resuelve un tenant real (single-tenant por `tenant_slug`; VPS por `X-Tenant`).
 
 ---
 

@@ -17,6 +17,7 @@ Workers programados (celery beat):
   - rss_scraper           cada 30 min
   - youtube_comments      cada 1 hora
   - twitter_listener      cada 30 min
+  - entities_sync         diario 4:30 + al boot del worker (diccionario JNE)
 """
 
 from fastapi import FastAPI, HTTPException
@@ -40,6 +41,7 @@ celery_app = Celery(
         "workers.rss_scraper",
         "workers.youtube_comments",
         "workers.twitter_listener",
+        "workers.entities_sync",
     ],
 )
 
@@ -60,6 +62,11 @@ celery_app.conf.update(
         "twitter-listener-30min": {
             "task": "workers.twitter_listener.search_recent",
             "schedule": crontab(minute="*/30"),
+        },
+        # Diccionario de entidades JNE (también corre al boot del worker)
+        "entities-sync-daily": {
+            "task": "workers.entities_sync.sync_entities",
+            "schedule": crontab(hour=4, minute=30),
         },
     },
 )

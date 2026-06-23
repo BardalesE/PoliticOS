@@ -12,6 +12,8 @@ Devuelve dict con el shape del payload de señales:
   - emotion: miedo|enojo|esperanza|frustracion|alegria|neutral
   - topic: seguridad|economia|salud|educacion|...
   - mentions: ["keiko fujimori", "roberto sanchez", ...]  (cualquier político)
+  - entities: [{type, slug, name}] — menciones canonicalizadas contra el
+    diccionario JNE (Fase 6); permite agregar por rival/partido/región
   - is_attack: bool — ataque dirigido al candidato de esta instancia
   - target_candidate: str | None — político atacado (puede ser un rival)
   - is_political: bool
@@ -19,6 +21,8 @@ Devuelve dict con el shape del payload de señales:
 
 import os, json, logging, unicodedata
 from groq import Groq
+
+from processors.entity_detector import get_detector
 
 log = logging.getLogger(__name__)
 _client = None
@@ -84,24 +88,37 @@ JSON:
             max_tokens=300,
             response_format={"type": "json_object"},
         )
-        return _normalize(json.loads(r.choices[0].message.content))
+        return _normalize(json.loads(r.choices[0].message.content), text)
     except Exception as e:
         log.warning(f"Groq classification failed: {e}")
         return _fallback_classify(text)
 
-def _normalize(data: dict) -> dict:
+def _detect_entities(text: str, mentions: list) -> list:
+    """Canonicaliza texto + menciones libres del LLM contra el diccionario JNE.
+    "Keiko", "Fujimori" y "la lideresa de Fuerza Popular" colapsan al mismo
+    slug si el diccionario los conoce."""
+    try:
+        combined = " . ".join([text or ""] + [str(m) for m in mentions if m])
+        return get_detector().detect(combined)
+    except Exception as e:
+        log.warning(f"Entity detection failed: {e}")
+        return []
+
+def _normalize(data: dict, text: str = "") -> dict:
     """Adapta la salida genérica del LLM al shape del payload de señales
     (claves que Laravel valida) y relativiza is_attack a esta instancia."""
     target = data.get("target_politician") or data.get("target_candidate")
     mentions = data.get("mentioned_politicians") or data.get("mentions") or []
     if not isinstance(mentions, list):
         mentions = [mentions]
+    mentions = [str(m).strip()[:80] for m in mentions if m][:20]
 
     return {
         "sentiment": data.get("sentiment"),
         "emotion": data.get("emotion"),
         "topic": data.get("topic"),
-        "mentions": [str(m).strip()[:80] for m in mentions if m][:20],
+        "mentions": mentions,
+        "entities": _detect_entities(text, mentions),
         # Solo cuenta como ataque si el blanco es NUESTRO candidato; un ataque
         # a un rival se guarda igual (mentions/target) pero no dispara alertas.
         "is_attack": bool(data.get("is_attack")) and _is_own_candidate(target),
@@ -110,18 +127,29 @@ def _normalize(data: dict) -> dict:
     }
 
 def _fallback_classify(text: str) -> dict:
-    """Fallback heurístico sin LLM (cuando Groq no responde). Sin LLM no se
-    pueden detectar políticos arbitrarios: usa los aliases de la instancia."""
+    """Fallback heurístico sin LLM (cuando Groq no responde). Detecta los
+    aliases de la instancia + cualquier entidad del diccionario JNE; sin LLM
+    no hay sentiment/emotion reales ni políticos fuera del diccionario."""
     text_low = text.lower()
-    mentions = [c for c in TARGET_ALIASES if c in text_low]
+    own_mentions = [c for c in TARGET_ALIASES if c in text_low]
+    entities = _detect_entities(text, [])
+
+    # mentions: aliases propios + nombres canónicos detectados (sin duplicar)
+    mentions = list(own_mentions)
+    for e in entities:
+        if e["type"] in ("candidate", "party") and not any(_norm(e["name"]) == _norm(m) for m in mentions):
+            mentions.append(e["name"])
+
     attack_keywords = ["corrupto", "ladrón", "mentiroso", "fracaso", "incompetente", "estafa"]
-    is_attack = any(k in text_low for k in attack_keywords) and bool(mentions)
+    # is_attack sigue relativizado al candidato propio (igual que con LLM)
+    is_attack = any(k in text_low for k in attack_keywords) and bool(own_mentions)
     return {
         "sentiment": -0.3 if is_attack else 0.0,
         "emotion": "enojo" if is_attack else "neutral",
         "topic": "otro",
-        "mentions": mentions,
+        "mentions": mentions[:20],
+        "entities": entities,
         "is_attack": is_attack,
-        "target_candidate": mentions[0] if mentions and is_attack else None,
+        "target_candidate": own_mentions[0] if own_mentions and is_attack else None,
         "is_political": bool(mentions),
     }

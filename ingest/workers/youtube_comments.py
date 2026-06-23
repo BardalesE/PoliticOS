@@ -90,6 +90,7 @@ def fetch_all_channels():
                 "title": None,
                 "content": text[:5000],
                 "mentions": cls.get("mentions", []),
+                "entities": cls.get("entities", []),
                 "sentiment": cls.get("sentiment"),
                 "emotion": cls.get("emotion"),
                 "topic": cls.get("topic"),

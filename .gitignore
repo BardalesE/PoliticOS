@@ -53,6 +53,11 @@ yarn-error.log
 # docs/architecture/07-training-data-versioning.md). Contiene estrategia de
 # campaña de clientes reales: si este repo se hace público, sacarla antes.
 
+# Python — caches del pipeline de ingesta
+__pycache__/
+*.pyc
+.pytest_cache/
+
 # Redis dump (generado automáticamente por Redis)
 dump.rdb
 
