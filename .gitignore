@@ -38,6 +38,10 @@ yarn-error.log
 /resources/js/screenshots
 /resources/js/test-results
 /resources/js/tsconfig.tsbuildinfo
+# Playwright QA — artefactos generados (la fuente de tests/ sí se versiona)
+/resources/js/tests/reports
+/resources/js/tests/screenshots
+/resources/js/tests/test-artifacts
 
 # Uploaded media / storage
 /storage/app/public
