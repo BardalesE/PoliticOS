@@ -1,8 +1,19 @@
-# PoliticOS — Documentación técnica
+# PoliticOS / PEPA — Documentación técnica
 
-Plataforma de campaña política para James Cueva (candidato a alcalde, San Miguel, Perú).
-Permite a ciudadanos chatear con un AI "James", explorar propuestas y ver videos.
-El panel admin permite gestionar todo el contenido sin tocar código.
+Plataforma SaaS **multi-tenant** de campaña política e inteligencia electoral.
+Cada candidato es un **tenant** con su propia base de datos MySQL. La plataforma:
+
+- Sirve un chat con un AI que habla como el candidato (modo **campaña**) o que
+  compara propuestas de varios candidatos citando fuentes JNE (modo **PEPA neutro**).
+- Da a cada campaña un panel admin para gestionar todo el contenido sin tocar código.
+- Ingiere señales externas (RSS, YouTube, Twitter) vía un pipeline Python/Celery
+  y produce **inteligencia electoral** (pulso ciudadano, ataques, alertas, clusters).
+
+> El primer tenant en producción fue James Cueva (alcaldía de San Miguel, Perú).
+> Hoy el código **no hardcodea ningún candidato**: la identidad vive en la BD del
+> tenant (`CandidateProfile`, `AiSetting`, documentos en RAG). El diseño completo
+> está en `docs/architecture/` (audit → mapa de separación → arquitectura objetivo
+> → roadmap de 6 fases). Léelo antes de cambios estructurales.
 
 ---
 
@@ -12,9 +23,13 @@ El panel admin permite gestionar todo el contenido sin tocar código.
 |------|-----------|
 | Backend | Laravel 12 / PHP 8.2 — API REST pura |
 | Frontend | Next.js 15 / React 19 / TypeScript |
-| Base de datos | MySQL — base: `bdpolitic` |
-| Auth | Laravel Sanctum (Bearer tokens) |
-| AI | Claude Haiku (Anthropic) — fallback OpenAI |
+| Base de datos | MySQL — una BD por tenant + BD `central` (tenants, planes) |
+| Cache / colas | Redis (cache, sesiones, queue, broker Celery) |
+| Auth | Laravel Sanctum (Bearer tokens) por tenant; SuperAdmin por key |
+| AI (chat) | Claude (Anthropic) — fallback OpenAI. Configurable por tenant |
+| AI (ingest) | Groq Llama-8B (clasificador) + OpenAI/BGE-M3 (embeddings) |
+| RAG | `EmbeddingsServiceInterface`: Qdrant (semántico) o MySQL FULLTEXT (fallback) |
+| Ingest | Python 3 / FastAPI / Celery / Redis (carpeta `ingest/`) |
 | CSS | Tailwind CSS 3.4 + Framer Motion + Recharts |
 
 ---
@@ -23,26 +38,28 @@ El panel admin permite gestionar todo el contenido sin tocar código.
 
 ### Backend (Laravel)
 ```bash
-# 1. Instalar dependencias
 composer install
-
-# 2. Configurar entorno (copiar y editar)
 cp .env.example .env
 php artisan key:generate
-
-# 3. Migrar y sembrar la base de datos
-php artisan migrate --seed
-
-# 4. Iniciar servidor
-php artisan serve          # corre en http://localhost:8000
+php artisan migrate --seed       # BD del tenant por defecto (APP_TENANT_SLUG)
+php artisan serve                # http://localhost:8000
 ```
 
 ### Frontend (Next.js)
 ```bash
 cd resources/js
 npm install
-# .env.local ya está configurado apuntando a http://localhost:8000/api
-npm run dev                # corre en http://localhost:3000
+npm run dev                      # http://localhost:3000
+```
+
+### Ingest (opcional — inteligencia electoral)
+```bash
+cd ingest
+pip install -r requirements.txt
+# Con Docker:
+docker compose -f docker-compose.instance.yml --env-file instances/<slug>.env up
+# Sin Docker (Redis local + Laravel sirviendo):
+celery -A app.celery_app worker --beat --loglevel=info
 ```
 
 ### Credenciales de admin por defecto
@@ -50,154 +67,230 @@ npm run dev                # corre en http://localhost:3000
 Email:    admin@politicos.pe
 Password: Admin2024!
 ```
-Acceso: http://localhost:3000/admin/login
+Acceso admin del tenant: http://localhost:3000/admin/login
+Acceso SuperAdmin: http://localhost:3000/superadmin/login (usa `SUPER_ADMIN_KEY`)
 
 ---
 
-## Arquitectura
+## Multi-tenancy (lo más importante de entender)
 
-### Backend — `app/`
+- **BD `central`** (conexión `central` en `config/database.php`): tabla `tenants`
+  (slug, db_name, credenciales, `plan`, `custom_features`) y `plan_features`.
+  El modelo `Tenant` declara `protected $connection = 'central'`.
+- **BD por tenant**: todo el contenido del candidato (proposals, faqs, knowledge,
+  chat, intelligence, etc.). Se resuelve en runtime.
+- **`ResolveTenant` middleware** (`bootstrap/app.php`): detecta el tenant por
+  subdominio (prod) o `APP_TENANT_SLUG` (local), reconfigura la conexión MySQL
+  por defecto y la apunta a la BD del tenant. **Corre antes de `auth:sanctum`**
+  (por eso usa `prependToPriorityList` sobre `AuthenticatesRequests`): los tokens
+  Sanctum viven en la BD del tenant, así que la BD debe cambiar antes del lookup.
+- **`TenantContext`** (`app/Services/TenantContext.php`): API para correr código
+  fuera del request en el contexto de un tenant.
+  - `TenantContext::run($slug, fn)` — ejecuta el callback con la BD del tenant.
+  - `TenantContext::forEachTenant(fn)` — itera todos los tenants activos.
+  - `TenantContext::currentSlug()` / `cacheKey($key)` — cache namespaced por tenant.
+- **Jobs y scheduler son tenant-aware** (`routes/console.php`): cada job lleva el
+  `slug` y reconecta vía `TenantContext::run`. Nunca asumas la BD por defecto en
+  un job o comando.
+- **Provisioning de un tenant nuevo**: SuperAdmin → `POST /api/superadmin/tenants/provision`
+  (Artisan command por debajo) crea la BD, migra y siembra. Ver
+  `docs/architecture/03-target-architecture.md` §4.
+
+---
+
+## Modos de operación (PEPA)
+
+| Modo | Prompt | Perfil | RAG | Descripción |
+|------|--------|--------|-----|-------------|
+| **Campaña (SaaS)** | `resources/prompts/politicos_v2_prompt.txt` | `CandidateProfile` activo | Single-candidato | Habla en primera persona por el candidato |
+| **PEPA neutro** | `resources/prompts/pepa_prompt.txt` | — | Multi-candidato (todos los docs del tenant) | Compara propuestas, cita JNE, no defiende |
+| **Híbrido** | `pepa_prompt.txt` + candidato | candidato | docs del candidato | PEPA que conoce a un candidato sin defenderlo |
+
+El modo se selecciona en `AiSetting` (campo `mode` + `system_prompt`).
+**El núcleo (`CivicAIService`) no sabe quién es el candidato**: recibe el contexto
+inyectado (perfil + documentos RAG). No hardcodear identidad en código.
+
+---
+
+## Arquitectura — Backend (`app/`)
 
 ```
 Http/
-  Controllers/
-    AuthController.php       → login / logout / me (Sanctum)
-    AdminController.php      → CRUD: Proposals, Videos, FAQs, Users, ChatSessions
-    AnalyticsController.php  → /api/analytics/summary (público) + /api/admin/analytics (admin)
-    ChatController.php       → send / session (chat con James)
-    ProposalController.php   → listado público de propuestas
-    VideoController.php      → listado público de videos
+  Controllers/                  (27 controllers)
+    AuthController              → login / logout / me (Sanctum)
+    ChatController              → send / stream / session / consent (chat público)
+    Civic / contenido público  → Proposal, Video, CampaignVideo, Gallery, Event,
+                                  TeamMember, HeroSetting, Setting, District, Topic,
+                                  SuggestedQuestion, CandidateProfile (show), LiveStream
+    AdminController             → CRUD: Proposals, Videos, FAQs, Users, ChatSessions
+    AnalyticsController         → summary (público) + adminSummary (admin)
+    IntelligenceController      → pulse, attacks, segments, realtime, geo, clusters,
+                                  alerts, districts, map  (inteligencia electoral)
+    AttackResponseController    → CRUD plantillas de respuesta a ataques
+    ExternalSignalController    → ingest (key) + index (admin)  señales externas
+    IngestEntityController      → diccionario de entidades JNE para el pipeline Python
+    KnowledgeDocumentController → CRUD docs + reindex en RAG
+    CandidateProfileController  → perfil + presets de candidato (branding/personalidad)
+    AiSettingController         → prompt, provider, modelo, temperatura, modo + test
+    CitizenController           → registro ciudadano + export
+    OnboardingController        → wizard de primer uso del tenant
+    PlanController              → plan del tenant + (superadmin) gestión de planes
+    SuperAdminController        → CRUD tenants, provision, credenciales, stats
 
   Middleware/
-    EnsureIsAdmin.php        → valida role === 'admin' en rutas protegidas
+    ResolveTenant              → resuelve y conmuta la BD del tenant (ver arriba)
+    EnsureIsAdmin (alias admin)→ valida role === 'admin'
+    EnsureSuperAdmin           → valida SUPER_ADMIN_KEY (rutas /superadmin)
+    CheckPlanFeature (plan_feature) → gate por feature de plan, matchea por path
+    EnsureIngestKey (ingest_key)    → valida INGEST_KEY del servicio Python
+    CaptureRequestContext      → IP, user-agent, geo, device en el chat
+    SecurityHeaders            → headers de seguridad globales
 
-Models/
-  User.php            → id, name, email, role (admin|editor), password
-  Proposal.php        → title, description, district, topic, budget, priority, status, image, document_url
-  Video.php           → title, url, thumbnail, views, topic, published_at
-  Faq.php             → question, answer, topic, priority
-  ChatSession.php     → session_id (UUID), ip, user_agent, started_at → hasMany ChatMessage
-  ChatMessage.php     → session_id (FK), role (user|assistant), content, topic, media (JSON)
+Models/  (31)
+  central:  Tenant, PlanFeatures
+  identidad/branding: CandidateProfile (presets, personalidad, slogan, forbidden_topics…),
+                      AiSetting, HeroSetting, Setting
+  conocimiento: Proposal, Faq, KnowledgeDocument (source_url/type, candidate_id),
+                Topic, District, AttackResponse, SuggestedQuestion
+  chat: ChatSession, ChatMessage (role user|assistant)
+  inteligencia: ExternalSignal (entities JSON), IntelAlert, QuestionCluster,
+                CitizenProfile, CitizenData, CitizenPoint, VisitorProfile
+  contenido: Video, CampaignVideo, CampaignPhoto, Event, TeamMember,
+             LiveStream, LiveStreamViewer, LiveStreamComment
+  User (role admin|editor)
 
 Services/
-  CivicAIService.php  → RAG simple + llamada a Claude/OpenAI + resolución de media
+  CivicAIService              → orquestación del chat: sanitización → detección →
+                                RAG → prompt → LLM → parse (reply, topic, media,
+                                pepa_metadata, attack_*). NÚCLEO, no hardcodea candidato.
+  EmbeddingsServiceInterface  → contrato RAG abstracto
+  QdrantEmbeddings            → RAG semántico vía vector store (colección por tenant)
+  MySQLFulltextEmbeddings     → RAG FULLTEXT, fallback sin infra
+  IntelligenceService         → pulso, ataques, alertas, segmentos (consulta DB)
+  TenantContext               → contexto de tenant para jobs/scheduler/cache
+  PlanService                 → features habilitadas por plan
+  GeoIPService                → geolocalización por IP
+
+Jobs/  (tenant-aware, ver routes/console.php)
+  GenerateAlertsJob, ClusterTopQuestionsJob, AnalyzeMessageJob, GeolocateSessionJob
 ```
 
 ### Rutas API — `routes/api.php`
 
-| Método | Ruta | Auth | Descripción |
-|--------|------|------|-------------|
-| POST | /api/auth/login | — | Login admin, devuelve Bearer token |
-| POST | /api/auth/logout | sanctum | Invalida token actual |
-| GET | /api/auth/me | sanctum | Datos del usuario autenticado |
-| POST | /api/chat | — | Envía mensaje a James AI |
-| GET | /api/chat/session/{id} | — | Historial de sesión de chat |
-| GET | /api/proposals | — | Listado de propuestas (filtros: district, topic) |
-| GET | /api/proposals/{id} | — | Propuesta individual |
-| GET | /api/videos | — | Listado de videos |
-| GET | /api/analytics/summary | — | Métricas básicas del chat |
-| GET | /api/admin/analytics | admin | Métricas completas del dashboard |
-| GET/POST/PUT/DELETE | /api/admin/proposals/{id?} | admin | CRUD propuestas |
-| GET/POST/PUT/DELETE | /api/admin/videos/{id?} | admin | CRUD videos |
-| GET/POST/PUT/DELETE | /api/admin/faqs/{id?} | admin | CRUD FAQs |
-| GET/POST/PUT/DELETE | /api/admin/users/{id?} | admin | CRUD usuarios |
-| GET | /api/admin/chat-sessions | admin | Listado de sesiones |
-| GET | /api/admin/chat-sessions/{id} | admin | Sesión con mensajes |
+Toda la API pasa por el grupo global `api` (que incluye `ResolveTenant`).
 
-### Frontend — `resources/js/src/`
+- **Público** (sin auth, con throttle): `/auth/login`, `/chat/*`, `/citizen/*`,
+  `/candidate`, `/proposals`, `/videos`, `/analytics/summary`, `/livestreams/*`,
+  `/gallery`, `/campaign-videos`, `/hero-settings`, `/events`, `/team-members`,
+  `/home-settings`.
+- **Ingest** (key dedicada `ingest_key`, no Sanctum):
+  `POST /admin/external-signals/ingest` (+`plan_feature`), `GET /ingest/entities`.
+- **Admin** (`['auth:sanctum','admin','plan_feature']`, prefix `/admin`): analytics,
+  `intelligence/*`, `attack-responses`, `external-signals`, `plan`, `citizens`,
+  `candidate-profile` + presets, `ai-settings`, `districts`, `topics`,
+  `suggested-questions`, `proposals`, `videos`, `faqs`, `users`, `chat-sessions`,
+  `gallery`, `campaign-videos`, `hero-settings`, `events`, `team-members`,
+  `settings`, `livestreams`, `onboarding`, `knowledge` (+reindex).
+- **SuperAdmin** (`EnsureSuperAdmin`, prefix `/superadmin`, **sin tenant**):
+  CRUD `tenants`, `provision`, `stats`, `plans`, credenciales, reset-password.
+
+---
+
+## Arquitectura — Frontend (`resources/js/src/`)
 
 ```
 app/
-  layout.tsx                  → Layout raíz (fuentes, metadata)
-  page.tsx                    → Landing pública
-  error.tsx                   → Error boundary global
-  not-found.tsx               → Página 404
-  chat/page.tsx               → Chat con James
-  propuestas/page.tsx         → Propuestas públicas
-  videos/page.tsx             → Videos públicos
-  distritos/page.tsx          → Distritos
-  admin/
-    layout.tsx                → AuthProvider + guard de autenticación + sidebar
-    loading.tsx               → Spinner de carga
-    page.tsx                  → Dashboard con métricas y gráficas
-    login/page.tsx            → Formulario de login admin
-    proposals/page.tsx        → CRUD propuestas
-    videos/page.tsx           → CRUD videos
-    faqs/page.tsx             → CRUD FAQs
-    users/page.tsx            → CRUD usuarios
-    chat-sessions/page.tsx    → Viewer de conversaciones
+  page.tsx                      → Landing pública
+  chat/ propuestas/ videos/ distritos/ galeria/ en-vivo/[key]/
+  bienvenida/ registro/         → flujo ciudadano
+  admin/                        → 24 páginas de panel:
+    page (dashboard), login, proposals, videos, faqs, users, chat-sessions,
+    intelligence, external-signals, attack-responses, knowledge, candidate-profile,
+    ai-settings, districts, topics, suggested-questions, citizens, events, team,
+    gallery, campaign-videos, hero-settings, home-settings, livestream, onboarding
+  superadmin/                   → login + dashboard de tenants/planes
 
 components/
-  ui/                         → Navbar, Footer, Button, GlassCard, ShareFab
-  chat/                       → ChatBubble, ChatInput
-  landing/                    → Hero, Proposals, Districts, Connection, FinalCTA
-  admin/
-    Sidebar.tsx               → Nav lateral del panel (con logout)
-    Modal.tsx                 → Dialog animado (sm/md/lg/xl)
-    ConfirmDialog.tsx         → Confirmación destructiva
-    FormField.tsx             → Input / Textarea / Select unificados
-    Pagination.tsx            → Paginación con ellipsis
-    Badge.tsx                 → Badges de estado/rol
-    PageHeader.tsx            → Header de página + SearchBar
-    charts/
-      ConversationsChart.tsx  → Area chart (conversaciones por día)
-      TopicsChart.tsx         → Donut chart (distribución de temas)
-      ProposalsStatusChart.tsx→ Bar chart (propuestas por estado)
-
-context/
-  AuthContext.tsx             → Token en localStorage, login/logout, useAuth hook
-
-lib/
-  api.ts                      → Cliente HTTP tipado: api (público) + adminApi (protegido)
-  candidate.ts                → Datos del candidato (James Cueva)
-  utils.ts                    → cn() (clsx + tailwind-merge)
-  mockResponses.ts            → Respuestas mock para desarrollo sin backend
-
-hooks/
-  useChat.ts                  → Estado del chat (mensajes, sesión, envío)
-
-types/
-  auth.ts                     → AdminUser, AuthState
-  chat.ts                     → Tipos del chat
+  ui/ chat/ landing/
+  admin/                        → Sidebar, Modal, ConfirmDialog, FormField,
+                                  Pagination, Badge, PageHeader, charts/
+context/  AuthContext.tsx       → token en localStorage (key admin_token), useAuth
+lib/      api.ts                → api (público) + adminApi (protegido)
+hooks/    useChat.ts
 ```
+
+---
+
+## Pipeline de ingesta — `ingest/` (Python)
+
+```
+app.py                          → FastAPI + Celery app (celery_app)
+workers/
+  rss_scraper.py                → scraping de medios vía RSS
+  youtube_comments.py           → comentarios de YouTube
+  twitter_listener.py           → tweets/menciones
+  entities_sync.py              → pull del diccionario JNE desde Laravel → Redis
+processors/
+  classifier.py                → Groq Llama-8B: sentiment, is_attack, topic, entities
+  entity_detector.py           → canonicaliza menciones libres → slugs JNE (Fase 6)
+  embedder.py                  → embeddings → Qdrant
+tests/                          → pytest (entity_detector, classifier, sync integration)
+instances/<slug>.env            → config por tenant (INGEST_KEY, LARAVEL_API_URL, REDIS_URL)
+```
+
+Flujo: workers → `classifier.classify()` (adjunta `entities`) → push a Laravel
+`POST /api/admin/external-signals/ingest` (header `X-Ingest-Key`). El diccionario
+de entidades se pullea de `GET /api/ingest/entities` y se cachea en el Redis del
+servicio. Detalle en `docs/architecture/09-fase6-checklist.md`.
 
 ---
 
 ## Convenciones
 
 ### Backend
-- Validación **siempre en el controller** con `$request->validate([...])`
-- Respuestas siempre `JsonResponse`
-- Rutas admin protegidas con doble middleware: `['auth:sanctum', 'admin']`
-- No modificar `CivicAIService` sin probar contra el prompt completo
+- Validación **siempre en el controller** con `$request->validate([...])`. Nunca confiar en el frontend.
+- Respuestas siempre `JsonResponse`.
+- Rutas admin: triple middleware `['auth:sanctum', 'admin', 'plan_feature']`.
+- **No modificar `CivicAIService` ni los prompts** (`resources/prompts/*.txt`) sin
+  probar contra el flujo completo; el parseo del JSON de respuesta es frágil
+  (ver `tests/Unit/PepaResponseParsingTest.php` — fuga de `metadata_interna` y
+  truncamiento). El núcleo no debe importar `CandidateProfile` directamente.
+- Cualquier código fuera del request (job, comando, scheduler) debe envolverse en
+  `TenantContext::run($slug, …)`. Nunca asumir la BD por defecto.
 
 ### Frontend
-- Todos los componentes de cliente llevan `"use client"` al inicio
-- Usar `cn()` de `lib/utils` para clases condicionales
-- Todas las llamadas admin usan `adminApi` con el `token` del `useAuth()` hook
-- `FormField` soporta tres variantes: `as="input"` (default), `as="textarea"`, `as="select"`
+- Todos los componentes de cliente llevan `"use client"`.
+- `cn()` de `lib/utils` para clases condicionales.
+- Llamadas admin usan `adminApi` con el `token` del hook `useAuth()`.
+- `FormField`: `as="input"` (default) | `as="textarea"` | `as="select"`.
 
 ### Base de datos
-- Correr `php artisan migrate` después de cualquier nueva migración
-- El seeder `AdminUserSeeder` usa `firstOrCreate` — es idempotente, seguro de re-ejecutar
+- Correr `php artisan migrate` tras cualquier migración nueva. Hay **dos BDs**:
+  la `central` (tenants/planes) y la del tenant.
+- Seeders idempotentes (`firstOrCreate`), seguros de re-ejecutar.
 
 ---
 
-## Variables de entorno requeridas
+## Variables de entorno
 
-### Laravel (`.env`)
+### Laravel (`.env`) — claves relevantes
 ```env
-DB_DATABASE=bdpolitic
-DB_USERNAME=root
-DB_PASSWORD=
+DB_CONNECTION=mysql            # + conexión 'central' en config/database.php
+DB_DATABASE=...                # BD del tenant por defecto en local
+APP_TENANT_SLUG=...            # tenant activo en local (en prod: subdominio)
+SUPER_ADMIN_KEY=...            # acceso a /api/superadmin/*
+INGEST_KEY=...                 # auth del servicio Python de ingest
 
-AI_PROVIDER=claude
-ANTHROPIC_API_KEY=sk-ant-...
+AI_PROVIDER=claude             # claude | openai
+ANTHROPIC_API_KEY=... / CLAUDE_MODEL=...
+OPENAI_API_KEY=... / OPENAI_MODEL=...
+GROQ_API_KEY=... / GROQ_MODEL=...   # clasificador del ingest
+AI_MAX_TOKENS=...
 
-SANCTUM_STATEFUL_DOMAINS=localhost:3000
-FRONTEND_URL=http://localhost:3000
-SESSION_DRIVER=cookie
-SESSION_DOMAIN=localhost
+REDIS_HOST/PORT/PASSWORD=...   # cache, sesiones, queue, broker
+QUEUE_CONNECTION=...
+MEDIA_DISK=...                 # swap a S3 en prod sin tocar código (ver docs)
+SANCTUM_STATEFUL_DOMAINS=... / FRONTEND_URL=...
 ```
 
 ### Next.js (`resources/js/.env.local`)
@@ -208,10 +301,42 @@ NEXT_PUBLIC_USE_MOCK=false
 
 ---
 
+## Despliegue — `deploy/`
+
+`deploy.sh`, `setup-vps.sh`, `backup.sh`, `nginx.conf`, `supervisor.conf`
+(workers de cola + scheduler). Detección de tenant por subdominio. `MEDIA_DISK`
+permite migrar storage a S3 sin tocar código. Ver `.env.production.example` y
+`docs/architecture/05-risks-and-dependencies.md`.
+
+---
+
 ## Reglas importantes
 
-- No modificar `CivicAIService` sin validar contra los seeders (propuestas y FAQs deben existir)
-- No eliminar la migración de `role` en `users` — el middleware `EnsureIsAdmin` depende de ese campo
-- Siempre validar inputs en `FormRequest` o `$request->validate()`, nunca confiar en el frontend
-- El token Sanctum se guarda en `localStorage` con key `admin_token`
-- Un usuario no puede eliminarse a sí mismo (protegido en backend y frontend)
+- **No hardcodear identidad de candidato en código.** Vive en la BD del tenant
+  (`CandidateProfile`, `AiSetting`, documentos RAG). Es la invariante del diseño.
+- **No modificar `CivicAIService` ni los prompts** sin validar el flujo completo
+  y los tests de parseo (`PepaResponseParsingTest`).
+- **Todo job/comando/scheduler corre por tenant** vía `TenantContext`. No asumir la BD por defecto.
+- `ResolveTenant` debe seguir corriendo antes de `auth:sanctum` (no tocar el orden
+  en `bootstrap/app.php`).
+- No eliminar la migración de `role` en `users` — `EnsureIsAdmin` depende del campo.
+- Token Sanctum en `localStorage`, key `admin_token`. Un usuario no puede eliminarse a sí mismo.
+- Validar `database/data/jne_entities_2026.json` contra el padrón oficial JNE/Infogob
+  antes de producción (deuda conocida, ver `09-fase6-checklist.md`).
+
+---
+
+## Tests
+
+```bash
+# Laravel
+php artisan test
+php artisan test --filter="IngestEntityTest|ExternalSignalEntitiesTest|PepaResponseParsing"
+
+# Ingest (Python) — desde ingest/
+pip install -r requirements-dev.txt
+python -m pytest tests/ -v
+
+# Frontend (Playwright) — desde resources/js
+npx playwright test
+```
