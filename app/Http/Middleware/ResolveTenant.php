@@ -15,7 +15,11 @@ class ResolveTenant
     {
         // Siempre bind 'tenant' a null por defecto para evitar BindingResolutionException
         // en controllers que hacen app('tenant') en modo single-tenant.
-        app()->instance('tenant', null);
+        // OJO: se usa bind(fn => null) y NO instance(null): el contenedor detecta
+        // instancias con isset(), que es false para null, así que instance('tenant', null)
+        // deja el binding "invisible" y app('tenant') relanza "Target class [tenant]
+        // does not exist". Un binding por closure sí es detectable y devuelve null.
+        app()->bind('tenant', fn () => null);
 
         $slug = $this->resolveSlug($request);
 

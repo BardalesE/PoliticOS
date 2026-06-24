@@ -38,6 +38,10 @@ yarn-error.log
 /resources/js/screenshots
 /resources/js/test-results
 /resources/js/tsconfig.tsbuildinfo
+# Playwright QA — artefactos generados (la fuente de tests/ sí se versiona)
+/resources/js/tests/reports
+/resources/js/tests/screenshots
+/resources/js/tests/test-artifacts
 
 # Uploaded media / storage
 /storage/app/public
@@ -52,6 +56,11 @@ yarn-error.log
 # training-data/ SÍ se versiona (decisión 2026-06-12, ver
 # docs/architecture/07-training-data-versioning.md). Contiene estrategia de
 # campaña de clientes reales: si este repo se hace público, sacarla antes.
+
+# Python — caches del pipeline de ingesta
+__pycache__/
+*.pyc
+.pytest_cache/
 
 # Redis dump (generado automáticamente por Redis)
 dump.rdb

@@ -25,6 +25,7 @@ use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\IntelligenceController;
 use App\Http\Controllers\AttackResponseController;
 use App\Http\Controllers\ExternalSignalController;
+use App\Http\Controllers\IngestEntityController;
 use App\Http\Controllers\LiveStreamController;
 use App\Http\Controllers\OnboardingController;
 
@@ -111,6 +112,12 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
     // matchea por path) y la URL que ya usa el servicio Python.
     Route::post('/admin/external-signals/ingest', [ExternalSignalController::class, 'ingest'])
         ->middleware(['ingest_key', 'plan_feature', 'throttle:60,1']);
+
+    // Diccionario de entidades JNE (global, no depende del tenant). El servicio
+    // Python lo pullea vía beat (diaria + boot) y lo cachea en su Redis. Sin
+    // plan_feature: es data de referencia, no una feature del tenant.
+    Route::get('/ingest/entities', [IngestEntityController::class, 'index'])
+        ->middleware(['ingest_key', 'throttle:30,1']);
 
     // ─── Admin (sanctum + rol admin + plan check) ────────────────────
     Route::middleware(['auth:sanctum', 'admin', 'plan_feature'])->prefix('admin')->group(function () {

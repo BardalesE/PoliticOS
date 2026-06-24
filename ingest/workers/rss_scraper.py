@@ -98,6 +98,7 @@ def scrape_all_feeds():
                     "title": title[:500],
                     "content": (summary or title)[:5000],
                     "mentions": cls.get("mentions", []),
+                    "entities": cls.get("entities", []),
                     "sentiment": cls.get("sentiment"),
                     "emotion": cls.get("emotion"),
                     "topic": cls.get("topic"),

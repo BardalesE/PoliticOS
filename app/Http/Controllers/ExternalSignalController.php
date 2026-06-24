@@ -8,10 +8,10 @@ use Illuminate\Http\Request;
 
 class ExternalSignalController extends Controller
 {
-    /** POST /api/admin/external-signals/ingest — recibido del servicio Python */
-    public function ingest(Request $request): JsonResponse
+    /** Reglas de validación del payload de ingest (extraídas para poder testearlas). */
+    public static function ingestRules(): array
     {
-        $data = $request->validate([
+        return [
             'signals' => ['required','array','min:1','max:200'],
             'signals.*.source' => ['required','in:twitter,news,youtube_comment,tiktok,facebook,poll,gov_pdf,blog,reddit,manual'],
             'signals.*.source_url' => ['nullable','string','max:500'],
@@ -20,6 +20,10 @@ class ExternalSignalController extends Controller
             'signals.*.title' => ['nullable','string','max:500'],
             'signals.*.content' => ['required','string','max:10000'],
             'signals.*.mentions' => ['nullable','array'],
+            'signals.*.entities' => ['nullable','array','max:50'],
+            'signals.*.entities.*.type' => ['required_with:signals.*.entities','in:candidate,party,district'],
+            'signals.*.entities.*.slug' => ['required_with:signals.*.entities','string','max:80'],
+            'signals.*.entities.*.name' => ['required_with:signals.*.entities','string','max:120'],
             'signals.*.sentiment' => ['nullable','numeric','min:-1','max:1'],
             'signals.*.emotion' => ['nullable','string','max:20'],
             'signals.*.topic' => ['nullable','string','max:40'],
@@ -27,7 +31,13 @@ class ExternalSignalController extends Controller
             'signals.*.target_candidate' => ['nullable','string','max:40'],
             'signals.*.engagement' => ['nullable','integer','min:0'],
             'signals.*.captured_at' => ['required','date'],
-        ]);
+        ];
+    }
+
+    /** POST /api/admin/external-signals/ingest — recibido del servicio Python */
+    public function ingest(Request $request): JsonResponse
+    {
+        $data = $request->validate(self::ingestRules());
 
         $created = 0;
         foreach ($data['signals'] as $s) {

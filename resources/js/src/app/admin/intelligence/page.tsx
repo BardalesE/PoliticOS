@@ -496,10 +496,12 @@ function MapTab({ data }: { data: MapData | null }) {
   const mapInst = useRef<LeafletMap | null>(null);
 
   useEffect(() => {
-    if (!mapRef.current || mapInst.current) return;
+    if (!mapRef.current) return;
 
     (async () => {
       const L = (await import("leaflet")).default;
+
+      if (!mapRef.current) return;
 
       // Inject Leaflet CSS once
       if (!document.getElementById("leaflet-css")) {
@@ -508,6 +510,12 @@ function MapTab({ data }: { data: MapData | null }) {
         link.rel  = "stylesheet";
         link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
         document.head.appendChild(link);
+      }
+
+      // Destroy the previous instance before re-creating the map
+      if (mapInst.current) {
+        mapInst.current.remove();
+        mapInst.current = null;
       }
 
       // Lima / San Miguel as default center
@@ -566,7 +574,7 @@ function MapTab({ data }: { data: MapData | null }) {
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [data]);
 
   const citizens = data?.citizens ?? [];
   const sessions = data?.sessions ?? [];
@@ -622,14 +630,19 @@ function MapTab({ data }: { data: MapData | null }) {
           </span>
         </div>
 
-        {/* Leaflet container */}
-        {data === null || data.total === 0 ? (
+        {/* Leaflet container — always rendered so the ref stays mounted */}
+        <div
+          ref={mapRef}
+          style={{ height: 500, width: "100%" }}
+          className={data === null || data.total === 0 ? "hidden" : undefined}
+        />
+
+        {/* Placeholder shown when there are no location points */}
+        {(data === null || data.total === 0) && (
           <div className="flex flex-col items-center justify-center h-80 text-zinc-400 bg-zinc-50">
             <p className="text-sm">Sin datos de ubicación todavía.</p>
             <p className="text-xs mt-1">Aparecerán cuando ciudadanos compartan su ubicación en el chat.</p>
           </div>
-        ) : (
-          <div ref={mapRef} style={{ height: 500, width: "100%" }} />
         )}
       </motion.div>
 

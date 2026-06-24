@@ -73,6 +73,7 @@ def search_recent():
                 "title": None,
                 "content": tw.text[:5000],
                 "mentions": cls.get("mentions", []),
+                "entities": cls.get("entities", []),
                 "sentiment": cls.get("sentiment"),
                 "emotion": cls.get("emotion"),
                 "topic": cls.get("topic"),

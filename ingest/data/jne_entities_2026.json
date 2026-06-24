@@ -1,0 +1,259 @@
+{
+    "version": 1,
+    "updated_at": "2026-06-12",
+    "source": "Seed inicial (elecciones generales abril 2026). Lista de candidatos/partidos generada de conocimiento general — VALIDAR contra el padrón oficial JNE/Infogob antes de producción. Las circunscripciones son las 27 oficiales del proceso 2026.",
+    "candidates": [
+        {
+            "slug": "keiko-fujimori",
+            "name": "Keiko Fujimori",
+            "aliases": ["keiko", "keiko fujimori higuchi", "keiko sofia fujimori"],
+            "party": "fuerza-popular"
+        },
+        {
+            "slug": "rafael-lopez-aliaga",
+            "name": "Rafael López Aliaga",
+            "aliases": ["lopez aliaga", "porky", "rafael lopez aliaga cazorla"],
+            "party": "renovacion-popular"
+        },
+        {
+            "slug": "cesar-acuna",
+            "name": "César Acuña",
+            "aliases": ["acuña", "cesar acuña peralta"],
+            "party": "alianza-para-el-progreso"
+        },
+        {
+            "slug": "mario-vizcarra",
+            "name": "Mario Vizcarra",
+            "aliases": ["mario vizcarra cornejo"],
+            "party": "peru-primero"
+        },
+        {
+            "slug": "carlos-alvarez",
+            "name": "Carlos Álvarez",
+            "aliases": ["carlos alvarez loayza"],
+            "party": "pais-para-todos"
+        },
+        {
+            "slug": "phillip-butters",
+            "name": "Phillip Butters",
+            "aliases": ["butters", "felipe butters", "phillip chevarria"],
+            "party": "avanza-pais"
+        },
+        {
+            "slug": "alfonso-lopez-chau",
+            "name": "Alfonso López Chau",
+            "aliases": ["lopez chau", "alfonso lopez chau nava"],
+            "party": "ahora-nacion"
+        },
+        {
+            "slug": "roberto-sanchez",
+            "name": "Roberto Sánchez",
+            "aliases": ["roberto sanchez palomino"],
+            "party": "juntos-por-el-peru"
+        },
+        {
+            "slug": "vladimir-cerron",
+            "name": "Vladimir Cerrón",
+            "aliases": ["cerron", "vladimir cerron rojas"],
+            "party": "peru-libre"
+        },
+        {
+            "slug": "rafael-belaunde",
+            "name": "Rafael Belaunde Llosa",
+            "aliases": ["belaunde llosa", "rafael belaunde"],
+            "party": "libertad-popular"
+        },
+        {
+            "slug": "george-forsyth",
+            "name": "George Forsyth",
+            "aliases": ["forsyth", "george forsyth sommer"],
+            "party": "somos-peru"
+        },
+        {
+            "slug": "jose-luna-galvez",
+            "name": "José Luna Gálvez",
+            "aliases": ["luna galvez", "jose luna"],
+            "party": "podemos-peru"
+        },
+        {
+            "slug": "hernando-de-soto",
+            "name": "Hernando de Soto",
+            "aliases": ["de soto", "hernando de soto polar"],
+            "party": "progresemos"
+        },
+        {
+            "slug": "yonhy-lescano",
+            "name": "Yonhy Lescano",
+            "aliases": ["lescano", "yonhy lescano ancieta"],
+            "party": null
+        },
+        {
+            "slug": "fiorella-molinelli",
+            "name": "Fiorella Molinelli",
+            "aliases": ["molinelli", "fiorella molinelli aristondo"],
+            "party": null
+        },
+        {
+            "slug": "marisol-perez-tello",
+            "name": "Marisol Pérez Tello",
+            "aliases": ["perez tello"],
+            "party": "primero-la-gente"
+        }
+    ],
+    "parties": [
+        {
+            "slug": "fuerza-popular",
+            "name": "Fuerza Popular",
+            "aliases": ["fujimorismo", "fuerzapopular"]
+        },
+        {
+            "slug": "renovacion-popular",
+            "name": "Renovación Popular",
+            "aliases": ["renovacion popular"]
+        },
+        {
+            "slug": "alianza-para-el-progreso",
+            "name": "Alianza para el Progreso",
+            "aliases": ["app"]
+        },
+        {
+            "slug": "peru-libre",
+            "name": "Perú Libre",
+            "aliases": ["peru libre"]
+        },
+        {
+            "slug": "podemos-peru",
+            "name": "Podemos Perú",
+            "aliases": ["podemos peru"]
+        },
+        {
+            "slug": "avanza-pais",
+            "name": "Avanza País",
+            "aliases": ["avanza pais"]
+        },
+        {
+            "slug": "somos-peru",
+            "name": "Somos Perú",
+            "aliases": ["somos peru"]
+        },
+        {
+            "slug": "accion-popular",
+            "name": "Acción Popular",
+            "aliases": ["accion popular"]
+        },
+        {
+            "slug": "partido-aprista",
+            "name": "Partido Aprista Peruano",
+            "aliases": ["apra", "el apra", "partido aprista"]
+        },
+        {
+            "slug": "juntos-por-el-peru",
+            "name": "Juntos por el Perú",
+            "aliases": ["juntos por el peru"]
+        },
+        {
+            "slug": "pais-para-todos",
+            "name": "País Para Todos",
+            "aliases": ["pais para todos"]
+        },
+        {
+            "slug": "peru-primero",
+            "name": "Perú Primero",
+            "aliases": ["peru primero"]
+        },
+        {
+            "slug": "ahora-nacion",
+            "name": "Ahora Nación",
+            "aliases": ["ahora nacion"]
+        },
+        {
+            "slug": "libertad-popular",
+            "name": "Libertad Popular",
+            "aliases": ["libertad popular"]
+        },
+        {
+            "slug": "partido-morado",
+            "name": "Partido Morado",
+            "aliases": ["partido morado", "los morados"]
+        },
+        {
+            "slug": "primero-la-gente",
+            "name": "Primero la Gente",
+            "aliases": ["primero la gente"]
+        },
+        {
+            "slug": "progresemos",
+            "name": "Progresemos",
+            "aliases": []
+        },
+        {
+            "slug": "nuevo-peru",
+            "name": "Nuevo Perú por el Buen Vivir",
+            "aliases": ["nuevo peru"]
+        },
+        {
+            "slug": "salvemos-al-peru",
+            "name": "Salvemos al Perú",
+            "aliases": ["salvemos al peru"]
+        },
+        {
+            "slug": "fe-en-el-peru",
+            "name": "Fe en el Perú",
+            "aliases": ["fe en el peru"]
+        },
+        {
+            "slug": "voces-del-pueblo",
+            "name": "Voces del Pueblo",
+            "aliases": ["voces del pueblo"]
+        },
+        {
+            "slug": "peru-moderno",
+            "name": "Perú Moderno",
+            "aliases": ["peru moderno"]
+        },
+        {
+            "slug": "batalla-peru",
+            "name": "Batalla Perú",
+            "aliases": ["batalla peru"]
+        },
+        {
+            "slug": "un-camino-diferente",
+            "name": "Un Camino Diferente",
+            "aliases": ["un camino diferente"]
+        },
+        {
+            "slug": "partido-civico-obras",
+            "name": "Partido Cívico Obras",
+            "aliases": ["partido civico obras"]
+        }
+    ],
+    "districts": [
+        { "slug": "amazonas", "name": "Amazonas", "aliases": [] },
+        { "slug": "ancash", "name": "Áncash", "aliases": [] },
+        { "slug": "apurimac", "name": "Apurímac", "aliases": [] },
+        { "slug": "arequipa", "name": "Arequipa", "aliases": [] },
+        { "slug": "ayacucho", "name": "Ayacucho", "aliases": [] },
+        { "slug": "cajamarca", "name": "Cajamarca", "aliases": [] },
+        { "slug": "callao", "name": "Callao", "aliases": ["el callao"] },
+        { "slug": "cusco", "name": "Cusco", "aliases": ["cuzco"] },
+        { "slug": "huancavelica", "name": "Huancavelica", "aliases": [] },
+        { "slug": "huanuco", "name": "Huánuco", "aliases": [] },
+        { "slug": "ica", "name": "Ica", "aliases": [] },
+        { "slug": "junin", "name": "Junín", "aliases": [] },
+        { "slug": "la-libertad", "name": "La Libertad", "aliases": [] },
+        { "slug": "lambayeque", "name": "Lambayeque", "aliases": [] },
+        { "slug": "lima-metropolitana", "name": "Lima Metropolitana", "aliases": ["lima"] },
+        { "slug": "lima-provincias", "name": "Lima Provincias", "aliases": ["region lima"] },
+        { "slug": "loreto", "name": "Loreto", "aliases": [] },
+        { "slug": "madre-de-dios", "name": "Madre de Dios", "aliases": [] },
+        { "slug": "moquegua", "name": "Moquegua", "aliases": [] },
+        { "slug": "pasco", "name": "Pasco", "aliases": [] },
+        { "slug": "piura", "name": "Piura", "aliases": [] },
+        { "slug": "puno", "name": "Puno", "aliases": [] },
+        { "slug": "san-martin", "name": "San Martín", "aliases": [] },
+        { "slug": "tacna", "name": "Tacna", "aliases": [] },
+        { "slug": "tumbes", "name": "Tumbes", "aliases": [] },
+        { "slug": "ucayali", "name": "Ucayali", "aliases": [] },
+        { "slug": "extranjero", "name": "Peruanos Residentes en el Extranjero", "aliases": ["peruanos en el extranjero"] }
+    ]
+}
