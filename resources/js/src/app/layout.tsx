@@ -8,10 +8,7 @@ import { DynamicTitle } from "@/components/DynamicTitle";
 import { TenantGuard } from "@/components/TenantGuard";
 import type { CandidatePublicData } from "@/lib/api";
 
-// Server component (generateMetadata + body fetch): SIEMPRE absoluto al backend
-// local. NEXT_PUBLIC_API_URL en la demo ngrok vale "/api" (relativo), que en el
-// servidor Node cuelga. 127.0.0.1 evita el fallback lento a IPv6 (::1) de undici.
-const API_URL = process.env.INTERNAL_API_URL ?? "http://127.0.0.1:8000/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
 
 async function resolveTenantSlugServer(): Promise<string> {
   const reqHeaders = await headers();
