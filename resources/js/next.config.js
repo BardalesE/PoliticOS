@@ -51,6 +51,16 @@ const nextConfig = {
     turbo: {},
   },
 
+  // ── Proxy del API (TEMPORAL, para exponer la app por un solo túnel ngrok) ──
+  // Permite que el navegador llame a /api del MISMO origen y Next.js reenvíe
+  // al backend Laravel local. Así basta un túnel a :3000 y no hay CORS.
+  // Revertir tras la demo (junto con NEXT_PUBLIC_API_URL=/api en .env.local).
+  async rewrites() {
+    return [
+      { source: "/api/:path*", destination: "http://localhost:8000/api/:path*" },
+    ];
+  },
+
 };
 
 module.exports = nextConfig;

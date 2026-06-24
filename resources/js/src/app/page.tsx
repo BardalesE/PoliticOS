@@ -6,7 +6,10 @@ import type {
   CampaignPhoto, CampaignVideo,
 } from "@/lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
+// Server component: SIEMPRE pega directo al backend local (absoluto). No usar
+// NEXT_PUBLIC_API_URL aquí: en la demo ngrok vale "/api" (relativo), que en el
+// servidor Node no tiene origen y re-entra al propio dev server (contención).
+const API_URL = process.env.INTERNAL_API_URL ?? "http://127.0.0.1:8000/api";
 
 async function get<T>(
   path: string,

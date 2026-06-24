@@ -3,7 +3,13 @@
  * Cliente API tipado para el backend Laravel.
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+// Server (SSR/RSC): absoluto al backend local — un fetch relativo no tiene
+// origen en Node. Navegador: NEXT_PUBLIC_API_URL (en la demo ngrok = "/api",
+// mismo origen vía rewrite). Así un solo túnel sirve todo sin CORS.
+const API_URL =
+  typeof window === "undefined"
+    ? process.env.INTERNAL_API_URL || "http://127.0.0.1:8000/api"
+    : process.env.NEXT_PUBLIC_API_URL || "/api";
 // Dev: set NEXT_PUBLIC_TENANT_SLUG in .env.local
 // Prod: auto-detected from subdomain (maria.politicos.pe → "maria")
 const BASE_DOMAIN = process.env.NEXT_PUBLIC_BASE_DOMAIN || "";
