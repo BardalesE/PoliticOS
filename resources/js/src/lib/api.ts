@@ -341,8 +341,8 @@ export const adminApi = {
   },
 
   analytics: {
-    summary: (token: string) =>
-      request<AdminAnalytics>("/admin/analytics", {}, token, 5_000),
+    summary: (token: string, period = "month") =>
+      request<AdminAnalytics>(`/admin/analytics?period=${period}`, {}, token, 5_000),
   },
 
   gallery: {
@@ -558,6 +558,9 @@ export type AdminAnalytics = {
   top_topics: { topic: string; count: number }[];
   top_questions: { question: string; count: number }[];
   recent_sessions: { id: number; session_id: string; ip: string | null; created_at: string; messages_count: number }[];
+  period: "day" | "week" | "month" | "year";
+  granularity: "hour" | "day" | "month";
+  range: { start: string; end: string };
 };
 
 // ─── Tipos multi-tenant ────────────────────────────────────────────────

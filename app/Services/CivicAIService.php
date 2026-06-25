@@ -164,11 +164,20 @@ class CivicAIService
         $history  = $this->getConversationHistory($session);
         $segment  = $this->resolveSegment($session);
 
-        // Bufferizamos la respuesta cruda para poder parsear JSON antes de enviar al usuario
+        $isPepa = ($this->config->mode ?? 'campaign') === 'pepa';
+
+        // En PEPA el modelo devuelve JSON: hay que bufferizar todo y parsear antes de
+        // enviar. En campaña devuelve texto plano: streameamos cada token en tiempo real.
+        // En ambos modos acumulamos en $rawBuffer para construir el retorno.
         $rawBuffer = '';
         $this->callAIStream($userMessage, $context, $history, $segment, $attack, $session, $topic,
-            function (string $chunk) use (&$rawBuffer) {
+            function (string $chunk) use (&$rawBuffer, $onChunk, $isPepa) {
                 $rawBuffer .= $chunk;
+                // Stream directo al cliente en modo campaña. No reenviamos el centinela
+                // de descanso: se maneja abajo con la respuesta adecuada.
+                if (!$isPepa && $chunk !== '__AI_RESTING__') {
+                    $onChunk($chunk);
+                }
             }
         );
 
@@ -183,9 +192,11 @@ class CivicAIService
 
         $parsed = $this->parseAIResponse($rawBuffer);
 
-        // Enviar el texto ya limpio al cliente en trozos de ~30 chars
-        foreach (str_split($parsed['reply'], 30) as $chunk) {
-            $onChunk($chunk);
+        // Solo en PEPA enviamos el texto ya parseado en trozos; en campaña ya se streameó arriba.
+        if ($isPepa) {
+            foreach (str_split($parsed['reply'], 30) as $chunk) {
+                $onChunk($chunk);
+            }
         }
 
         $mediaRequest = $this->detectMediaRequest($userMessage);

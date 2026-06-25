@@ -4,14 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { request } from "@/lib/api";
 import type { Map as LeafletMap } from "leaflet";
-
-const adminGet = (token: string, path: string) =>
-  request<any>(`/admin${path}`, {}, token);
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell, CartesianGrid,
 } from "recharts";
 import { motion } from "framer-motion";
+
+const adminGet = (token: string, path: string) =>
+  request<any>(`/admin${path}`, {}, token);
 
 const COLORS = ["#DC2626","#F59E0B","#10B981","#3B82F6","#8B5CF6","#EC4899","#6366F1","#14B8A6"];
 
@@ -74,7 +74,7 @@ export default function IntelligencePage() {
   const [realtime, setRealtime] = useState<Realtime | null>(null);
   const [districts, setDistricts] = useState<Districts | null>(null);
   const [mapData, setMapData]     = useState<MapData | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!token) { setLoading(false); return; }

@@ -5,7 +5,7 @@ import {
   MessageSquare, Users, FileText, Video,
   HelpCircle, TrendingUp, TrendingDown, Activity,
   Clock, Loader2, ArrowRight, Zap, BarChart2,
-  Flame, Award, Calendar, Rocket,
+  Flame, Award, Rocket,
 } from "lucide-react";
 import Link from "next/link";
 import { adminApi, invalidateCache, type AdminAnalytics, type OnboardingStatus } from "@/lib/api";
@@ -17,6 +17,24 @@ import { ProposalsStatusChart } from "@/components/admin/charts/ProposalsStatusC
 import { WeeklyBarChart } from "@/components/admin/charts/WeeklyBarChart";
 import { HorizontalTopicsChart } from "@/components/admin/charts/HorizontalTopicsChart";
 import { cn } from "@/lib/utils";
+
+// ─── Periodo ──────────────────────────────────────────────────────────────
+
+type Period = "day" | "week" | "month" | "year";
+
+const PERIODS: { value: Period; label: string }[] = [
+  { value: "day",   label: "24h" },
+  { value: "week",  label: "7D" },
+  { value: "month", label: "30D" },
+  { value: "year",  label: "12M" },
+];
+
+const PERIOD_SECTION_TITLE: Record<Period, string> = {
+  day:   "Conversaciones — últimas 24 horas",
+  week:  "Conversaciones — últimos 7 días",
+  month: "Conversaciones — últimos 30 días",
+  year:  "Conversaciones — últimos 12 meses",
+};
 
 // ─── Derived analytics helpers ────────────────────────────────────────────
 
@@ -142,6 +160,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(false);
   const [onboarding, setOnboarding] = useState<OnboardingStatus | null>(null);
+  const [period, setPeriod]   = useState<Period>("month");
 
   useEffect(() => {
     if (!token) return;
@@ -151,9 +170,10 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (!token) return;
 
+    setLoading(true);
     const fetchData = (initial = false) => {
-      if (!initial) invalidateCache("/admin/analytics");
-      adminApi.analytics.summary(token)
+      if (!initial) invalidateCache(`/admin/analytics?period=${period}`);
+      adminApi.analytics.summary(token, period)
         .then((d) => { setData(d); setError(false); })
         .catch(() => setError(true))
         .finally(() => setLoading(false));
@@ -162,7 +182,7 @@ export default function AdminDashboard() {
     fetchData(true);
     const timer = setInterval(() => fetchData(false), 30_000);
     return () => clearInterval(timer);
-  }, [token]);
+  }, [token, period]);
 
   const derived = useMemo(() => {
     if (!data) return null;
@@ -237,8 +257,26 @@ export default function AdminDashboard() {
           </h1>
           <p className="text-xs text-gray-400 mt-1 capitalize">{dateStr}</p>
         </div>
-        <div className="flex items-center gap-5">
-          {derived?.trend !== null && derived?.trend !== undefined && (
+        <div className="flex items-center gap-3 flex-wrap justify-end">
+          {/* Selector de periodo */}
+          <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-0.5">
+            {PERIODS.map((p) => (
+              <button
+                key={p.value}
+                onClick={() => setPeriod(p.value)}
+                className={cn(
+                  "px-3 py-1 rounded-lg text-xs font-bold transition-all duration-150",
+                  period === p.value
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-400 hover:text-gray-600"
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+          {/* Chip de tendencia — solo cuando period === "month" (14 buckets diarios = sentido) */}
+          {period === "month" && derived?.trend !== null && derived?.trend !== undefined && (
             <div className={cn(
               "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border",
               derived.trend >= 0
@@ -309,7 +347,7 @@ export default function AdminDashboard() {
         />
         <InsightChip
           icon={Flame}
-          label="Día pico del mes"
+          label="Punto pico"
           value={derived?.peak
             ? `${derived.peak.count} sesiones`
             : "Sin datos"
@@ -326,7 +364,7 @@ export default function AdminDashboard() {
 
       {/* ── Fila 3: Gráfica principal (full width) ── */}
       <Section
-        title="Conversaciones — últimos 30 días"
+        title={PERIOD_SECTION_TITLE[period]}
         sub="Actividad"
         action={
           <div className="flex items-center gap-3 text-xs text-gray-400">
@@ -342,7 +380,11 @@ export default function AdminDashboard() {
         }
       >
         {data.conversations_per_day.length > 0 ? (
-          <ConversationsChart data={data.conversations_per_day} height={280} />
+          <ConversationsChart
+            data={data.conversations_per_day}
+            height={280}
+            granularity={data.granularity}
+          />
         ) : (
           <div className="h-64 flex items-center justify-center text-gray-400 text-sm">
             Sin actividad todavía.
@@ -353,14 +395,16 @@ export default function AdminDashboard() {
       {/* ── Fila 4: Tres charts secundarios ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 
-        {/* Últimos 7 días */}
-        <Section title="Últimos 7 días" sub="Reciente">
-          {data.conversations_per_day.length >= 7 ? (
-            <WeeklyBarChart data={data.conversations_per_day} />
-          ) : (
-            <div className="h-32 flex items-center justify-center text-gray-400 text-sm">Sin datos.</div>
-          )}
-        </Section>
+        {/* Últimos 7 días — solo cuando la granularidad es diaria */}
+        {data.granularity === "day" && (
+          <Section title="Últimos 7 días" sub="Reciente">
+            {data.conversations_per_day.length >= 7 ? (
+              <WeeklyBarChart data={data.conversations_per_day} />
+            ) : (
+              <div className="h-32 flex items-center justify-center text-gray-400 text-sm">Sin datos.</div>
+            )}
+          </Section>
+        )}
 
         {/* Temas por mensajes */}
         <Section title="Mensajes por tema" sub="Temas">

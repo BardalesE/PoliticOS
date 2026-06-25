@@ -138,8 +138,10 @@ class ChatController extends Controller
         $this->applyPepaMetaToSession($session, $response['pepa_metadata'] ?? null);
         $this->capturePotentialDeclaredData($session, $data['declared'] ?? []);
 
-        AnalyzeMessageJob::dispatch($userMsg->id)->afterResponse();
-        if (!$session->geo_country) {
+        if (config('queue.default') !== 'sync') {
+            AnalyzeMessageJob::dispatch($userMsg->id)->afterResponse();
+        }
+        if (!$session->geo_country && config('queue.default') !== 'sync') {
             GeolocateSessionJob::dispatch($session->id)->afterResponse();
         }
 
@@ -280,8 +282,10 @@ class ChatController extends Controller
                             'pepa_metadata'   => $meta['pepa_metadata'] ?? null,
                         ]);
                         $this->applyPepaMetaToSession($session, $meta['pepa_metadata'] ?? null);
-                        AnalyzeMessageJob::dispatch($userMsg->id)->afterResponse();
-                        if (!$session->geo_country) {
+                        if (config('queue.default') !== 'sync') {
+                            AnalyzeMessageJob::dispatch($userMsg->id)->afterResponse();
+                        }
+                        if (!$session->geo_country && config('queue.default') !== 'sync') {
                             GeolocateSessionJob::dispatch($session->id)->afterResponse();
                         }
                     } catch (\Throwable $e) {
@@ -511,10 +515,12 @@ class ChatController extends Controller
         }
 
         if ($session->visitor_uuid) {
-            VisitorProfile::firstOrCreate(
+            $visitor = VisitorProfile::firstOrCreate(
                 ['visitor_uuid' => $session->visitor_uuid],
                 ['first_seen_at' => now(), 'last_seen_at' => now()]
-            )->increment('visits_count', 0);
+            );
+            $visitor->increment('visits_count');
+            $visitor->update(['last_seen_at' => now()]);
         }
 
         return $session;

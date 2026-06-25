@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { TenantLink } from "@/components/ui/TenantLink";
 import { ArrowLeft, Clock, Users, Radio, Send, User, Pencil } from "lucide-react";
 import { LivePlayer } from "@/components/live/LivePlayer";
+import { resolveTenantSlug } from "@/lib/api";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
@@ -93,7 +94,10 @@ export default function StreamViewerPage() {
 
   // Candidate profile
   useEffect(() => {
-    fetch(`${API}/candidate`)
+    const tenant = resolveTenantSlug();
+    fetch(`${API}/candidate`, {
+      headers: tenant ? { "X-Tenant": tenant } : {},
+    })
       .then(r => r.ok ? r.json() : null)
       .then(d => d && setCandidate(d))
       .catch(() => {});
