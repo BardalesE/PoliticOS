@@ -22,6 +22,7 @@ class CheckPlanFeature
         'api/admin/attack-responses' => 'attack_responses',
         'api/admin/livestreams'      => 'livestream',
         'api/admin/knowledge'        => 'knowledge',
+        'api/admin/surveys'          => 'surveys',
     ];
 
     public function handle(Request $request, Closure $next): Response

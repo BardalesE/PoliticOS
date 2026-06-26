@@ -28,6 +28,7 @@ use App\Http\Controllers\ExternalSignalController;
 use App\Http\Controllers\IngestEntityController;
 use App\Http\Controllers\LiveStreamController;
 use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\SurveyController;
 
 /*
 |--------------------------------------------------------------------------
@@ -272,6 +273,18 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
         Route::put   ('/knowledge/{id}', [KnowledgeDocumentController::class, 'update']);
         Route::delete('/knowledge/{id}', [KnowledgeDocumentController::class, 'destroy']);
         Route::post  ('/knowledge/{id}/reindex', [KnowledgeDocumentController::class, 'reindex']);
+    });
+
+    // ─── Encuestas de campaña (captura en campo + dashboard) ─────────────
+    // auth:sanctum SIN 'admin': el encuestador puede ser admin o editor.
+    // Prefijo admin/surveys para que CheckPlanFeature (plan_feature) matchee
+    // 'api/admin/surveys' => 'surveys'. Escribe en la BD del tenant.
+    Route::middleware(['auth:sanctum', 'plan_feature'])->prefix('admin/surveys')->group(function () {
+        Route::get ('/journeys',  [SurveyController::class, 'journeys']);
+        Route::post('/journeys',  [SurveyController::class, 'storeJourney']);
+        Route::post('/sync',      [SurveyController::class, 'sync'])->middleware('throttle:30,1');
+        Route::get ('/dashboard', [SurveyController::class, 'dashboard']);
+        Route::get ('/export',    [SurveyController::class, 'export']);
     });
 });
 

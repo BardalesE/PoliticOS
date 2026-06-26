@@ -46,7 +46,7 @@ class PlanService
         // 'knowledge' está habilitado desde starter (5 docs) — los planes
         // superiores solo amplían max_documents (pro: 20, elite: ilimitado).
         $starterFeatures = ['knowledge'];
-        $proFeatures     = ['proposals', 'media', 'events', 'team', 'external_signals', 'intelligence'];
+        $proFeatures     = ['proposals', 'media', 'events', 'team', 'external_signals', 'intelligence', 'surveys'];
         $eliteFeatures   = ['attack_responses', 'livestream'];
         if (in_array($feature, $eliteFeatures))   return 'elite';
         if (in_array($feature, $proFeatures))     return 'pro';

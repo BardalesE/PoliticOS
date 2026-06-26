@@ -36,6 +36,7 @@ class PlanFeatures extends Model
             'team'              => false,
             'attack_responses'  => false,
             'livestream'        => false,
+            'surveys'           => false,
             'knowledge'         => ['enabled' => true, 'max_documents' => 5],
             'external_signals'  => ['enabled' => false, 'advanced' => false],
             'intelligence'      => ['enabled' => false, 'advanced' => false],

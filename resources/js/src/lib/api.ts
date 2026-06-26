@@ -745,6 +745,73 @@ export const adminApiExtended = {
   },
 };
 
+// ─── Encuestas de campaña ──────────────────────────────────────────────
+
+export type SurveyJourney = {
+  id: number;
+  client_uuid: string | null;
+  place: string;
+  district: string | null;
+  province: string | null;
+  surveyed_on: string | null;
+  label: string;
+  responses_count: number;
+};
+
+export type SurveySyncPayload = {
+  journey: {
+    client_uuid: string;
+    place: string;
+    district: string | null;
+    province: string | null;
+    surveyed_on: string;
+  };
+  responses: {
+    client_uuid: string;
+    vote_intention: "si" | "no" | "indeciso";
+    knew_proposal: boolean | null;
+    consent: boolean;
+    name: string | null;
+    phone: string | null;
+    dni: string | null;
+    age: number | null;
+    sex: "M" | "F" | "otro" | null;
+    captured_at: string;
+  }[];
+};
+
+export type SurveySyncResult = {
+  status: string;
+  journey_id: number;
+  created: number;
+  duplicated: number;
+  received: number;
+};
+
+export type SurveyDashboard = {
+  total: number;
+  journeys_count: number;
+  support: { si: number; no: number; indeciso: number };
+  knew_proposal: { knew: number; not_knew: number };
+  by_place: { place: string; si: number; no: number; indeciso: number; total: number }[];
+};
+
+export const surveysApi = {
+  journeys: (token: string) =>
+    request<{ journeys: SurveyJourney[] }>("/admin/surveys/journeys", {}, token, 0),
+  createJourney: (
+    token: string,
+    data: { client_uuid?: string; place: string; district?: string | null; province?: string | null; surveyed_on: string }
+  ) =>
+    request<{ journey: SurveyJourney }>("/admin/surveys/journeys", { method: "POST", body: JSON.stringify(data) }, token),
+  sync: (token: string, payload: SurveySyncPayload) =>
+    request<SurveySyncResult>("/admin/surveys/sync", { method: "POST", body: JSON.stringify(payload) }, token),
+  dashboard: (token: string, journeyId?: number) =>
+    request<SurveyDashboard>(
+      `/admin/surveys/dashboard${journeyId ? `?journey_id=${journeyId}` : ""}`, {}, token, 0
+    ),
+};
+
 // ─── API pública del candidato ─────────────────────────────────────────
 
 export const candidateApi = {

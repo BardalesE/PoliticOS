@@ -11,7 +11,7 @@ import {
   LayoutDashboard, MessageSquare, FileText, Video, HelpCircle, Users,
   Brain, Shield, Radio, Settings, LogOut, Image as ImageIcon,
   MapPin, BookOpen, AlertCircle, Tag, FileQuestion, UserCircle, Calendar,
-  Lock, UserCheck, Rocket,
+  Lock, UserCheck, Rocket, ClipboardList,
 } from "lucide-react";
 
 type NavItem = {
@@ -72,6 +72,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Inteligencia ciudadana",
     items: [
       { href: "/admin/citizens", label: "Ciudadanos registrados", icon: UserCheck, badge: "NEW" },
+      { href: "/admin/surveys",  label: "Encuestas de campaña",   icon: ClipboardList, badge: "NEW", feature: "surveys" },
     ],
   },
   {

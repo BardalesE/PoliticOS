@@ -18,8 +18,15 @@ export default function AdminLoginPage() {
   const [error, setError]       = useState<string | null>(null);
   const [loading, setLoading]   = useState(false);
 
+  // Destino tras login: ?next= si es una ruta interna segura, si no /admin.
+  function nextTarget(): string {
+    if (typeof window === "undefined") return "/admin";
+    const next = new URLSearchParams(window.location.search).get("next");
+    return next && next.startsWith("/") && !next.startsWith("//") ? next : "/admin";
+  }
+
   useEffect(() => {
-    if (isAuthenticated) router.replace("/admin");
+    if (isAuthenticated) router.replace(nextTarget());
   }, [isAuthenticated, router]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -28,7 +35,7 @@ export default function AdminLoginPage() {
     setLoading(true);
     try {
       await login(email, password);
-      router.replace("/admin");
+      router.replace(nextTarget());
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
