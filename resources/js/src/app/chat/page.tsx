@@ -440,6 +440,7 @@ export default function ChatPage() {
 
   // ── Geolocalización (browser GPS) ───────────────────────────────────────────
   const [geoLocation, setGeoLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
+  const [showGeoBanner, setShowGeoBanner] = useState(false);
 
   // ── Flujo de registro conversacional ────────────────────────────────────────
   const [regPhase, setRegPhase]   = useState<RegPhase | null>(null);
@@ -509,8 +510,18 @@ export default function ChatPage() {
     }
   }
 
-  // ── Solicitar GPS del navegador (silencioso si se deniega) ──────────────────
+  // ── Solicitar GPS del navegador ─────────────────────────────────────────────
   function requestGeoLocation() {
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    // Mostrar banner amigable en lugar del popup nativo (que la gente ignora)
+    const dismissed = localStorage.getItem("geo_banner_dismissed");
+    if (!dismissed && !geoLocation) {
+      setTimeout(() => setShowGeoBanner(true), 3000); // aparece 3s después del consent
+    }
+  }
+
+  function handleGeoAccept() {
+    setShowGeoBanner(false);
     if (typeof navigator === "undefined" || !navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -520,8 +531,13 @@ export default function ChatPage() {
           accuracy: pos.coords.accuracy,
         });
       },
-      () => {}
+      () => {} // silencioso si deniega en el popup del browser
     );
+  }
+
+  function handleGeoDismiss() {
+    setShowGeoBanner(false);
+    localStorage.setItem("geo_banner_dismissed", "1");
   }
 
   // ── Consent result ──────────────────────────────────────────────────────────
@@ -1101,6 +1117,46 @@ export default function ChatPage() {
             {blocked && (
               <div className="mb-3">
                 <BlockedBanner />
+              </div>
+            )}
+
+            {/* Banner de ubicación GPS */}
+            {showGeoBanner && !geoLocation && (
+              <div className="mx-auto max-w-sm mb-3">
+                <div className="bg-white border border-zinc-200 rounded-2xl shadow-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">📍</span>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-zinc-800">¿Compartir tu ubicación?</p>
+                      <p className="text-xs text-zinc-500 mt-0.5">
+                        Nos ayuda a mostrarte información relevante para tu distrito y mejorar las propuestas del candidato en tu zona.
+                      </p>
+                      <div className="flex gap-2 mt-3">
+                        <button
+                          onClick={handleGeoAccept}
+                          className="flex-1 bg-zinc-900 text-white text-xs font-medium py-2 rounded-full hover:bg-zinc-700 transition"
+                        >
+                          Sí, compartir
+                        </button>
+                        <button
+                          onClick={handleGeoDismiss}
+                          className="flex-1 border border-zinc-200 text-zinc-500 text-xs font-medium py-2 rounded-full hover:bg-zinc-50 transition"
+                        >
+                          No, gracias
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Confirmación cuando GPS fue aceptado */}
+            {geoLocation && (
+              <div className="flex justify-center mb-2">
+                <span className="text-xs text-zinc-400 bg-zinc-50 border border-zinc-100 rounded-full px-3 py-1">
+                  📍 Ubicación compartida
+                </span>
               </div>
             )}
 
