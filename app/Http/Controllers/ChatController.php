@@ -352,6 +352,33 @@ class ChatController extends Controller
     }
 
     /** POST /api/chat/consent — registrar consentimiento explícito */
+    /** POST /api/chat/location — guarda GPS del browser inmediatamente */
+    public function saveLocation(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'session_id' => ['required','string','max:64'],
+            'lat'        => ['required','numeric','between:-90,90'],
+            'lng'        => ['required','numeric','between:-180,180'],
+            'accuracy'   => ['nullable','numeric','min:0'],
+        ]);
+
+        $session = ChatSession::where('session_id', $data['session_id'])->first();
+        if (!$session) {
+            return response()->json(['ok' => false, 'error' => 'session not found'], 404);
+        }
+
+        if (!$session->browser_lat) {
+            $session->update([
+                'browser_lat'         => $data['lat'],
+                'browser_lng'         => $data['lng'],
+                'browser_accuracy'    => $data['accuracy'] ?? null,
+                'browser_location_at' => now(),
+            ]);
+        }
+
+        return response()->json(['ok' => true]);
+    }
+
     public function consent(Request $request): JsonResponse
     {
         $data = $request->validate([

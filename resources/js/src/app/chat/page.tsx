@@ -540,6 +540,21 @@ export default function ChatPage() {
     localStorage.setItem("geo_banner_dismissed", "1");
   }
 
+  // ── Guarda GPS al backend inmediatamente cuando se captura ──────────────────
+  useEffect(() => {
+    if (!geoLocation || !sessionId) return;
+    fetch(`${API}/chat/location`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({
+        session_id: sessionId,
+        lat:        geoLocation.lat,
+        lng:        geoLocation.lng,
+        accuracy:   geoLocation.accuracy,
+      }),
+    }).catch(() => {}); // silencioso si falla
+  }, [geoLocation, sessionId]);
+
   // ── Consent result ──────────────────────────────────────────────────────────
   const onConsentResult = (accepted: boolean) => {
     setConsent(accepted);

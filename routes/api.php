@@ -55,6 +55,7 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
         Route::post('/stream',       [ChatController::class, 'stream']);
         Route::get('/session/{id}',  [ChatController::class, 'session']);
         Route::post('/consent',      [ChatController::class, 'consent']);
+        Route::post('/location',     [ChatController::class, 'saveLocation']);
     });
 
     // ─── Registro ciudadano (público) ────────────────────────────────
