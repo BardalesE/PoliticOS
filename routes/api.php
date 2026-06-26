@@ -138,6 +138,7 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
             Route::post('/regenerate-alerts', [IntelligenceController::class, 'regenerateAlerts']);
             Route::get('/districts',      [IntelligenceController::class, 'districts']);
             Route::get('/map',            [IntelligenceController::class, 'map']);
+            Route::get('/geo-breakdown',  [IntelligenceController::class, 'geoBreakdown']);
         });
 
         // ━━━ ATTACK RESPONSES (NUEVO en v2) ━━━━━━━━━━━━━━━━━━━━━━━━━━

@@ -63,7 +63,18 @@ interface MapPoint {
 }
 interface MapData { citizens: MapPoint[]; sessions: MapPoint[]; total: number; }
 
-type Tab = "pulse" | "attacks" | "segments" | "districts" | "map";
+interface GeoBreakdownRow {
+  geo_region:    string | null;
+  geo_province:  string | null;
+  geo_city:      string | null;
+  geo_district:  string | null;
+  sessions:      number;
+  messages:      number;
+  avg_sentiment: number | null;
+}
+interface GeoBreakdown { level: string; rows: GeoBreakdownRow[]; }
+
+type Tab = "pulse" | "attacks" | "segments" | "districts" | "geo" | "map";
 
 export default function IntelligencePage() {
   const { token } = useAuth();
@@ -72,8 +83,9 @@ export default function IntelligencePage() {
   const [attacks, setAttacks] = useState<AttackFeed | null>(null);
   const [segments, setSegments] = useState<Segments | null>(null);
   const [realtime, setRealtime] = useState<Realtime | null>(null);
-  const [districts, setDistricts] = useState<Districts | null>(null);
-  const [mapData, setMapData]     = useState<MapData | null>(null);
+  const [districts, setDistricts]   = useState<Districts | null>(null);
+  const [mapData, setMapData]       = useState<MapData | null>(null);
+  const [geoBreakdown, setGeoBreakdown] = useState<GeoBreakdown | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -88,13 +100,14 @@ export default function IntelligencePage() {
   const loadAll = async () => {
     if (!token) { setLoading(false); return; }
     setLoading(true);
-    const [p, a, s, r, d, m] = await Promise.allSettled([
+    const [p, a, s, r, d, m, g] = await Promise.allSettled([
       adminGet(token, "/intelligence/pulse"),
       adminGet(token, "/intelligence/attacks?limit=30"),
       adminGet(token, "/intelligence/segments"),
       adminGet(token, "/intelligence/realtime"),
       adminGet(token, "/intelligence/districts"),
       adminGet(token, "/intelligence/map"),
+      adminGet(token, "/intelligence/geo-breakdown?days=30&level=district"),
     ]);
     if (p.status === "fulfilled") setPulse(p.value);
     if (a.status === "fulfilled") setAttacks(a.value);
@@ -102,6 +115,7 @@ export default function IntelligencePage() {
     if (r.status === "fulfilled") setRealtime(r.value);
     if (d.status === "fulfilled") setDistricts(d.value);
     if (m.status === "fulfilled") setMapData(m.value);
+    if (g.status === "fulfilled") setGeoBreakdown(g.value);
     setLoading(false);
   };
 
@@ -140,7 +154,7 @@ export default function IntelligencePage() {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-5 border-b border-zinc-200 overflow-x-auto">
-        {(["pulse","attacks","segments","districts","map"] as Tab[]).map((t) => (
+        {(["pulse","attacks","segments","districts","geo","map"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -152,6 +166,7 @@ export default function IntelligencePage() {
               : t === "attacks" ? "Ataques"
               : t === "segments" ? "Segmentación"
               : t === "districts" ? "Por Distrito"
+              : t === "geo" ? "📍 Geografía"
               : "🗺️ Mapa"}
           </button>
         ))}
@@ -161,6 +176,7 @@ export default function IntelligencePage() {
       {tab === "attacks"   && (attacks   ? <AttacksTab   data={attacks}   /> : <EmptyTab label="Ataques"         />)}
       {tab === "segments"  && (segments  ? <SegmentsTab  data={segments}  /> : <EmptyTab label="Segmentación"    />)}
       {tab === "districts" && (districts ? <DistrictsTab data={districts} /> : <EmptyTab label="Análisis por distrito" />)}
+      {tab === "geo"       && <GeoTab data={geoBreakdown} token={token!} />}
       {tab === "map"       && <MapTab data={mapData} />}
     </div>
   );
@@ -449,6 +465,131 @@ function DistrictsTab({ data }: { data: Districts }) {
           </div>
         )}
       </Card>
+    </div>
+  );
+}
+
+// ━━━ Tab de Geografía (Departamento → Provincia → Distrito) ━━━━━━━━━━━━━━
+
+function GeoTab({ data, token }: { data: GeoBreakdown | null; token: string }) {
+  const [level, setLevel] = useState<"province" | "district">("province");
+  const [rows, setRows]   = useState<GeoBreakdownRow[]>(data?.rows ?? []);
+  const [loading, setLoading] = useState(false);
+
+  const load = async (lv: "province" | "district") => {
+    setLevel(lv);
+    setLoading(true);
+    try {
+      const res = await adminGet(token, `/intelligence/geo-breakdown?days=30&level=${lv}`);
+      setRows(res.rows ?? []);
+    } catch {}
+    setLoading(false);
+  };
+
+  // Agrupar por departamento para mostrar árbol
+  const byDept = rows.reduce<Record<string, GeoBreakdownRow[]>>((acc, r) => {
+    const dept = r.geo_region ?? "Sin región";
+    if (!acc[dept]) acc[dept] = [];
+    acc[dept].push(r);
+    return acc;
+  }, {});
+
+  const sentimentColor = (v: number | null) => {
+    if (v === null) return "text-zinc-400";
+    if (v >= 0.3) return "text-emerald-600";
+    if (v >= 0)   return "text-zinc-600";
+    return "text-red-500";
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Selector de nivel */}
+      <div className="flex gap-2">
+        {(["province","district"] as const).map((lv) => (
+          <button
+            key={lv}
+            onClick={() => load(lv)}
+            className={`px-3 py-1.5 text-sm rounded-lg border transition ${
+              level === lv
+                ? "bg-zinc-900 text-white border-zinc-900"
+                : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400"
+            }`}
+          >
+            {lv === "province" ? "Por Provincia" : "Por Distrito"}
+          </button>
+        ))}
+        <span className="text-xs text-zinc-400 self-center ml-2">Últimos 30 días</span>
+      </div>
+
+      {loading && <p className="text-sm text-zinc-500">Cargando...</p>}
+
+      {!loading && rows.length === 0 && (
+        <div className="bg-white border border-zinc-200 rounded-xl p-8 text-center text-zinc-400">
+          <p className="text-2xl mb-2">📍</p>
+          <p className="text-sm">Sin datos geográficos aún.</p>
+          <p className="text-xs mt-1">Los datos aparecerán cuando usuarios ingresen al chat desde IPs de Perú.</p>
+        </div>
+      )}
+
+      {!loading && rows.length > 0 && (
+        <div className="space-y-3">
+          {Object.entries(byDept)
+            .sort((a, b) => b[1].reduce((s, r) => s + r.sessions, 0) - a[1].reduce((s, r) => s + r.sessions, 0))
+            .map(([dept, dRows]) => {
+              const totalSessions = dRows.reduce((s, r) => s + r.sessions, 0);
+              return (
+                <div key={dept} className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+                  {/* Cabecera del departamento */}
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-50 border-b border-zinc-200">
+                    <span className="text-sm font-bold text-zinc-800">🏛 {dept}</span>
+                    <span className="text-xs text-zinc-500">{totalSessions} sesiones</span>
+                  </div>
+                  {/* Filas de provincia/distrito */}
+                  <div className="divide-y divide-zinc-100">
+                    {dRows
+                      .sort((a, b) => b.sessions - a.sessions)
+                      .map((r, i) => {
+                        const name = level === "district"
+                          ? (r.geo_district ?? r.geo_city ?? "—")
+                          : (r.geo_province ?? "—");
+                        const parent = level === "district"
+                          ? (r.geo_province ?? "")
+                          : "";
+                        const sentiment = r.avg_sentiment;
+                        return (
+                          <div key={i} className="flex items-center gap-3 px-4 py-2">
+                            <span className="text-xs text-zinc-400 w-5 text-right">{i + 1}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-zinc-800 truncate">{name}</p>
+                              {parent && (
+                                <p className="text-xs text-zinc-400">{parent}</p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-4 text-right">
+                              <div>
+                                <p className="text-xs text-zinc-400">Sesiones</p>
+                                <p className="text-sm font-bold text-zinc-900">{r.sessions}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-zinc-400">Mensajes</p>
+                                <p className="text-sm font-bold text-zinc-700">{r.messages}</p>
+                              </div>
+                              <div className="w-16">
+                                <p className="text-xs text-zinc-400">Sentimiento</p>
+                                <p className={`text-sm font-bold ${sentimentColor(sentiment)}`}>
+                                  {sentiment !== null ? sentiment.toFixed(2) : "—"}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+      )}
     </div>
   );
 }

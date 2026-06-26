@@ -35,12 +35,14 @@ class GeolocateSessionJob implements ShouldQueue
 
             $loc = $geo->resolve($session->ip);
             $session->update([
-                'geo_country' => $loc['country'],
-                'geo_region'  => $loc['region'],
-                'geo_city'    => $loc['city'],
-                'geo_lat'     => $loc['lat'],
-                'geo_lng'     => $loc['lng'],
-                'device_type' => GeoIPService::detectDevice($session->user_agent),
+                'geo_country'  => $loc['country'],
+                'geo_region'   => $loc['region'],
+                'geo_province' => $loc['province'] ?? null,
+                'geo_city'     => $loc['city'],
+                'geo_district' => $loc['district'] ?? null,
+                'geo_lat'      => $loc['lat'],
+                'geo_lng'      => $loc['lng'],
+                'device_type'  => GeoIPService::detectDevice($session->user_agent),
             ]);
         });
     }

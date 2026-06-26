@@ -45,12 +45,15 @@ class IntelligenceController extends Controller
     {
         $days = (int) $request->query('days', 7);
         $points = ChatSession::whereNotNull('geo_lat')
-            ->where('created_at','>=', now()->subDays($days))
-            ->select('geo_region','geo_city','geo_lat','geo_lng',
-                     DB::raw('COUNT(*) as count'),
-                     DB::raw('AVG(avg_sentiment) as avg_sentiment'),
-                     DB::raw('AVG(messages_count) as avg_messages'))
-            ->groupBy('geo_region','geo_city','geo_lat','geo_lng')
+            ->where('created_at', '>=', now()->subDays($days))
+            ->select(
+                'geo_region', 'geo_province', 'geo_city', 'geo_district',
+                'geo_lat', 'geo_lng',
+                DB::raw('COUNT(*) as count'),
+                DB::raw('AVG(avg_sentiment) as avg_sentiment'),
+                DB::raw('AVG(messages_count) as avg_messages')
+            )
+            ->groupBy('geo_region', 'geo_province', 'geo_city', 'geo_district', 'geo_lat', 'geo_lng')
             ->orderByDesc('count')
             ->limit(500)
             ->get();
@@ -101,6 +104,33 @@ class IntelligenceController extends Controller
     public function districts(): JsonResponse
     {
         return response()->json($this->intel->districtAnalysis());
+    }
+
+    /** GET /api/admin/intelligence/geo-breakdown?days=7&level=province|district */
+    public function geoBreakdown(Request $request): JsonResponse
+    {
+        $days  = (int) $request->query('days', 7);
+        $level = $request->query('level', 'province'); // province | district
+
+        $groupCol = $level === 'district' ? 'geo_district' : 'geo_province';
+        $parentCol = $level === 'district' ? 'geo_province' : 'geo_region';
+
+        $rows = ChatSession::whereNotNull($groupCol)
+            ->where('created_at', '>=', now()->subDays($days))
+            ->select(
+                'geo_region',
+                $parentCol,
+                $groupCol,
+                DB::raw('COUNT(*) as sessions'),
+                DB::raw('SUM(messages_count) as messages'),
+                DB::raw('AVG(avg_sentiment) as avg_sentiment')
+            )
+            ->groupBy('geo_region', $parentCol, $groupCol)
+            ->orderByDesc('sessions')
+            ->limit(100)
+            ->get();
+
+        return response()->json(['level' => $level, 'rows' => $rows]);
     }
 
     /** GET /api/admin/intelligence/map */
