@@ -13,8 +13,12 @@ class PlanService
             return $tenant->custom_features;
         }
 
-        $pf = PlanFeatures::forPlan($tenant->plan);
-        return $pf?->features ?? PlanFeatures::defaults();
+        $pf       = PlanFeatures::forPlan($tenant->plan);
+        $base     = $pf?->features ?? PlanFeatures::defaults();
+        $overrides = $tenant->custom_features ?? [];
+
+        // custom_features actúa como override sobre el plan base (cualquier plan)
+        return array_merge($base, $overrides);
     }
 
     public static function isEnabled(Tenant $tenant, string $feature): bool
