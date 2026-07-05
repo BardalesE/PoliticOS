@@ -95,6 +95,16 @@ class ResolveTenant
             return null;
         }
 
+        // Hosts de plataformas de hosting (Render, Vercel…) — el primer label
+        // es el nombre del servicio ("politicos-api"), no un tenant. Se ignora
+        // el host y la resolución cae al header X-Tenant / ?tenant / config.
+        $platformSuffixes = config('app.platform_host_suffixes', ['.onrender.com', '.vercel.app']);
+        foreach ($platformSuffixes as $suffix) {
+            if (str_ends_with($host, $suffix)) {
+                return null;
+            }
+        }
+
         $parts = explode('.', $host);
         if (count($parts) < 3) {
             return null;
