@@ -15,7 +15,9 @@ const nextConfig = {
 
   // Produces a self-contained .next/standalone/server.js
   // Supervisor runs: node .next/standalone/server.js
-  output: 'standalone',
+  // En Vercel (VERCEL=1) se desactiva: Vercel usa su propio formato de salida y
+  // 'standalone' provoca fallo post-build. Se mantiene para auto-hospedaje.
+  output: process.env.VERCEL ? undefined : 'standalone',
 
   images: {
     remotePatterns: [
