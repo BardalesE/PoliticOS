@@ -1,0 +1,64 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# PoliticOS — .dockerignore para la imagen del backend (Render)
+# El frontend (resources/js) NO va en la imagen: se despliega en Vercel.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Git / editor / CI
+.git
+.gitignore
+.gitattributes
+.github
+.claude
+.editorconfig
+.vscode
+.idea
+
+# Secretos y envs locales — NUNCA dentro de la imagen
+.env
+.env.*
+!.env.example
+!.env.production.example
+!.env.render.example
+
+# Dependencias (se instalan en el build)
+vendor
+node_modules
+
+# Frontend completo (vive en Vercel)
+resources/js
+
+# Servicio Python de ingesta (apagado en la demo)
+ingest
+
+# Docs, tests y artefactos que no necesita el runtime
+docs
+tests
+phpunit.xml
+*.md
+!README.md
+*.png
+*.jpg
+*.jpeg
+*.pptx
+*.pdf
+
+# Storage: la estructura se recrea en el entrypoint; nunca copiar logs/uploads
+storage/logs/*
+storage/framework/cache/*
+storage/framework/sessions/*
+storage/framework/views/*
+storage/app/public/*
+storage/app/private/*
+
+# Caches locales de Laravel (se regeneran con config:cache/route:cache)
+bootstrap/cache/*.php
+
+# Deploy de VPS (nginx/supervisor/certbot del servidor propio) — la imagen
+# solo necesita deploy/render/
+deploy/*
+!deploy/render
+!deploy/render/**
+
+# Base local
+database/*.sqlite
+public/storage

@@ -1,0 +1,123 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# PoliticOS — Blueprint de Render (DEMO, plan gratuito)
+#
+# Backend Laravel 12 como web service Docker. La BD MySQL 8 vive en Aiven
+# (Render no ofrece MySQL). El frontend Next.js vive en Vercel.
+#
+# Uso: Render Dashboard → New → Blueprint → apuntar a este repo.
+# Las variables con `sync: false` se pegan en el dashboard (secretos).
+#
+# DEMO single-tenant: NO se define APP_TENANT_SLUG, así ResolveTenant usa la
+# base por defecto (DB_DATABASE=politicos) directamente, que es donde migramos.
+#
+# Plan free: sin disco persistente. Los uploads de media son EFÍMEROS (se
+# pierden en cada deploy). Suficiente para la demo. Para persistir: plan de
+# pago con `disk`, o MEDIA_DISK=s3 (config/filesystems.php ya soporta s3).
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  - type: web
+    name: politicos-api
+    runtime: docker
+    plan: free                    # $0 — duerme tras 15 min de inactividad (arranque frío ~1 min)
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /up          # Laravel 12 expone /up
+    autoDeploy: true
+
+    envVars:
+      # ── App ────────────────────────────────────────────────────────────
+      - key: APP_NAME
+        value: PoliticOS
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        sync: false               # pegar: el APP_KEY de tu .env (empieza con base64:)
+      - key: APP_URL
+        sync: false               # tras crear el servicio: https://politicos-api.onrender.com
+      - key: APP_LOCALE
+        value: es
+      - key: APP_FALLBACK_LOCALE
+        value: es
+
+      # ── Logs a stdout/stderr (visibles en Render → Logs) ───────────────
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: LOG_LEVEL
+        value: info
+
+      # ── Base de datos — MySQL 8 en Aiven ───────────────────────────────
+      # Host/puerto/base/usuario NO son secretos fuertes (el password protege);
+      # se dejan como valores para reducir pasos. Solo el password es secreto.
+      - key: DB_CONNECTION
+        value: mysql
+      - key: DB_HOST
+        value: mysql-32c17a52-eestars.h.aivencloud.com
+      - key: DB_PORT
+        value: "24867"
+      - key: DB_DATABASE
+        value: politicos
+      - key: DB_USERNAME
+        value: avnadmin
+      - key: DB_PASSWORD
+        sync: false               # pegar: el password de Aiven (el del ojito 👁)
+      # Certificado SSL de Aiven. ca.pem está commiteado en el repo y el
+      # Dockerfile lo copia a /var/www/html. Aiven exige SSL (ssl-mode=REQUIRED).
+      - key: MYSQL_ATTR_SSL_CA
+        value: /var/www/html/ca.pem
+
+      # ── Sin Redis (demo) ────────────────────────────────────────────────
+      - key: QUEUE_CONNECTION
+        value: sync               # jobs inline; sin worker de colas
+      - key: CACHE_STORE
+        value: file
+      - key: SESSION_DRIVER
+        value: database           # tabla sessions (creada por la migración 0001)
+
+      # ── CORS / Sanctum (ver config/cors.php) ────────────────────────────
+      - key: FRONTEND_URL
+        sync: false               # tras desplegar Vercel: https://<proyecto>.vercel.app  (SIN slash final)
+      - key: SANCTUM_STATEFUL_DOMAINS
+        sync: false               # <proyecto>.vercel.app  (sin https://)
+
+      # ── IA (chat) — Groq, que es la key que tienes activa ──────────────
+      - key: AI_PROVIDER
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false               # pegar: tu key gsk_... de console.groq.com
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: AI_MAX_TOKENS
+        value: "600"
+
+      # ── RAG sin Qdrant: FULLTEXT de MySQL 8 ─────────────────────────────
+      - key: AI_EMBEDDINGS_DRIVER
+        value: mysql_fulltext
+
+      # ── Storage de media (efímero en plan free) ─────────────────────────
+      - key: FILESYSTEM_DISK
+        value: local
+      - key: MEDIA_DISK
+        value: public
+
+      # ── Claves internas (Render las genera aleatorias y fuertes) ────────
+      - key: SUPER_ADMIN_KEY
+        generateValue: true
+      - key: INGEST_KEY
+        generateValue: true
+
+      # ── Control del entrypoint (deploy/render/entrypoint.sh) ────────────
+      # La BD ya está migrada y sembrada desde tu PC; en el deploy solo se
+      # revalida (idempotente). RUN_SEED en false para no re-sembrar.
+      - key: RUN_MIGRATIONS
+        value: "true"
+      - key: RUN_SEED
+        value: "false"
+
+      # ── Mail / broadcast (demo: a log) ──────────────────────────────────
+      - key: MAIL_MAILER
+        value: log
+      - key: BROADCAST_CONNECTION
+        value: log
