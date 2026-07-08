@@ -2,8 +2,40 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { TenantLink } from "@/components/ui/TenantLink";
-import { ArrowRight } from "lucide-react";
+import {
+  ArrowRight, Droplets, GraduationCap, HardHat, HeartPulse,
+  Landmark, ShieldCheck, TrendingUp, type LucideIcon,
+} from "lucide-react";
 import { api, type Proposal } from "@/lib/api";
+
+// Icono por topic (pilar) — matching flexible sobre el nombre libre del topic
+const TOPIC_ICONS: Array<[RegExp, LucideIcon]> = [
+  [/agua|saneamiento/i,                  Droplets],
+  [/infraestructura|obra|carretera|vial/i, HardHat],
+  [/salud/i,                             HeartPulse],
+  [/educaci/i,                           GraduationCap],
+  [/econom|empleo|agro|turismo/i,        TrendingUp],
+  [/seguridad/i,                         ShieldCheck],
+];
+
+function topicIcon(topic?: string | null): LucideIcon {
+  if (topic) {
+    for (const [re, icon] of TOPIC_ICONS) if (re.test(topic)) return icon;
+  }
+  return Landmark;
+}
+
+function TopicIcon({ topic }: { topic?: string | null }) {
+  const Icon = topicIcon(topic);
+  return (
+    <div
+      className="w-10 h-10 sm:w-11 sm:h-11 rounded-[12px] grid place-items-center mb-3 flex-shrink-0"
+      style={{ background: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 10%, transparent)" }}
+    >
+      <Icon size={20} aria-hidden style={{ color: "rgb(var(--brand-primary-rgb))" }} />
+    </div>
+  );
+}
 
 interface ProposalExtended extends Proposal {
   eje?: string | null;
@@ -80,8 +112,8 @@ export function Proposals({ initialData }: { initialData?: ProposalExtended[] })
           </p>
         </motion.div>
 
-        {/* Grid de propuestas — 3 columnas */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {/* Grid de tarjetas-pilar — 2 columnas en móvil, 4 en desktop */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-5">
           {displayProposals.map((p, i) => (
             <motion.article
               key={p.id}
@@ -89,10 +121,9 @@ export function Proposals({ initialData }: { initialData?: ProposalExtended[] })
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-40px" }}
               transition={{ duration: 0.45, delay: i * 0.07, type: "spring", stiffness: 80 }}
-              className="group relative bg-white rounded-[20px] overflow-hidden transition-all duration-300 cursor-default"
+              className="group relative bg-white rounded-[20px] overflow-hidden transition-all duration-300 cursor-default p-4 sm:p-6"
               style={{
                 border: "1px solid var(--page-line)",
-                padding: "34px 28px 30px",
               }}
               onMouseEnter={(e) => {
                 (e.currentTarget as HTMLElement).style.transform = "translateY(-6px)";
@@ -109,9 +140,9 @@ export function Proposals({ initialData }: { initialData?: ProposalExtended[] })
               <span
                 className="absolute select-none leading-none font-serif font-black pointer-events-none transition-colors duration-300"
                 style={{
-                  top: "-14px",
+                  top: "-10px",
                   right: "6px",
-                  fontSize: "120px",
+                  fontSize: "72px",
                   color: "color-mix(in srgb, var(--page-ink) 5%, transparent)",
                   lineHeight: 1,
                 }}
@@ -121,9 +152,12 @@ export function Proposals({ initialData }: { initialData?: ProposalExtended[] })
 
               {/* Contenido relativo */}
               <div className="relative z-10">
+                {/* Icono del pilar */}
+                <TopicIcon topic={p.topic} />
+
                 {/* Tag con pip */}
                 <span
-                  className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[.1em] mb-4"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[.1em] mb-3"
                   style={{ color: "rgb(var(--brand-primary-rgb))" }}
                 >
                   <span
@@ -140,22 +174,22 @@ export function Proposals({ initialData }: { initialData?: ProposalExtended[] })
 
                 {/* Título */}
                 <h3
-                  className="font-serif font-semibold leading-[1.14] mb-3"
-                  style={{ fontSize: "23px", color: "var(--page-ink)" }}
+                  className="font-serif font-semibold leading-[1.14] mb-2"
+                  style={{ fontSize: "clamp(16px, 1.6vw, 20px)", color: "var(--page-ink)" }}
                 >
                   {p.title}
                 </h3>
 
                 {/* Descripción */}
                 {p.description && (
-                  <p className="text-sm leading-relaxed" style={{ color: "#4c5b51" }}>
+                  <p className="text-xs sm:text-sm leading-relaxed line-clamp-3" style={{ color: "#4c5b51" }}>
                     {p.description.slice(0, 140)}{p.description.length > 140 ? "…" : ""}
                   </p>
                 )}
 
                 {/* Línea animada inferior */}
                 <div
-                  className="mt-5 h-[3px] w-10 rounded-full transition-all duration-350 group-hover:w-20"
+                  className="mt-4 h-[3px] w-10 rounded-full transition-all duration-350 group-hover:w-20"
                   style={{
                     background: "rgb(var(--brand-primary-rgb))",
                     transitionDuration: "350ms",

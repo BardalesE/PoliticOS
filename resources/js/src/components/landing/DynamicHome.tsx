@@ -6,6 +6,7 @@ import { Navbar }            from "@/components/ui/Navbar";
 import { Hero }              from "@/components/landing/Hero";
 import { StatsBar }          from "@/components/landing/StatsBar";
 import { ListaUnoBanner }    from "@/components/landing/ListaUnoBanner";
+import { Countdown }         from "@/components/landing/Countdown";
 import { AssistantPreview }  from "@/components/landing/AssistantPreview";
 import { LiveStreamBanner }  from "@/components/landing/LiveStreamBanner";
 
@@ -69,17 +70,20 @@ export default function DynamicHome({
 }: Props) {
   const settings = { ...DEFAULTS, ...(initialSettings ?? {}) };
 
+  // Orden mobile-first por capas de atención: gancho (hero + identidad +
+  // urgencia + prueba social) → oferta (propuestas) → confianza (multimedia,
+  // asistente, agenda, territorio) → profundidad (documentos, equipo) → cierre.
   return (
     <main className="landing-main">
       <LiveStreamBanner />
       <Navbar />
       {on(settings, "show_hero")       && <Hero initialHero={initialHero ?? null} />}
-      {on(settings, "show_hero")       && <StatsBar proposalsCount={initialProposals.length} />}
       {on(settings, "show_hero")       && <ListaUnoBanner />}
-      {on(settings, "show_assistant")  && <AssistantPreview />}
+      <Countdown featured={initialFeatured} electionDateIso={settings.election_date_iso} />
+      {on(settings, "show_hero")       && <StatsBar proposalsCount={initialProposals.length} />}
       {on(settings, "show_proposals")  && <Proposals initialData={initialProposals} />}
       {on(settings, "show_multimedia") && <MediaSection initialPhotos={initialGallery} initialVideos={initialVideos} />}
-      {on(settings, "show_documents")  && <DocumentsSection />}
+      {on(settings, "show_assistant")  && <AssistantPreview />}
       {on(settings, "show_events")     && (
         <EventsSection
           initialEvents={initialEvents}
@@ -90,9 +94,10 @@ export default function DynamicHome({
         />
       )}
       {on(settings, "show_districts")  && <Districts />}
+      {on(settings, "show_documents")  && <DocumentsSection />}
       {on(settings, "show_team")       && <TeamSection initialMembers={initialTeam} />}
-      {on(settings, "show_connection") && <Connection />}
       <OpinionSection />
+      {on(settings, "show_connection") && <Connection />}
       <Footer />
       <ChatFAB />
     </main>

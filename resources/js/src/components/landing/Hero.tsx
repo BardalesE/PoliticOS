@@ -1,10 +1,11 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import { TenantLink } from "@/components/ui/TenantLink";
-import { ChevronDown, Sparkles } from "lucide-react";
-import type { HeroSettings } from "@/lib/api";
+import { ChevronDown, LocateFixed, Search, Sparkles } from "lucide-react";
+import { resolveTenantSlug, withTenant, type HeroSettings } from "@/lib/api";
 import { useCandidate } from "@/context/CandidateContext";
 
 interface HeroProps {
@@ -45,8 +46,40 @@ const floatingOrbs = [
 ];
 
 export function Hero({ initialHero }: HeroProps) {
-  const { profile } = useCandidate();
+  const { profile, districts } = useCandidate();
   const [videoError, setVideoError] = useState(false);
+  const [zone, setZone] = useState("");
+  const router = useRouter();
+
+  // Navegación programática preservando ?tenant= (mismo mecanismo que TenantLink)
+  const goTenant = (href: string) => {
+    const slug = resolveTenantSlug();
+    router.push(slug ? withTenant(href, slug) : href);
+  };
+
+  // Búsqueda por zona: misma lógica que las tarjetas de Districts (plan local vía chat)
+  const handleZoneSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = zone.trim();
+    if (!q) return;
+    const match = districts.find((d) => d.toLowerCase().includes(q.toLowerCase()));
+    goTenant(`/chat?q=${encodeURIComponent(`¿Qué harás en ${match ?? q}?`)}`);
+  };
+
+  // "Mi zona": mismo mecanismo GPS del navegador que ya usa el chat (browser_lat/lng).
+  // TODO: mapear lat/lng → distrito cuando la API exponga ese lookup; mientras
+  // tanto lleva a la sección/página de territorios sin inventar backend.
+  const handleMyZone = () => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      () => {
+        const el = document.getElementById("caserios");
+        if (el) el.scrollIntoView({ behavior: "smooth" });
+        else goTenant("/distritos");
+      },
+      () => {} // silencioso si deniega, igual que en el chat
+    );
+  };
 
   const location = profile.location.split("·")[0].trim() || profile.location;
   const d = {
@@ -191,7 +224,7 @@ export function Hero({ initialHero }: HeroProps) {
           )}
 
           {/* CTAs */}
-          <motion.div variants={item} className="flex flex-wrap items-center gap-4 mb-12">
+          <motion.div variants={item} className="flex flex-wrap items-center gap-4 mb-6">
             {d.btn1_label && d.btn1_url && (
               <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
                 <TenantLink
@@ -236,6 +269,62 @@ export function Hero({ initialHero }: HeroProps) {
               </motion.div>
             )}
           </motion.div>
+
+          {/* Búsqueda por zona */}
+          <motion.form
+            variants={item}
+            role="search"
+            onSubmit={handleZoneSearch}
+            className={`flex w-full max-w-md items-stretch gap-1.5 mb-12 rounded-2xl p-1.5 ${
+              onDark
+                ? "bg-white/10 backdrop-blur-md border border-white/20"
+                : "bg-white border border-ink-200 shadow-sm"
+            }`}
+          >
+            <label htmlFor="hero-zone" className="sr-only">
+              Buscar propuestas por caserío o zona
+            </label>
+            <Search
+              size={16}
+              aria-hidden
+              className={`self-center ml-2 shrink-0 ${onDark ? "text-white/50" : "text-ink-400"}`}
+            />
+            <input
+              id="hero-zone"
+              list="hero-zone-list"
+              value={zone}
+              onChange={(e) => setZone(e.target.value)}
+              placeholder="Escribe tu caserío o zona…"
+              className={`flex-1 min-w-0 bg-transparent px-2 py-2.5 text-sm font-medium outline-none ${
+                onDark ? "text-white placeholder-white/50" : "text-ink-900 placeholder-ink-400"
+              }`}
+            />
+            <datalist id="hero-zone-list">
+              {districts.map((d) => (
+                <option key={d} value={d} />
+              ))}
+            </datalist>
+            <button
+              type="button"
+              onClick={handleMyZone}
+              aria-label="Detectar mi zona con mi ubicación"
+              className={`inline-flex items-center gap-1.5 px-3 rounded-xl text-xs font-extrabold uppercase tracking-wider shrink-0 transition-colors ${
+                onDark
+                  ? "border border-white/25 text-white hover:bg-white/10"
+                  : "border border-brand-200 text-brand-700 hover:bg-brand-50"
+              }`}
+            >
+              <LocateFixed size={13} aria-hidden />
+              <span className="hidden sm:inline">Mi zona</span>
+            </button>
+            <button
+              type="submit"
+              aria-label="Buscar propuestas en la zona"
+              className="inline-flex items-center justify-center px-3.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white shrink-0 transition-colors"
+            >
+              <Search size={15} aria-hidden />
+            </button>
+          </motion.form>
 
           {/* Status bar */}
           <motion.div

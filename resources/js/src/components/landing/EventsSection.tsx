@@ -6,21 +6,9 @@ import { CalendarDays, MapPin, Clock, ArrowRight, Radio, Zap } from "lucide-reac
 import { TenantLink } from "@/components/ui/TenantLink";
 import { homeApi, type CampaignEvent } from "@/lib/api";
 import { useCandidate } from "@/context/CandidateContext";
+import { useCountdown } from "@/hooks/useCountdown";
 
 const DEFAULT_ELECTION_ISO = "2026-10-04";
-
-interface TimeLeft { days: number; hours: number; minutes: number; seconds: number; }
-
-function getTimeLeft(target: Date): TimeLeft | null {
-  const diff = target.getTime() - Date.now();
-  if (isNaN(diff) || diff <= 0) return null;
-  return {
-    days:    Math.floor(diff / 86_400_000),
-    hours:   Math.floor((diff % 86_400_000) / 3_600_000),
-    minutes: Math.floor((diff % 3_600_000)  / 60_000),
-    seconds: Math.floor((diff % 60_000)     / 1_000),
-  };
-}
 
 function formatEventTime(dateStr: string): string {
   const d = new Date(dateStr);
@@ -173,7 +161,6 @@ export function EventsSection({
 
   const [events,   setEvents]   = useState<CampaignEvent[]>(initialEvents);
   const [featured, setFeatured] = useState<CampaignEvent | null>(initialFeatured);
-  const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null);
   const [countdownTarget, setCountdownTarget] = useState<Date>(() => {
     if (initialFeatured?.event_date) {
       const d = new Date(initialFeatured.event_date);
@@ -194,11 +181,7 @@ export function EventsSection({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    setTimeLeft(getTimeLeft(countdownTarget));
-    const id = setInterval(() => setTimeLeft(getTimeLeft(countdownTarget)), 1_000);
-    return () => clearInterval(id);
-  }, [countdownTarget]);
+  const timeLeft = useCountdown(countdownTarget);
 
   const validFeatured = featured?.event_date ? featured : null;
   const displayEvent = validFeatured ?? events.find((e) => new Date(e.event_date) >= new Date()) ?? null;
