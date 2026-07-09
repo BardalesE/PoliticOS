@@ -6,20 +6,22 @@ import { CalendarDays, MapPin, Clock, ArrowRight, Radio, Zap } from "lucide-reac
 import { TenantLink } from "@/components/ui/TenantLink";
 import { homeApi, type CampaignEvent } from "@/lib/api";
 import { useCandidate } from "@/context/CandidateContext";
+import { useCountdown } from "@/hooks/useCountdown";
 
+// TODO: mover a config del tenant (backend) — hoy el default vive en el frontend.
 const DEFAULT_ELECTION_ISO = "2026-10-04";
 
-interface TimeLeft { days: number; hours: number; minutes: number; seconds: number; }
+function sameCalendarDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
 
-function getTimeLeft(target: Date): TimeLeft | null {
-  const diff = target.getTime() - Date.now();
-  if (isNaN(diff) || diff <= 0) return null;
-  return {
-    days:    Math.floor(diff / 86_400_000),
-    hours:   Math.floor((diff % 86_400_000) / 3_600_000),
-    minutes: Math.floor((diff % 3_600_000)  / 60_000),
-    seconds: Math.floor((diff % 60_000)     / 1_000),
-  };
+function isFutureDate(dateStr: string): boolean {
+  const t = new Date(dateStr).getTime();
+  return !isNaN(t) && t > Date.now();
 }
 
 function formatEventTime(dateStr: string): string {
@@ -163,46 +165,63 @@ export function EventsSection({
   electionDateIso?: string;
 }) {
   const { profile } = useCandidate();
+
+  // Fecha de elección: viene de home-settings (election_date_iso). Si el valor
+  // configurado es inválido o quedó en el pasado (dato desactualizado del
+  // tenant), cae al default nacional; si ese también pasó, no hay objetivo.
+  // El día exacto de la elección cuenta como vigente (para el "¡Es hoy!").
   const electionDate = useMemo(() => {
-    if (electionDateIso) {
-      const d = new Date(electionDateIso + "T08:00:00");
-      if (!isNaN(d.getTime())) return d;
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    for (const iso of [electionDateIso, DEFAULT_ELECTION_ISO]) {
+      if (!iso) continue;
+      const d = new Date(iso + "T08:00:00");
+      if (!isNaN(d.getTime()) && d >= startOfToday) return d;
     }
-    return new Date(DEFAULT_ELECTION_ISO + "T08:00:00");
+    return null;
   }, [electionDateIso]);
 
   const [events,   setEvents]   = useState<CampaignEvent[]>(initialEvents);
   const [featured, setFeatured] = useState<CampaignEvent | null>(initialFeatured);
-  const [timeLeft, setTimeLeft] = useState<TimeLeft | null>(null);
-  const [countdownTarget, setCountdownTarget] = useState<Date>(() => {
-    if (initialFeatured?.event_date) {
-      const d = new Date(initialFeatured.event_date);
-      if (!isNaN(d.getTime())) return d;
-    }
-    return new Date((electionDateIso ?? DEFAULT_ELECTION_ISO) + "T08:00:00");
-  });
 
   useEffect(() => {
     if (initialEvents.length || initialFeatured) return;
     homeApi.events().then(setEvents).catch(() => {});
     homeApi.featuredEvent().then((data) => {
-      if (data?.event_date) {
-        const d = new Date(data.event_date);
-        if (!isNaN(d.getTime())) { setFeatured(data); setCountdownTarget(d); }
-      }
+      if (data?.event_date) setFeatured(data);
     }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    setTimeLeft(getTimeLeft(countdownTarget));
-    const id = setInterval(() => setTimeLeft(getTimeLeft(countdownTarget)), 1_000);
-    return () => clearInterval(id);
-  }, [countdownTarget]);
+  // Solo eventos con fecha futura cuentan como "próximos": un destacado o un
+  // evento ya realizado no debe aparecer ni como target del countdown ni en la
+  // lista "También próximamente".
+  const validFeatured =
+    featured?.event_date && isFutureDate(featured.event_date) ? featured : null;
+  const futureEvents = events.filter((e) => isFutureDate(e.event_date));
+  const displayEvent = validFeatured ?? futureEvents[0] ?? null;
+  // Comparación por id: featured viene de otro endpoint, así que el mismo
+  // evento llega como otro objeto y la comparación por referencia lo duplicaba.
+  const upcomingEvents = futureEvents.filter((e) => e.id !== displayEvent?.id).slice(0, 3);
 
-  const validFeatured = featured?.event_date ? featured : null;
-  const displayEvent = validFeatured ?? events.find((e) => new Date(e.event_date) >= new Date()) ?? null;
-  const upcomingEvents = events.filter((e) => e !== displayEvent).slice(0, 3);
+  const countdownTarget = useMemo(() => {
+    if (displayEvent) {
+      const d = new Date(displayEvent.event_date);
+      if (!isNaN(d.getTime())) return d;
+    }
+    return electionDate;
+  }, [displayEvent, electionDate]);
+
+  const timeLeft = useCountdown(countdownTarget);
+
+  // "¡Es hoy!" solo el día calendario exacto del objetivo (año+mes+día), nunca
+  // por el mero hecho de que la fecha ya pasó. Se evalúa tras montar para usar
+  // el reloj del cliente (el server puede estar en otra zona horaria).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const isTargetToday =
+    mounted && !timeLeft && !!countdownTarget && sameCalendarDay(countdownTarget, new Date());
+
   const df = displayEvent ? formatEventDate(displayEvent.event_date) : null;
   const eventTime = displayEvent ? formatEventTime(displayEvent.event_date) : null;
 
@@ -280,7 +299,7 @@ export function EventsSection({
                     <Sep />
                     <Digit value={timeLeft.seconds} label="seg" />
                   </div>
-                ) : (
+                ) : isTargetToday ? (
                   <motion.p
                     animate={{ scale: [1, 1.04, 1] }}
                     transition={{ duration: 1.5, repeat: Infinity }}
@@ -289,6 +308,10 @@ export function EventsSection({
                   >
                     ¡Es hoy! 🗳️
                   </motion.p>
+                ) : (
+                  // Sin objetivo vigente (o aún calculando en cliente): no
+                  // afirmar nada; las filas de fecha/hora/lugar siguen abajo.
+                  <p className="font-serif text-2xl font-bold text-ink-300">—</p>
                 )}
               </div>
 
@@ -299,7 +322,7 @@ export function EventsSection({
                   <div>
                     <p className="text-[9px] text-brand-500 font-bold uppercase tracking-wider">Fecha</p>
                     <p className="text-sm font-semibold text-ink-800">
-                      {df?.full ?? (profile.election_date || electionDate.toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" }))}
+                      {df?.full ?? (profile.election_date || electionDate?.toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" }) || "Por anunciar")}
                     </p>
                   </div>
                 </div>
