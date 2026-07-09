@@ -71,6 +71,10 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
     Route::get('/proposals',      [ProposalController::class, 'index']);
     Route::get('/proposals/{id}', [ProposalController::class, 'show']);
 
+    // ─── Portal de transparencia (público) ────────────────────────────
+    // Lista filtrada de documentos activos, sin el texto completo (`content`).
+    Route::get('/knowledge', [KnowledgeDocumentController::class, 'publicIndex']);
+
     // ─── Videos URL (público) ────────────────────────────────────────
     Route::get('/videos', [VideoController::class, 'index']);
 
