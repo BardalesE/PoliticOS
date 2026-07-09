@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import { Navbar }            from "@/components/ui/Navbar";
 import { Hero }              from "@/components/landing/Hero";
 import { StatsBar }          from "@/components/landing/StatsBar";
-import { ListaUnoBanner }    from "@/components/landing/ListaUnoBanner";
 import { Countdown }         from "@/components/landing/Countdown";
 import { AssistantPreview }  from "@/components/landing/AssistantPreview";
 import { LiveStreamBanner }  from "@/components/landing/LiveStreamBanner";
@@ -39,6 +38,7 @@ const DEFAULTS: HomeSettings = {
   show_events:        "1",
   show_districts:     "1",
   show_team:          "1",
+  show_opinion:       "1",
   show_connection:    "1",
   events_title:       "Próximos encuentros con el pueblo.",
   events_badge:       "Agenda",
@@ -80,9 +80,8 @@ export default function DynamicHome({
       <LiveStreamBanner />
       <Navbar />
       {on(settings, "show_hero")       && <Hero initialHero={initialHero ?? null} />}
-      {on(settings, "show_hero")       && <ListaUnoBanner />}
       <Countdown featured={initialFeatured} electionDateIso={settings.election_date_iso} />
-      {on(settings, "show_hero")       && <StatsBar proposalsCount={initialProposals.length} />}
+      {on(settings, "show_hero")       && <StatsBar proposalsCount={initialProposals.length} settings={settings} />}
       {on(settings, "show_bio")        && <BioSection />}
       {on(settings, "show_proposals")  && <Proposals initialData={initialProposals} />}
       {on(settings, "show_multimedia") && <MediaSection initialPhotos={initialGallery} initialVideos={initialVideos} />}
@@ -99,7 +98,7 @@ export default function DynamicHome({
       {on(settings, "show_districts")  && <Districts />}
       {on(settings, "show_documents")  && <DocumentsSection />}
       {on(settings, "show_team")       && <TeamSection initialMembers={initialTeam} />}
-      <OpinionSection />
+      {on(settings, "show_opinion")    && <OpinionSection />}
       {on(settings, "show_connection") && <Connection />}
       <Footer />
       <ChatFAB />

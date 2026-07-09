@@ -4,18 +4,19 @@ import { motion } from "framer-motion";
 import { useCandidate } from "@/context/CandidateContext";
 import { TenantLink } from "@/components/ui/TenantLink";
 
+// Las anclas usan la forma /#id para funcionar también desde otras páginas.
 const contentLinks = [
-  { href: "/propuestas", label: "Propuestas" },
-  { href: "/distritos",  label: "Caseríos" },
-  { href: "/galeria",    label: "Galería" },
-  { href: "/videos",     label: "Videos" },
-  { href: "/documentos", label: "Documentos" },
+  { href: "/propuestas",   label: "Propuestas" },
+  { href: "/distritos",    label: "Caseríos" },
+  { href: "/galeria",      label: "Galería" },
+  { href: "/videos",       label: "Videos" },
+  { href: "/#documentos",  label: "Documentos" },
 ];
 
 const participaLinks = [
-  { href: "/#agenda",         label: "Agenda" },
+  { href: "/#eventos",        label: "Agenda" },
   { href: "/#servicios",      label: "Servicios" },
-  { href: "/#opinion",        label: "Tu voz" },
+  { href: "/#opiniones",      label: "Tu voz" },
   { href: "/en-vivo",         label: "En vivo" },
   { href: "/chat",            label: "Chatbot IA" },
 ];

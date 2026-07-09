@@ -89,7 +89,7 @@ export function Hero({ initialHero }: HeroProps) {
     btn1_label: initialHero?.btn1_label      ?? "Conocer propuestas",
     btn1_url:   initialHero?.btn1_url        ?? "/propuestas",
     btn2_label: initialHero?.btn2_label      ?? "Sobre el candidato",
-    btn2_url:   initialHero?.btn2_url        ?? "#sobre",
+    btn2_url:   initialHero?.btn2_url        ?? "#bio",
     btn3_label: initialHero?.btn3_label      ?? null,
     btn3_url:   initialHero?.btn3_url        ?? null,
     video_url:      initialHero?.video_url       ?? null,

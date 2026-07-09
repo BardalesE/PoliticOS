@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageSquarePlus, Send, CheckCircle2, MapPin, User, ChevronDown } from "lucide-react";
+import { TenantLink } from "@/components/ui/TenantLink";
 import { useCandidate } from "@/context/CandidateContext";
 
 interface FormState {
@@ -30,26 +31,27 @@ export function OpinionSection() {
 
   const shortName = profile.name.split(" ")[0];
 
+  // WhatsApp es hoy el único canal real de esta sección: sin número
+  // configurado no hay a dónde enviar el mensaje, así que no se simula
+  // un envío exitoso — se deshabilita el submit y se ofrece el chat.
+  const channelAvailable = !!profile.whatsapp_number;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.message.trim()) return;
+    if (!form.message.trim() || !channelAvailable) return;
     setLoading(true);
 
-    // Si hay WhatsApp, abre con el mensaje pre-armado
-    if (profile.whatsapp_number) {
-      const text = [
-        `*Opinión ciudadana — Campaña ${shortName}*`,
-        form.name    ? `👤 ${form.name}`    : "",
-        form.district? `📍 ${form.district}` : "",
-        form.topic   ? `🏷 ${form.topic}`    : "",
-        `💬 ${form.message}`,
-      ].filter(Boolean).join("\n");
+    const text = [
+      `*Opinión ciudadana — Campaña ${shortName}*`,
+      form.name    ? `👤 ${form.name}`    : "",
+      form.district? `📍 ${form.district}` : "",
+      form.topic   ? `🏷 ${form.topic}`    : "",
+      `💬 ${form.message}`,
+    ].filter(Boolean).join("\n");
 
-      const number = profile.whatsapp_number.replace(/[^0-9]/g, "");
-      window.open(`https://wa.me/${number}?text=${encodeURIComponent(text)}`, "_blank");
-    }
+    const number = profile.whatsapp_number!.replace(/[^0-9]/g, "");
+    window.open(`https://wa.me/${number}?text=${encodeURIComponent(text)}`, "_blank");
 
-    // Simular envío (200ms) y mostrar éxito
     await new Promise((r) => setTimeout(r, 800));
     setLoading(false);
     setSent(true);
@@ -226,7 +228,7 @@ export function OpinionSection() {
                     {/* Submit */}
                     <motion.button
                       type="submit"
-                      disabled={loading || !form.message.trim()}
+                      disabled={loading || !form.message.trim() || !channelAvailable}
                       whileHover={{ scale: loading ? 1 : 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl text-sm font-extrabold uppercase tracking-wider text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -247,11 +249,19 @@ export function OpinionSection() {
                       )}
                     </motion.button>
 
-                    <p className="text-center text-[11px] text-ink-400 font-medium">
-                      {profile.whatsapp_number
-                        ? "Se enviará vía WhatsApp al equipo de campaña."
-                        : "Tu mensaje será revisado por el equipo de campaña."}
-                    </p>
+                    {channelAvailable ? (
+                      <p className="text-center text-[11px] text-ink-400 font-medium">
+                        Se enviará vía WhatsApp al equipo de campaña.
+                      </p>
+                    ) : (
+                      <p className="text-center text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                        Este canal aún no está disponible. Mientras tanto puedes{" "}
+                        <TenantLink href="/chat" className="font-bold underline underline-offset-2">
+                          escribirle al asistente de {shortName}
+                        </TenantLink>
+                        .
+                      </p>
+                    )}
                   </motion.form>
                 ) : (
                   <motion.div

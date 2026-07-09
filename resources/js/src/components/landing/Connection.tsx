@@ -1,6 +1,7 @@
 "use client";
 import { motion } from "framer-motion";
 import { Facebook, MessageCircle, ExternalLink, Instagram, ArrowUpRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useCandidate } from "@/context/CandidateContext";
 
 export function Connection() {
@@ -77,7 +78,14 @@ export function Connection() {
         </motion.div>
 
         {socialLinks.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
+          // Con una sola red social la tarjeta va centrada en una columna,
+          // no colgada en la celda izquierda de un grid de 2.
+          <div
+            className={cn(
+              "grid grid-cols-1 gap-4 mx-auto",
+              socialLinks.length > 1 ? "sm:grid-cols-2 max-w-2xl" : "max-w-md"
+            )}
+          >
             {socialLinks.map((s, i) => {
               const Icon = s.icon;
               return (

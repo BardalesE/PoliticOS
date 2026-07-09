@@ -16,15 +16,17 @@ export function AssistantPreview() {
       desc:  "Envía tu opinión y propuesta directamente al equipo.",
       to:    "chat",
     },
+    // Ambas tarjetas apuntan al ancla de DocumentsSection: las rutas
+    // /transparencia y /documentos no existen en app/ y eran 404 reales.
     {
-      href:  "/transparencia",
+      href:  "#documentos",
       icon:  Flag,
       title: "Portal de Transparencia",
       desc:  "Consulta el financiamiento y los gastos de campaña.",
       to:    "transparencia",
     },
     {
-      href:  "/documentos",
+      href:  "#documentos",
       icon:  FileText,
       title: "Documentos públicos",
       desc:  "Plan de gobierno, hoja de vida y declaraciones juradas.",
@@ -81,7 +83,7 @@ export function AssistantPreview() {
             const isEven = i % 2 === 1;
             return (
               <motion.div
-                key={s.href}
+                key={s.to}
                 initial={{ opacity: 0, y: 28 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-60px" }}
