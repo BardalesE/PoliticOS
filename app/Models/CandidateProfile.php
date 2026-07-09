@@ -19,6 +19,15 @@ class CandidateProfile extends Model
         'campaign_slogan', 'attack_response_style',
     ];
 
+    // Configuración interna del AI (system prompt): nunca debe salir en
+    // ninguna respuesta JSON. CivicAIService la lee por atributo, así que
+    // ocultarla de la serialización no afecta al chat.
+    protected $hidden = [
+        'personality_traits', 'biography_long', 'signature_phrases',
+        'forbidden_topics', 'priority_topics', 'target_segments',
+        'campaign_slogan', 'attack_response_style',
+    ];
+
     protected $casts = [
         'is_active'          => 'boolean',
         'personality_traits' => 'array',
