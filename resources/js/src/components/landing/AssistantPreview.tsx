@@ -69,7 +69,7 @@ export function AssistantPreview() {
             Estamos para{" "}
             <em className="not-italic" style={{ color: "rgb(var(--brand-primary-rgb))" }}>servirte.</em>
           </h2>
-          <p className="mt-3 text-base" style={{ color: "#4c5b51" }}>
+          <p className="mt-3 text-base" style={{ color: "var(--page-ink-soft)" }}>
             Canales directos entre tú y la campaña. Transparencia y respuesta en cada paso.
           </p>
         </motion.div>
@@ -130,7 +130,7 @@ export function AssistantPreview() {
                   >
                     {s.title}
                   </h3>
-                  <p className="text-sm leading-relaxed flex-1" style={{ color: "#4c5b51" }}>
+                  <p className="text-sm leading-relaxed flex-1" style={{ color: "var(--page-ink-soft)" }}>
                     {s.desc}
                   </p>
 

@@ -26,6 +26,7 @@ export default {
           50:  "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 6%, white)",
           100: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 14%, white)",
           200: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 30%, white)",
+          300: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 50%, white)",
           400: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 70%, white)",
           500: "rgb(var(--brand-primary-rgb) / <alpha-value>)",
           600: "rgb(var(--brand-dark-rgb) / <alpha-value>)",
@@ -74,6 +75,29 @@ export default {
         sans:    ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
         serif:   ["var(--font-serif)", "Source Serif 4", "Georgia", "serif"],
         display: ["var(--font-serif)", "Source Serif 4", "Georgia", "serif"],
+      },
+      // Escala tipográfica de la landing — mobile-first vía clamp().
+      // Consolida los valores que las secciones usaban inline; usar
+      // text-display/h1/h2/h3 en componentes nuevos, no clamp() a mano.
+      fontSize: {
+        display: ["clamp(31px, 4.4vw, 50px)", { lineHeight: "1.04" }],
+        h1:      ["clamp(28px, 3.6vw, 40px)", { lineHeight: "1.08" }],
+        h2:      ["clamp(22px, 3vw, 30px)",   { lineHeight: "1.12" }],
+        h3:      ["clamp(16px, 1.6vw, 20px)", { lineHeight: "1.14" }],
+        body:    ["1rem",     { lineHeight: "1.625" }],
+        small:   ["0.875rem", { lineHeight: "1.5" }],
+        caption: ["0.75rem",  { lineHeight: "1.4" }],
+      },
+      // Radios y sombras de la landing como tokens (rounded-card/modal,
+      // shadow-soft/lift/modal) en vez de valores ad-hoc por componente.
+      borderRadius: {
+        card:  "20px",
+        modal: "24px",
+      },
+      boxShadow: {
+        soft:  "0 2px 12px rgba(0,0,0,0.05)",
+        lift:  "0 30px 60px -34px var(--page-shadow)",
+        modal: "0 32px 80px rgba(0,0,0,0.35)",
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",

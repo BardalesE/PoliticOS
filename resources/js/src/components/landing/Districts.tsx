@@ -39,7 +39,7 @@ export function Districts() {
               nuestra tierra.
             </em>
           </h2>
-          <p className="mt-3 text-base" style={{ color: "#4c5b51" }}>
+          <p className="mt-3 text-base" style={{ color: "var(--page-ink-soft)" }}>
             Haz clic en tu caserío para ver qué haremos por ti. Cada comunidad tiene su propio plan.
           </p>
         </motion.div>

@@ -116,7 +116,7 @@ export function BioSection() {
               )}
             </h2>
             {paragraphs.map((p, i) => (
-              <p key={i} className="text-base leading-relaxed mb-4" style={{ color: "#4c5b51" }}>
+              <p key={i} className="text-base leading-relaxed mb-4" style={{ color: "var(--page-ink-soft)" }}>
                 {p}
               </p>
             ))}
@@ -147,7 +147,7 @@ export function BioSection() {
                     {m.title}
                   </p>
                   {m.detail && (
-                    <p className="text-sm leading-relaxed mt-1" style={{ color: "#4c5b51" }}>
+                    <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--page-ink-soft)" }}>
                       {m.detail}
                     </p>
                   )}

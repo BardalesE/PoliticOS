@@ -68,7 +68,7 @@ export function TeamSection({ initialMembers }: { initialMembers?: TeamMember[] 
             Las personas detrás del{" "}
             <em className="not-italic" style={{ color: "rgb(var(--brand-dark-rgb))" }}>cambio.</em>
           </h2>
-          <p className="mt-3 text-base" style={{ color: "#4c5b51" }}>
+          <p className="mt-3 text-base" style={{ color: "var(--page-ink-soft)" }}>
             Un equipo comprometido, con experiencia en gestión pública y trabajo de campo.
           </p>
         </motion.div>

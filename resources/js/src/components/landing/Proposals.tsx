@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { TenantLink } from "@/components/ui/TenantLink";
+import { Modal } from "@/components/ui/Modal";
 import {
-  ArrowRight, Droplets, GraduationCap, HardHat, HeartPulse,
-  Landmark, ShieldCheck, TrendingUp, type LucideIcon,
+  ArrowRight, Droplets, FileText, GraduationCap, HardHat, HeartPulse,
+  Landmark, MapPin, ShieldCheck, TrendingUp, X, type LucideIcon,
 } from "lucide-react";
 import { api, type Proposal } from "@/lib/api";
 
@@ -42,6 +43,96 @@ interface ProposalExtended extends Proposal {
   year_range?: string | null;
 }
 
+const STATUS_LABEL: Record<ProposalExtended["status"], string> = {
+  propuesta:  "Propuesta",
+  en_curso:   "En curso",
+  completada: "Completada",
+};
+
+// ── Modal de detalle de propuesta ─────────────────────────────────────────────
+function ProposalModal({
+  proposal,
+  onClose,
+}: {
+  proposal: ProposalExtended;
+  onClose: () => void;
+}) {
+  const Icon = topicIcon(proposal.topic);
+
+  return (
+    <Modal label={proposal.title} onClose={onClose} style={{ maxHeight: "min(85vh, 680px)" }}>
+        {proposal.image && (
+          <img
+            src={proposal.image}
+            alt=""
+            className="w-full h-44 object-cover flex-shrink-0"
+          />
+        )}
+
+        <div className="p-6 sm:p-7 overflow-y-auto">
+          <div className="flex items-start justify-between gap-4">
+            <div
+              className="w-11 h-11 rounded-[12px] grid place-items-center flex-shrink-0"
+              style={{ background: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 10%, transparent)" }}
+            >
+              <Icon size={22} aria-hidden style={{ color: "rgb(var(--brand-primary-rgb))" }} />
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl transition-colors hover:bg-black/5"
+              style={{ color: "var(--page-ink)" }}
+              aria-label="Cerrar"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <span
+            className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[.1em] mt-4"
+            style={{ color: "rgb(var(--brand-primary-rgb))" }}
+          >
+            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: "rgb(var(--brand-dark-rgb))" }} />
+            {proposal.topic ?? "propuesta"}
+            <span className="ml-1 opacity-60 font-semibold normal-case tracking-normal">
+              · {STATUS_LABEL[proposal.status]}
+            </span>
+          </span>
+
+          <h3
+            className="font-serif font-semibold leading-[1.12] mt-2"
+            style={{ fontSize: "clamp(22px,3vw,30px)", color: "var(--page-ink)" }}
+          >
+            {proposal.title}
+          </h3>
+
+          {proposal.district && (
+            <p className="flex items-center gap-1.5 text-sm font-semibold mt-2" style={{ color: "var(--page-ink)" }}>
+              <MapPin size={14} aria-hidden style={{ color: "rgb(var(--brand-primary-rgb))" }} />
+              {proposal.district}
+            </p>
+          )}
+
+          <p className="text-[15px] leading-relaxed mt-4 whitespace-pre-line" style={{ color: "var(--page-ink-soft)" }}>
+            {proposal.description}
+          </p>
+
+          {proposal.document_url && (
+            <a
+              href={proposal.document_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 mt-5 text-sm font-bold pb-0.5"
+              style={{ color: "var(--page-ink)", borderBottom: "2px solid rgb(var(--brand-primary-rgb))" }}
+            >
+              <FileText size={15} style={{ color: "rgb(var(--brand-primary-rgb))" }} />
+              Ver documento de la propuesta
+            </a>
+          )}
+        </div>
+    </Modal>
+  );
+}
+
 const FALLBACK: ProposalExtended[] = [
   { id: 1, title: "Agua potable para todos los caseríos", description: "Sistema integral de agua y saneamiento con financiamiento regional y mantenimiento garantizado.", district: null, topic: "agua", status: "propuesta" as const },
   { id: 2, title: "Carreteras y conectividad rural", description: "Pavimentación de vías secundarias y puentes que conecten cada comunidad con su mercado.", district: null, topic: "infraestructura", status: "propuesta" as const },
@@ -57,6 +148,7 @@ export function Proposals({ initialData }: { initialData?: ProposalExtended[] })
     return [...initialData].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99)).slice(0, 6);
   });
   const [loaded, setLoaded] = useState(!!initialData?.length);
+  const [active, setActive] = useState<ProposalExtended | null>(null);
 
   useEffect(() => {
     if (initialData?.length) return;
@@ -107,7 +199,7 @@ export function Proposals({ initialData }: { initialData?: ProposalExtended[] })
               primeros 100 días.
             </em>
           </h2>
-          <p className="mt-3 text-base" style={{ color: "#4c5b51" }}>
+          <p className="mt-3 text-base" style={{ color: "var(--page-ink-soft)" }}>
             Compromisos medibles, con fechas y responsables.
           </p>
         </motion.div>
@@ -121,9 +213,19 @@ export function Proposals({ initialData }: { initialData?: ProposalExtended[] })
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-40px" }}
               transition={{ duration: 0.45, delay: i * 0.07, type: "spring", stiffness: 80 }}
-              className="group relative bg-white rounded-[20px] overflow-hidden transition-all duration-300 cursor-default p-4 sm:p-6"
+              className="group relative bg-white rounded-[20px] overflow-hidden transition-all duration-300 cursor-pointer p-4 sm:p-6"
               style={{
                 border: "1px solid var(--page-line)",
+              }}
+              role="button"
+              tabIndex={0}
+              aria-label={`Ver detalle: ${p.title}`}
+              onClick={() => setActive(p)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setActive(p);
+                }
               }}
               onMouseEnter={(e) => {
                 (e.currentTarget as HTMLElement).style.transform = "translateY(-6px)";
@@ -182,7 +284,7 @@ export function Proposals({ initialData }: { initialData?: ProposalExtended[] })
 
                 {/* Descripción */}
                 {p.description && (
-                  <p className="text-xs sm:text-sm leading-relaxed line-clamp-3" style={{ color: "#4c5b51" }}>
+                  <p className="text-xs sm:text-sm leading-relaxed line-clamp-3" style={{ color: "var(--page-ink-soft)" }}>
                     {p.description.slice(0, 140)}{p.description.length > 140 ? "…" : ""}
                   </p>
                 )}
@@ -224,6 +326,11 @@ export function Proposals({ initialData }: { initialData?: ProposalExtended[] })
           </TenantLink>
         </motion.div>
       </div>
+
+      {/* Modal de detalle */}
+      <AnimatePresence>
+        {active && <ProposalModal proposal={active} onClose={() => setActive(null)} />}
+      </AnimatePresence>
     </section>
   );
 }

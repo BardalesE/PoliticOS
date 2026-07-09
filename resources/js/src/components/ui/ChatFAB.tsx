@@ -5,8 +5,8 @@ import { TenantLink } from "@/components/ui/TenantLink";
 
 const SZ = {
   sm: { pill: "px-3 py-2",  icon: "w-5 h-5", circle: "w-10 h-10", text: "text-xs",   sub: "text-[10px]" },
-  md: { pill: "px-4 py-3",  icon: "w-6 h-6", circle: "w-13 h-13", text: "text-sm",   sub: "text-xs"     },
-  lg: { pill: "px-5 py-4",  icon: "w-7 h-7", circle: "w-15 h-15", text: "text-base", sub: "text-[11px]" },
+  md: { pill: "px-4 py-3",  icon: "w-6 h-6", circle: "w-12 h-12", text: "text-sm",   sub: "text-xs"     },
+  lg: { pill: "px-5 py-4",  icon: "w-7 h-7", circle: "w-14 h-14", text: "text-base", sub: "text-[11px]" },
 };
 
 function WhatsAppIcon({ className }: { className?: string }) {
