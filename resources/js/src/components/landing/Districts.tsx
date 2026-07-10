@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { TenantLink } from "@/components/ui/TenantLink";
 import { Modal } from "@/components/ui/Modal";
@@ -35,15 +36,22 @@ function PlaceCard({ place, onOpen }: { place: VisitedPlace; onOpen: () => void 
       style={{ border: "1px solid var(--page-line)" }}
     >
       <div
-        className="h-24 w-full bg-cover bg-center"
+        className="relative h-24 w-full overflow-hidden"
         style={{
-          backgroundImage: place.highlight_photo_url ? `url(${place.highlight_photo_url})` : undefined,
           background: place.highlight_photo_url
             ? undefined
             : "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 8%, #ebebeb)",
         }}
       >
-        {!place.highlight_photo_url && (
+        {place.highlight_photo_url ? (
+          <Image
+            src={place.highlight_photo_url}
+            alt={`Foto de ${place.name}`}
+            fill
+            sizes="(max-width: 640px) 50vw, 240px"
+            className="object-cover"
+          />
+        ) : (
           <div className="w-full h-full grid place-items-center">
             <MapPin size={22} style={{ color: "rgb(var(--brand-primary-rgb))" }} />
           </div>
@@ -71,7 +79,15 @@ function PlaceDetail({ place, onClose }: { place: VisitedPlace; onClose: () => v
   return (
     <Modal onClose={onClose} label={place.name} className="max-w-lg">
       {place.highlight_photo_url && (
-        <div className="h-48 w-full bg-cover bg-center" style={{ backgroundImage: `url(${place.highlight_photo_url})` }} />
+        <div className="relative h-48 w-full overflow-hidden">
+          <Image
+            src={place.highlight_photo_url}
+            alt={`Foto de ${place.name}`}
+            fill
+            sizes="(max-width: 640px) 100vw, 512px"
+            className="object-cover"
+          />
+        </div>
       )}
       <div className="p-6">
         <button

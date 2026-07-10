@@ -40,7 +40,9 @@ export default {
           100: "#F5F5F5",
           200: "#E5E5E5",
           300: "#D4D4D4",
-          400: "#A3A3A3",
+          // AA sobre blanco (4.54:1) — era #A3A3A3 (~2.5:1), ilegible a sol
+          // directo; ink-400 es el tono de texto secundario/meta en toda la home.
+          400: "#767676",
           500: "#5C5852",
           600: "#404040",
           700: "#262626",

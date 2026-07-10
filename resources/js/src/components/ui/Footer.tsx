@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCandidate } from "@/context/CandidateContext";
@@ -50,11 +51,11 @@ export function Footer() {
             {/* Badge + meta */}
             <div className="flex items-center gap-3 mb-4">
               <div
-                className="w-12 h-12 rounded-[13px] grid place-items-center text-white font-serif font-bold text-xl flex-shrink-0 overflow-hidden"
+                className="relative w-12 h-12 rounded-[13px] grid place-items-center text-white font-serif font-bold text-xl flex-shrink-0 overflow-hidden"
                 style={{ background: "linear-gradient(150deg, rgb(var(--brand-primary-rgb)), rgb(var(--brand-dark-rgb)))" }}
               >
                 {profile.logo_url ? (
-                  <img src={profile.logo_url} alt={profile.party || "Logo"} className="w-full h-full object-cover" />
+                  <Image src={profile.logo_url} alt={profile.party || "Logo"} fill sizes="48px" className="object-cover" />
                 ) : (
                   profile.list_number || "1"
                 )}

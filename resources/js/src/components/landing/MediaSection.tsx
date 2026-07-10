@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { Camera, Film, Play, ArrowRight, ImageIcon } from "lucide-react";
 import { TenantLink } from "@/components/ui/TenantLink";
@@ -61,11 +62,12 @@ function FeedCard({ item }: { item: FeedItem }) {
       style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.18)" }}
     >
       {thumb ? (
-        <img
+        <Image
           src={thumb}
           alt={title}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-110"
-          loading="lazy"
+          fill
+          sizes="256px"
+          className="object-cover transition-transform duration-500 group-hover/card:scale-110"
         />
       ) : (
         <div className="w-full h-full bg-brand-100 flex items-center justify-center">

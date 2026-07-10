@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { TenantLink } from "@/components/ui/TenantLink";
 import { Modal } from "@/components/ui/Modal";
@@ -62,11 +63,15 @@ function ProposalModal({
   return (
     <Modal label={proposal.title} onClose={onClose} style={{ maxHeight: "min(85vh, 680px)" }}>
         {proposal.image && (
-          <img
-            src={proposal.image}
-            alt=""
-            className="w-full h-44 object-cover flex-shrink-0"
-          />
+          <div className="relative w-full h-44 flex-shrink-0">
+            <Image
+              src={proposal.image}
+              alt={`Imagen de la propuesta: ${proposal.title}`}
+              fill
+              sizes="(max-width: 640px) 100vw, 576px"
+              className="object-cover"
+            />
+          </div>
         )}
 
         <div className="p-6 sm:p-7 overflow-y-auto">

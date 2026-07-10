@@ -149,12 +149,13 @@ export function OpinionSection() {
                   >
                     {/* Nombre */}
                     <div>
-                      <label className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-500 mb-1.5">
-                        Tu nombre <span className="text-ink-300 font-normal normal-case tracking-normal">(opcional)</span>
+                      <label htmlFor="opinion-name" className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-500 mb-1.5">
+                        Tu nombre <span className="text-ink-400 font-normal normal-case tracking-normal">(opcional)</span>
                       </label>
                       <div className="relative">
                         <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-300 pointer-events-none" />
                         <input
+                          id="opinion-name"
                           type="text"
                           placeholder="Ej: María López"
                           value={form.name}
@@ -167,12 +168,13 @@ export function OpinionSection() {
                     {/* Caserío + Tema — fila */}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-500 mb-1.5">
+                        <label htmlFor="opinion-district" className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-500 mb-1.5">
                           Tu caserío
                         </label>
                         <div className="relative">
                           <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300 pointer-events-none" />
                           <select
+                            id="opinion-district"
                             value={form.district}
                             onChange={(e) => setForm({ ...form, district: e.target.value })}
                             className="w-full appearance-none pl-9 pr-8 py-3 rounded-xl border border-ink-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-100 text-sm text-ink-700 outline-none transition-all duration-200 bg-white cursor-pointer"
@@ -187,11 +189,12 @@ export function OpinionSection() {
                       </div>
 
                       <div>
-                        <label className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-500 mb-1.5">
+                        <label htmlFor="opinion-topic" className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-500 mb-1.5">
                           Tema
                         </label>
                         <div className="relative">
                           <select
+                            id="opinion-topic"
                             value={form.topic}
                             onChange={(e) => setForm({ ...form, topic: e.target.value })}
                             className="w-full appearance-none px-3 pr-8 py-3 rounded-xl border border-ink-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-100 text-sm text-ink-700 outline-none transition-all duration-200 bg-white cursor-pointer"
@@ -208,10 +211,11 @@ export function OpinionSection() {
 
                     {/* Mensaje */}
                     <div>
-                      <label className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-500 mb-1.5">
+                      <label htmlFor="opinion-message" className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-500 mb-1.5">
                         Tu mensaje <span className="text-brand-500">*</span>
                       </label>
                       <textarea
+                        id="opinion-message"
                         required
                         rows={4}
                         placeholder={`Escríbele directamente a ${shortName}...`}

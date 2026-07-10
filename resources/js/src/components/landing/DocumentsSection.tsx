@@ -171,7 +171,7 @@ function DocCard({
               <span className="inline-flex items-center gap-1 text-brand-600 text-[11px] font-extrabold">
                 <Eye size={11} /> Vista previa
               </span>
-              {size && <span className="text-ink-300 text-[11px] font-semibold">PDF · {size}</span>}
+              {size && <span className="text-ink-400 text-[11px] font-semibold">PDF · {size}</span>}
             </div>
           </div>
         </div>
