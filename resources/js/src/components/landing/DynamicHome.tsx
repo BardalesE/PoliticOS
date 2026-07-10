@@ -6,20 +6,13 @@ import { Navbar }            from "@/components/ui/Navbar";
 import { Hero }              from "@/components/landing/Hero";
 import { StatsBar }          from "@/components/landing/StatsBar";
 import { Countdown }         from "@/components/landing/Countdown";
-import { AssistantPreview }  from "@/components/landing/AssistantPreview";
 import { LiveStreamBanner }  from "@/components/landing/LiveStreamBanner";
 
 // ── Bajo el fold — carga diferida (split de bundle) ──────────────────────────
 const DosVias         = dynamic(() => import("@/components/landing/DosVias").then(m => ({ default: m.DosVias })));
 const BioSection      = dynamic(() => import("@/components/landing/BioSection").then(m => ({ default: m.BioSection })));
-const Proposals       = dynamic(() => import("@/components/landing/Proposals").then(m => ({ default: m.Proposals })));
-const MediaSection    = dynamic(() => import("@/components/landing/MediaSection").then(m => ({ default: m.MediaSection })));
-const DocumentsSection= dynamic(() => import("@/components/landing/DocumentsSection").then(m => ({ default: m.DocumentsSection })));
-const EventsSection   = dynamic(() => import("@/components/landing/EventsSection").then(m => ({ default: m.EventsSection })));
-const Districts       = dynamic(() => import("@/components/landing/Districts").then(m => ({ default: m.Districts })));
-const TeamSection     = dynamic(() => import("@/components/landing/TeamSection").then(m => ({ default: m.TeamSection })));
+const HomeTabs        = dynamic(() => import("@/components/landing/HomeTabs").then(m => ({ default: m.HomeTabs })));
 const Connection      = dynamic(() => import("@/components/landing/Connection").then(m => ({ default: m.Connection })));
-const OpinionSection  = dynamic(() => import("@/components/landing/OpinionSection").then(m => ({ default: m.OpinionSection })));
 const Footer          = dynamic(() => import("@/components/ui/Footer").then(m => ({ default: m.Footer })));
 const ChatFAB         = dynamic(() => import("@/components/ui/ChatFAB").then(m => ({ default: m.ChatFAB })));
 
@@ -73,9 +66,19 @@ export default function DynamicHome({
 }: Props) {
   const settings = { ...DEFAULTS, ...(initialSettings ?? {}) };
 
-  // Orden mobile-first por capas de atención: gancho (hero + identidad +
-  // urgencia + prueba social) → oferta (propuestas) → confianza (multimedia,
-  // asistente, agenda, territorio) → profundidad (documentos, equipo) → cierre.
+  // Fase 7 (mockup rigo_home_7tabs validado): la home dejó el scroll continuo.
+  // Arriba queda el bloque siempre visible (gancho + identidad + doble vía);
+  // las 7 secciones de contenido viven en HomeTabs, con la pestaña activa en
+  // la URL (?seccion=) para que los links internos puedan abrirlas.
+  //
+  // AssistantPreview ("Servicios al ciudadano") YA NO se renderiza a propósito
+  // — no lo reactives sin saber que es redundante: sus 4 tarjetas están
+  // cubiertas por DosVias (chat + "dile qué necesita"), la pestaña "Base del
+  // Conocimiento" (transparencia + documentos) y "Lugares Visitados"
+  // (reclamos por caserío). El archivo se conserva por si se rediseña.
+  //
+  // OpinionSection tampoco se renderiza aquí: es un Modal (OpinionModal) que
+  // abre el botón "Dile qué necesita tu caserío" dentro de DosVias.
   return (
     <main className="landing-main">
       <LiveStreamBanner />
@@ -85,22 +88,15 @@ export default function DynamicHome({
       {on(settings, "show_hero")       && <StatsBar proposalsCount={initialProposals.length} settings={settings} />}
       {on(settings, "show_assistant") && on(settings, "show_opinion") && <DosVias />}
       {on(settings, "show_bio")        && <BioSection />}
-      {on(settings, "show_proposals")  && <Proposals initialData={initialProposals} />}
-      {on(settings, "show_multimedia") && <MediaSection initialPhotos={initialGallery} initialVideos={initialVideos} />}
-      {on(settings, "show_assistant")  && <AssistantPreview />}
-      {on(settings, "show_events")     && (
-        <EventsSection
-          initialEvents={initialEvents}
-          initialFeatured={initialFeatured}
-          title={settings.events_title}
-          badge={settings.events_badge}
-          electionDateIso={settings.election_date_iso}
-        />
-      )}
-      {on(settings, "show_districts")  && <Districts />}
-      {on(settings, "show_documents")  && <DocumentsSection />}
-      {on(settings, "show_team")       && <TeamSection initialMembers={initialTeam} />}
-      {on(settings, "show_opinion")    && <OpinionSection />}
+      <HomeTabs
+        settings={settings}
+        initialProposals={initialProposals}
+        initialEvents={initialEvents}
+        initialFeatured={initialFeatured}
+        initialTeam={initialTeam}
+        initialGallery={initialGallery}
+        initialVideos={initialVideos}
+      />
       {on(settings, "show_connection") && <Connection />}
       <Footer />
       <ChatFAB />

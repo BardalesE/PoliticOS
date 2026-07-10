@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Loader2, Save, Eye, EyeOff, Sliders,
@@ -22,7 +22,7 @@ const DEFAULTS: Partial<HeroSettings> = {
   btn2_label:      "Ver propuestas",
   btn2_url:        "/propuestas",
   btn3_label:      "Próximo evento",
-  btn3_url:        "/#eventos",
+  btn3_url:        "/?seccion=eventos",
   is_active:       true,
 };
 
@@ -463,7 +463,7 @@ export default function HeroSettingsPage() {
                   label="URL"
                   value={(form as any)[`btn${n}_url`] ?? ""}
                   onChange={(e) => set(`btn${n}_url` as keyof HeroSettings, e.target.value)}
-                  placeholder={n === 1 ? "/chat" : n === 2 ? "/propuestas" : "/#eventos"}
+                  placeholder={n === 1 ? "/chat" : n === 2 ? "/propuestas" : "/?seccion=eventos"}
                 />
               </div>
             ))}

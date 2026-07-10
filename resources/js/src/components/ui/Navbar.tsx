@@ -70,7 +70,7 @@ export function Navbar() {
               Lista N°{profile.list_number} · {profile.location}
             </span>
             <TenantLink
-              href="/#documentos"
+              href="/?seccion=documentos"
               className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white
                          text-[10px] sm:text-[11px] font-bold uppercase px-3 py-1.5 rounded-full
                          transition-colors shrink-0 border border-white/20"
