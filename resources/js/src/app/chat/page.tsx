@@ -543,9 +543,13 @@ export default function ChatPage() {
   // ── Guarda GPS al backend inmediatamente cuando se captura ──────────────────
   useEffect(() => {
     if (!geoLocation || !sessionId) return;
+    const tenant = resolveTenantSlug();
     fetch(`${API}/chat/location`, {
       method:  "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(tenant ? { "X-Tenant": tenant } : {}),
+      },
       body:    JSON.stringify({
         session_id: sessionId,
         lat:        geoLocation.lat,

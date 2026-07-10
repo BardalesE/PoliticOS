@@ -63,7 +63,10 @@ export function withTenant(href: string, tenant: string): string {
   return `${base}${sep}tenant=${encodeURIComponent(tenant)}${hash}`;
 }
 
-function tenantHeaders(): Record<string, string> {
+// Exportado para los fetch "pelados" fuera de request() (livestream, banner):
+// todo fetch al backend debe llevar X-Tenant o cae al tenant por defecto en
+// hosts de plataforma (vercel.app) donde no hay subdominio.
+export function tenantHeaders(): Record<string, string> {
   const slug = resolveTenantSlug();
   return slug ? { "X-Tenant": slug } : {};
 }

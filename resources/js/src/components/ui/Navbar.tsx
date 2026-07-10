@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useCandidate } from "@/context/CandidateContext";
 import { TenantLink } from "@/components/ui/TenantLink";
+import { tenantHeaders } from "@/lib/api";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
@@ -36,7 +37,7 @@ export function Navbar() {
   useEffect(() => {
     const check = async () => {
       try {
-        const res = await fetch(`${API}/livestreams`);
+        const res = await fetch(`${API}/livestreams`, { headers: tenantHeaders() });
         if (!res.ok) return;
         const list = await res.json();
         setIsLive(Array.isArray(list) && list.some((s: { status: string }) => s.status === "live"));

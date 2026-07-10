@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { TenantLink } from "@/components/ui/TenantLink";
 import { Radio, Users, ArrowRight } from "lucide-react";
+import { tenantHeaders } from "@/lib/api";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
@@ -19,7 +20,7 @@ export function LiveStreamBanner() {
   useEffect(() => {
     const check = async () => {
       try {
-        const res = await fetch(`${API}/livestreams`);
+        const res = await fetch(`${API}/livestreams`, { headers: tenantHeaders() });
         if (!res.ok) return;
         const data: LiveStream[] = await res.json();
         const live = data.find(s => s.status === "live") ?? null;
