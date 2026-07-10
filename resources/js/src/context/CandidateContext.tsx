@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { candidateApi, resolveTenantSlug, type CandidatePublicData, type CandidateProfile, type TopicItem, type ChatBtnConfig } from "@/lib/api";
+import { candidateApi, resolveTenantSlug, type CandidatePublicData, type CandidateProfile, type TopicItem, type ChatBtnConfig, type VisitedPlace } from "@/lib/api";
 
 function hexToRgbVars(hex: string): string | null {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -60,6 +60,7 @@ type CandidateContextValue = {
   profile: CandidateProfile;
   topics: TopicItem[];
   districts: string[];
+  visitedPlaces: VisitedPlace[];
   suggestedQuestions: { question: string; topic: string | null }[];
   chatBtn: ChatBtnConfig;
   isLoading: boolean;
@@ -69,6 +70,7 @@ const CandidateContext = createContext<CandidateContextValue>({
   profile: DEFAULT_PROFILE,
   topics: [],
   districts: [],
+  visitedPlaces: [],
   suggestedQuestions: [],
   chatBtn: DEFAULT_CHAT_BTN,
   isLoading: true,
@@ -134,6 +136,7 @@ export function CandidateProvider({
     profile:            data?.profile ?? DEFAULT_PROFILE,
     topics:             data?.topics ?? [],
     districts:          data?.districts ?? [],
+    visitedPlaces:      data?.visited_places ?? [],
     suggestedQuestions: data?.suggested_questions ?? [],
     chatBtn:            data?.chat_btn ?? DEFAULT_CHAT_BTN,
     isLoading,

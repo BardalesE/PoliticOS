@@ -619,6 +619,10 @@ export type DistrictItem = {
   keywords: string[];
   sort_order: number;
   is_active: boolean;
+  visited_at?: string | null;
+  event_type?: string | null;
+  highlight_text?: string | null;
+  highlight_photo_url?: string | null;
 };
 
 export type SuggestedQuestion = {
@@ -665,11 +669,21 @@ export type Tenant = {
   created_at: string;
 };
 
+export type VisitedPlace = {
+  id: number;
+  name: string;
+  visited_at: string;
+  event_type: string | null;
+  highlight_text: string | null;
+  highlight_photo_url: string | null;
+};
+
 export type CandidatePublicData = {
   profile: CandidateProfile | null;
   suggested_questions: Pick<SuggestedQuestion, "question" | "topic">[];
   topics: TopicItem[];
   districts: string[];
+  visited_places: VisitedPlace[];
   chat_btn: ChatBtnConfig;
 };
 

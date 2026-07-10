@@ -15,7 +15,7 @@ const NAV_DEFS = [
   { href: "/galeria",    label: "Galería" },
   { href: "/videos",     label: "Videos" },
   { href: "/en-vivo",    label: "En vivo", live: true },
-  { href: "/distritos",  label: "Caseríos" },
+  { href: "/distritos",  label: "Lugares Visitados" },
   { href: "/chat",       label: "Chat IA" },
 ];
 

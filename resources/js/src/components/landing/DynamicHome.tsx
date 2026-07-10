@@ -10,6 +10,7 @@ import { AssistantPreview }  from "@/components/landing/AssistantPreview";
 import { LiveStreamBanner }  from "@/components/landing/LiveStreamBanner";
 
 // ── Bajo el fold — carga diferida (split de bundle) ──────────────────────────
+const DosVias         = dynamic(() => import("@/components/landing/DosVias").then(m => ({ default: m.DosVias })));
 const BioSection      = dynamic(() => import("@/components/landing/BioSection").then(m => ({ default: m.BioSection })));
 const Proposals       = dynamic(() => import("@/components/landing/Proposals").then(m => ({ default: m.Proposals })));
 const MediaSection    = dynamic(() => import("@/components/landing/MediaSection").then(m => ({ default: m.MediaSection })));
@@ -82,6 +83,7 @@ export default function DynamicHome({
       {on(settings, "show_hero")       && <Hero initialHero={initialHero ?? null} />}
       <Countdown featured={initialFeatured} electionDateIso={settings.election_date_iso} />
       {on(settings, "show_hero")       && <StatsBar proposalsCount={initialProposals.length} settings={settings} />}
+      {on(settings, "show_assistant") && on(settings, "show_opinion") && <DosVias />}
       {on(settings, "show_bio")        && <BioSection />}
       {on(settings, "show_proposals")  && <Proposals initialData={initialProposals} />}
       {on(settings, "show_multimedia") && <MediaSection initialPhotos={initialGallery} initialVideos={initialVideos} />}
