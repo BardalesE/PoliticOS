@@ -12,7 +12,16 @@ class AiSettingController extends Controller
     // GET /api/admin/ai-settings
     public function show(): JsonResponse
     {
-        return response()->json(AiSetting::current());
+        $setting = AiSetting::current();
+
+        // api_key está en $hidden en el modelo (nunca se serializa en texto plano);
+        // exponemos solo si el tenant tiene una propia configurada, para que el
+        // admin pueda mostrar "usando tu propia key" / "usando la key compartida
+        // de la plataforma" sin nunca devolver el secreto.
+        return response()->json(array_merge(
+            $setting->toArray(),
+            ['has_own_api_key' => $setting->api_key !== null]
+        ));
     }
 
     // POST /api/admin/ai-settings/test
@@ -123,6 +132,10 @@ class AiSettingController extends Controller
     {
         $data = $request->validate([
             'provider'          => ['sometimes', 'in:groq,claude,openai'],
+            // nullable + string vacío permitido a propósito: mandar "" borra la key
+            // propia del tenant y vuelve a usar la key global compartida como
+            // fallback (ver CivicAIService::callProvider()).
+            'api_key'           => ['sometimes', 'nullable', 'string', 'max:255'],
             'model'             => ['sometimes', 'string', 'max:100'],
             'max_tokens'        => ['sometimes', 'integer', 'between:100,4096'],
             'temperature'       => ['sometimes', 'numeric', 'between:0,1'],

@@ -8,10 +8,45 @@ const apiHost = (() => {
   }
 })();
 
+// Headers de seguridad del documento HTML servido por Next.js.
+// QA_COMPLETO.md (Fase 9): SecurityHeaders (Laravel) solo cubre las respuestas
+// de /api/*; el HTML real que ve el usuario (incluido todo /admin/*) no llevaba
+// ningún header de seguridad — sin protección de documento contra clickjacking.
+// Mismas directivas que app/Http/Middleware/SecurityHeaders.php del lado API,
+// adaptadas para el documento (agrega connect-src hacia el backend).
+const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
+const csp = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js requiere unsafe-eval en dev
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https: http:",
+  "media-src 'self' blob:",
+  `connect-src 'self' ${apiUrl} https://api.anthropic.com`,
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join("; ");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
   compress: true,
+
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
+          { key: "Content-Security-Policy", value: csp },
+        ],
+      },
+    ];
+  },
 
   // Produces a self-contained .next/standalone/server.js
   // Supervisor runs: node .next/standalone/server.js

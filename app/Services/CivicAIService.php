@@ -104,6 +104,13 @@ class CivicAIService
 
         $parsed = $this->parseAIResponse($rawReply);
 
+        if ($this->looksLikeJailbreakAcceptance($parsed['reply'])) {
+            Log::warning('AI response looked like a jailbreak acceptance — discarded', [
+                'snippet' => mb_substr($parsed['reply'], 0, 150),
+            ]);
+            return $this->buildRestingResponse($topic, $district);
+        }
+
         $mediaRequest = $this->detectMediaRequest($userMessage);
         $media = $mediaRequest
             ? $this->resolveMediaFeatured($topic, $district, $userMessage)
@@ -192,6 +199,21 @@ class CivicAIService
 
         $parsed = $this->parseAIResponse($rawBuffer);
 
+        // Solo en PEPA podemos revisar el texto completo antes de emitir nada — está
+        // bufferizado (ver comentario arriba). En campaña los chunks ya se streamearon
+        // en vivo según llegaban, así que esta capa de salida no puede cubrir ese
+        // camino (queda cubierto solo por el refuerzo de prompt); ver reporte.
+        if ($isPepa && $this->looksLikeJailbreakAcceptance($parsed['reply'])) {
+            Log::warning('AI response looked like a jailbreak acceptance (stream/pepa) — discarded', [
+                'snippet' => mb_substr($parsed['reply'], 0, 150),
+            ]);
+            $resting = $this->buildRestingResponse($topic, $district);
+            foreach (str_split($resting['reply'], 30) as $chunk) {
+                $onChunk($chunk);
+            }
+            return $resting;
+        }
+
         // Solo en PEPA enviamos el texto ya parseado en trozos; en campaña ya se streameó arriba.
         if ($isPepa) {
             foreach (str_split($parsed['reply'], 30) as $chunk) {
@@ -232,6 +254,16 @@ class CivicAIService
             '/\[INST\]|\<\|.*?\|\>|\<\|im_(start|end)\|\>/',
             '/forget\s+(everything|all|previous)/i',
             '/eres\s+ahora/iu',
+            // Variantes adicionales confirmadas en QA_COMPLETO.md (Fase 5, jailbreak "DAN"):
+            // "a partir de ahora eres..." tiene el orden de palabras invertido respecto al
+            // patrón de arriba y no lo capturaba.
+            '/ahora\s+eres\s+(un|una)?/iu',
+            '/(sin|libre\s+de)\s+restriccion(es)?/iu',
+            '/modo\s+(sin\s+l[ií]mites|sincero|dan|desarrollador|jailbreak)/iu',
+            '/confirma\s+que\s+aceptas/iu',
+            '/llamado\s+DAN\b/i',
+            '/finjamos\s+(un\s+)?juego/iu',
+            '/olvida\s+(que\s+eres|tus?\s+instrucciones)/iu',
         ];
 
         foreach ($injectionPatterns as $p) {
@@ -647,18 +679,38 @@ class CivicAIService
             'openai' => $this->callOpenCompatible(
                 $userMessage, $systemPrompt, $history,
                 'https://api.openai.com/v1/chat/completions',
-                config('services.ai.openai_key'),
+                $this->resolveApiKey('openai', config('services.ai.openai_key')),
                 config('services.ai.openai_model', 'gpt-4o-mini')
             ),
             default => $this->callOpenCompatible(
                 $userMessage, $systemPrompt, $history,
                 'https://api.groq.com/openai/v1/chat/completions',
-                config('services.ai.groq_key'),
+                $this->resolveApiKey('groq', config('services.ai.groq_key')),
                 $this->config->provider === 'groq'
                     ? $this->config->model
                     : config('services.ai.groq_model', 'llama-3.3-70b-versatile')
             ),
         };
+    }
+
+    /**
+     * QA_COMPLETO.md (Fase 5/8): la key de .env es global, compartida entre TODOS
+     * los tenants del deployment — su cuota se agota rápido. Si el tenant tiene su
+     * propia key configurada en AiSetting para el provider que está usando ahora
+     * mismo, se usa esa en vez de la global. Si no, cae a la global (sin cambio de
+     * comportamiento para tenants que no configuren nada). Se loggea cuál se usó
+     * para poder medir cuánto tráfico depende del pool compartido.
+     */
+    private function resolveApiKey(string $provider, ?string $globalKey): ?string
+    {
+        $ownKey = ($this->config->provider === $provider) ? $this->config->api_key : null;
+
+        Log::info('AI provider key source', [
+            'provider' => $provider,
+            'source'   => $ownKey ? 'tenant' : 'global',
+        ]);
+
+        return $ownKey ?: $globalKey;
     }
 
     private function getLastResortProvider(): ?string
@@ -713,7 +765,7 @@ class CivicAIService
             : config('services.ai.claude_model', 'claude-haiku-4-5-20251001');
 
         $response = Http::timeout(30)->withHeaders([
-            'x-api-key'         => config('services.ai.claude_key'),
+            'x-api-key'         => $this->resolveApiKey('claude', config('services.ai.claude_key')),
             'anthropic-version' => '2023-06-01',
             'content-type'      => 'application/json',
         ])->post('https://api.anthropic.com/v1/messages', [
@@ -863,6 +915,31 @@ class CivicAIService
                 if ($chunk !== null && $chunk !== '') $onChunk($chunk);
             }
         }
+    }
+
+    // ─── DEFENSA EN PROFUNDIDAD: detecta si el modelo aceptó un jailbreak ──
+    // Capa de salida — complementa (no sustituye) el refuerzo en los prompts de
+    // sistema y el filtro de entrada en sanitize(). Si el modelo, pese a todo,
+    // acepta en su respuesta un cambio de personaje/"modo sin restricciones",
+    // descartamos esa respuesta y servimos buildRestingResponse() en su lugar en
+    // vez de dejar pasar el texto comprometido al ciudadano.
+    private function looksLikeJailbreakAcceptance(string $reply): bool
+    {
+        $patterns = [
+            '/\bacept[oa]\s+ser\s+\w+/iu',
+            '/\bsoy\s+DAN\b/i',
+            '/\bconfirmo\s+que\s+acepto/iu',
+            '/\b(claro\s+que\s+s[ií])?,?\s*acepto\s+(ser\s+)?(el\s+)?(asistente\s+)?sin\s+restriccion(es)?/iu',
+            '/modo\s+(sin\s+l[ií]mites|sincero|desarrollador|jailbreak)\s+activad[oa]/iu',
+        ];
+
+        foreach ($patterns as $p) {
+            if (preg_match($p, $reply)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // ─── RESPUESTA DE DESCANSO (tokens agotados / providers caídos) ──────
