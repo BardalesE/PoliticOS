@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquarePlus, Send, CheckCircle2, MapPin, User, ChevronDown } from "lucide-react";
+import { Send, CheckCircle2, MapPin, User, ChevronDown } from "lucide-react";
 import { TenantLink } from "@/components/ui/TenantLink";
 import { useCandidate } from "@/context/CandidateContext";
 
@@ -80,21 +80,17 @@ export function OpinionSection() {
             viewport={{ once: true, margin: "-60px" }}
             transition={{ duration: 0.5 }}
           >
-            <span className="inline-flex items-center gap-2 bg-brand-50 border border-brand-200 text-brand-700 text-[10px] font-extrabold uppercase tracking-[2px] px-4 py-2 rounded-full mb-6">
-              <MessageSquarePlus size={11} />
+            <span
+              className="inline-flex items-center gap-2 border text-ink-600 text-[11px] font-bold uppercase tracking-[1.5px] px-4 py-1.5 rounded-full mb-6"
+              style={{ borderColor: "var(--page-line)" }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: "rgb(var(--brand-primary-rgb))" }} />
               Tu opinión importa
             </span>
 
             <h2 className="font-serif text-3xl md:text-4xl font-bold text-ink-900 leading-tight mb-4">
               Dile a {shortName}{" "}
-              <span
-                style={{
-                  background: "var(--brand-grad)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}
-              >
+              <span style={{ color: "rgb(var(--brand-primary-rgb))" }}>
                 lo que piensas.
               </span>
             </h2>
@@ -120,7 +116,7 @@ export function OpinionSection() {
                 >
                   <div
                     className="w-6 h-6 rounded-full flex-shrink-0 grid place-items-center"
-                    style={{ background: "var(--brand-grad)" }}
+                    style={{ background: "rgb(var(--brand-primary-rgb))" }}
                   >
                     <CheckCircle2 size={13} className="text-white" />
                   </div>
@@ -138,8 +134,8 @@ export function OpinionSection() {
             transition={{ duration: 0.5, delay: 0.05 }}
           >
             <div
-              className="bg-white rounded-2xl border border-ink-200 p-6 sm:p-8"
-              style={{ boxShadow: "0 8px 40px var(--brand-glow-10)" }}
+              className="bg-white rounded-2xl p-6 sm:p-8"
+              style={{ border: "1px solid var(--page-line)" }}
             >
               <AnimatePresence mode="wait">
                 {!sent ? (
@@ -231,11 +227,8 @@ export function OpinionSection() {
                       disabled={loading || !form.message.trim() || !channelAvailable}
                       whileHover={{ scale: loading ? 1 : 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl text-sm font-extrabold uppercase tracking-wider text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                      style={{
-                        background: "var(--brand-grad)",
-                        boxShadow: "0 6px 20px var(--brand-glow-30)",
-                      }}
+                      className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl text-sm font-bold uppercase tracking-wide text-white transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{ background: "rgb(var(--brand-primary-rgb))" }}
                     >
                       {loading ? (
                         <span className="flex items-center gap-2">
@@ -275,7 +268,7 @@ export function OpinionSection() {
                       animate={{ scale: 1 }}
                       transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.1 }}
                       className="w-16 h-16 rounded-full grid place-items-center mb-5"
-                      style={{ background: "var(--brand-grad)", boxShadow: "0 8px 24px var(--brand-glow-35)" }}
+                      style={{ background: "rgb(var(--brand-primary-rgb))" }}
                     >
                       <CheckCircle2 size={30} className="text-white" />
                     </motion.div>

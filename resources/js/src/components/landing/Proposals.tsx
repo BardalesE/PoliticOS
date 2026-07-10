@@ -213,7 +213,7 @@ export function Proposals({ initialData }: { initialData?: ProposalExtended[] })
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-40px" }}
               transition={{ duration: 0.45, delay: i * 0.07, type: "spring", stiffness: 80 }}
-              className="group relative bg-white rounded-[20px] overflow-hidden transition-all duration-300 cursor-pointer p-4 sm:p-6"
+              className="group relative bg-white rounded-[20px] overflow-hidden transition-[border-color,transform] duration-150 cursor-pointer p-4 sm:p-6"
               style={{
                 border: "1px solid var(--page-line)",
               }}
@@ -228,13 +228,11 @@ export function Proposals({ initialData }: { initialData?: ProposalExtended[] })
                 }
               }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.transform = "translateY(-6px)";
-                (e.currentTarget as HTMLElement).style.boxShadow = "0 30px 60px -34px var(--page-shadow)";
-                (e.currentTarget as HTMLElement).style.borderColor = "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 30%, transparent)";
+                (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)";
+                (e.currentTarget as HTMLElement).style.borderColor = "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 35%, var(--page-line))";
               }}
               onMouseLeave={(e) => {
                 (e.currentTarget as HTMLElement).style.transform = "";
-                (e.currentTarget as HTMLElement).style.boxShadow = "";
                 (e.currentTarget as HTMLElement).style.borderColor = "var(--page-line)";
               }}
             >

@@ -45,17 +45,13 @@ export function DosVias() {
               >
                 <TenantLink
                   href={c.href}
-                  className="group flex items-center gap-3 bg-white rounded-2xl p-4 transition-all duration-200"
+                  className="group flex items-center gap-3 bg-white rounded-2xl p-4 transition-colors duration-150"
                   style={{ border: "1px solid var(--page-line)" }}
                   onMouseEnter={(e) => {
-                    const el = e.currentTarget as HTMLElement;
-                    el.style.borderColor = "rgb(var(--brand-primary-rgb))";
-                    el.style.boxShadow = "0 12px 28px -18px var(--page-shadow)";
+                    (e.currentTarget as HTMLElement).style.borderColor = "rgb(var(--brand-primary-rgb))";
                   }}
                   onMouseLeave={(e) => {
-                    const el = e.currentTarget as HTMLElement;
-                    el.style.borderColor = "var(--page-line)";
-                    el.style.boxShadow = "";
+                    (e.currentTarget as HTMLElement).style.borderColor = "var(--page-line)";
                   }}
                 >
                   <div

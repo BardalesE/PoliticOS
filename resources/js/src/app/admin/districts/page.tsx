@@ -11,6 +11,7 @@ import { FormField } from "@/components/admin/FormField";
 
 const EMPTY: Omit<DistrictItem, "id"> = {
   name: "", keywords: [], sort_order: 0, is_active: true,
+  visited_at: null, event_type: null, highlight_text: null, highlight_photo_url: null,
 };
 
 export default function DistrictsPage() {
@@ -44,7 +45,13 @@ export default function DistrictsPage() {
 
   const openEdit = (d: DistrictItem) => {
     setEditing(d);
-    setForm({ name: d.name, keywords: d.keywords, sort_order: d.sort_order, is_active: d.is_active });
+    setForm({
+      name: d.name, keywords: d.keywords, sort_order: d.sort_order, is_active: d.is_active,
+      visited_at: d.visited_at ?? null,
+      event_type: d.event_type ?? null,
+      highlight_text: d.highlight_text ?? null,
+      highlight_photo_url: d.highlight_photo_url ?? null,
+    });
     setKeywordsText(d.keywords.join(", "));
     setModalOpen(true);
   };
@@ -178,6 +185,46 @@ export default function DistrictsPage() {
             placeholder="san miguel, pallaques, san miguel de pallaques"
             required
           />
+          {/* ── Lugar visitado (opcional) — alimenta la sección "Lugares Visitados" de la home ── */}
+          <div className="pt-2 border-t border-gray-100">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+              Visita de campaña (opcional)
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                label="Fecha de visita"
+                type="date"
+                value={form.visited_at ? form.visited_at.slice(0, 10) : ""}
+                onChange={(e) => setForm((f) => ({ ...f, visited_at: e.target.value || null }))}
+              />
+              <FormField
+                label="Tipo de evento"
+                value={form.event_type ?? ""}
+                onChange={(e) => setForm((f) => ({ ...f, event_type: e.target.value || null }))}
+                placeholder="Mitin, caravana, visita casa por casa…"
+              />
+            </div>
+            <FormField
+              as="textarea"
+              rows={3}
+              className="mt-3"
+              label="Reseña del lugar / visita"
+              value={form.highlight_text ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, highlight_text: e.target.value || null }))}
+              placeholder="Qué se hizo en la visita, qué se comprometió, qué destaca del lugar…"
+            />
+            <FormField
+              className="mt-3"
+              label="URL de foto destacada"
+              value={form.highlight_photo_url ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, highlight_photo_url: e.target.value || null }))}
+              placeholder="https://…/foto-visita.jpg"
+            />
+            <p className="text-[11px] text-gray-400 mt-2">
+              Solo los distritos con fecha de visita aparecen en "Lugares Visitados" de la home.
+            </p>
+          </div>
+
           <div className="grid grid-cols-2 gap-3 items-end">
             <FormField
               label="Orden"

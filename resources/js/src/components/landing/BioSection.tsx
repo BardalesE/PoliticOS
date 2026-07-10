@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { Flag, MapPin, Milestone, User } from "lucide-react";
 import { useCandidate } from "@/context/CandidateContext";
@@ -41,14 +42,15 @@ export function BioSection() {
         >
           <div
             className="relative rounded-[24px] overflow-hidden aspect-[4/5] max-w-sm"
-            style={{ border: "1px solid var(--page-line)", boxShadow: "0 24px 60px -30px var(--page-shadow)" }}
+            style={{ border: "1px solid var(--page-line)" }}
           >
             {profile.photo_url ? (
-              <img
+              <Image
                 src={profile.photo_url}
                 alt={`Foto de ${profile.name}`}
-                className="w-full h-full object-cover"
-                loading="lazy"
+                fill
+                sizes="(max-width: 768px) 100vw, 384px"
+                className="object-cover"
               />
             ) : (
               <div className="w-full h-full bg-brand-50 flex items-center justify-center">

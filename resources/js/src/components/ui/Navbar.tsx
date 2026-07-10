@@ -86,7 +86,7 @@ export function Navbar() {
           className="bg-white border-b border-ink-200 transition-all duration-300"
           style={{
             boxShadow: scrolled
-              ? "0 4px 24px var(--brand-glow-10)"
+              ? "0 2px 12px rgba(0,0,0,0.06)"
               : "0 1px 0 rgba(0,0,0,0.06)",
           }}
         >
@@ -172,14 +172,10 @@ export function Navbar() {
                   <TenantLink
                     href="/chat"
                     className="inline-flex items-center gap-2 bg-brand-700 hover:bg-brand-900 text-white
-                               px-5 py-2.5 rounded-xl text-sm font-extrabold uppercase tracking-wider
-                               transition-all duration-200"
-                    style={{ boxShadow: "0 4px 16px var(--brand-glow-30)" }}
+                               px-5 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wide
+                               transition-colors duration-150"
                   >
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
-                    </span>
+                    <span className="inline-flex rounded-full h-2 w-2 bg-white" />
                     Chatear
                   </TenantLink>
                 </motion.div>
@@ -302,14 +298,10 @@ export function Navbar() {
                     href="/chat"
                     onClick={() => setOpen(false)}
                     className="flex items-center justify-center gap-2 w-full bg-brand-700 hover:bg-brand-900
-                               text-white py-4 rounded-xl text-base font-extrabold uppercase tracking-wider
-                               transition-all duration-200"
-                    style={{ boxShadow: "0 6px 20px var(--brand-glow-30)" }}
+                               text-white py-4 rounded-xl text-base font-bold uppercase tracking-wide
+                               transition-colors duration-150"
                   >
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
-                    </span>
+                    <span className="inline-flex rounded-full h-2 w-2 bg-white" />
                     Conversar con {shortName}
                   </TenantLink>
                   <p className="text-center text-xs text-ink-400 mt-3 font-medium">

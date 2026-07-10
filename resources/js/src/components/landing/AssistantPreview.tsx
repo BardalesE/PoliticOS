@@ -91,18 +91,16 @@ export function AssistantPreview() {
               >
                 <TenantLink
                   href={s.href}
-                  className="group flex flex-col h-full bg-white rounded-[18px] overflow-hidden transition-all duration-300"
+                  className="group flex flex-col h-full bg-white rounded-[18px] overflow-hidden transition-[border-color,transform] duration-150"
                   style={{ border: "1px solid var(--page-line)", padding: "28px 24px" }}
                   onMouseEnter={(e) => {
                     const el = e.currentTarget as HTMLElement;
-                    el.style.transform = "translateY(-5px)";
-                    el.style.boxShadow = "0 26px 50px -30px var(--page-shadow)";
-                    el.style.borderColor = "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 30%, transparent)";
+                    el.style.transform = "translateY(-2px)";
+                    el.style.borderColor = "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 35%, var(--page-line))";
                   }}
                   onMouseLeave={(e) => {
                     const el = e.currentTarget as HTMLElement;
                     el.style.transform = "";
-                    el.style.boxShadow = "";
                     el.style.borderColor = "var(--page-line)";
                   }}
                 >
