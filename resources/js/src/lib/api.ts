@@ -63,7 +63,10 @@ export function withTenant(href: string, tenant: string): string {
   return `${base}${sep}tenant=${encodeURIComponent(tenant)}${hash}`;
 }
 
-function tenantHeaders(): Record<string, string> {
+// Exportado para los fetch "pelados" fuera de request() (livestream, banner):
+// todo fetch al backend debe llevar X-Tenant o cae al tenant por defecto en
+// hosts de plataforma (vercel.app) donde no hay subdominio.
+export function tenantHeaders(): Record<string, string> {
   const slug = resolveTenantSlug();
   return slug ? { "X-Tenant": slug } : {};
 }
@@ -537,15 +540,17 @@ export type KnowledgeDocument = {
   title: string;
   description: string | null;
   file_url: string;
-  original_name: string | null;
-  content: string | null;
   topic: string | null;
-  candidate_id: number | null;
   source_url: string | null;
   source_type: "pdf" | "interview" | "debate" | "news";
   file_size: number | null;
   is_active: boolean;
   created_at: string;
+  // Solo presentes en el endpoint admin (/admin/knowledge); el público
+  // (GET /api/knowledge) nunca los devuelve.
+  original_name?: string | null;
+  content?: string | null;
+  candidate_id?: number | null;
 };
 
 export type AdminAnalytics = {
@@ -617,6 +622,10 @@ export type DistrictItem = {
   keywords: string[];
   sort_order: number;
   is_active: boolean;
+  visited_at?: string | null;
+  event_type?: string | null;
+  highlight_text?: string | null;
+  highlight_photo_url?: string | null;
 };
 
 export type SuggestedQuestion = {
@@ -663,11 +672,21 @@ export type Tenant = {
   created_at: string;
 };
 
+export type VisitedPlace = {
+  id: number;
+  name: string;
+  visited_at: string;
+  event_type: string | null;
+  highlight_text: string | null;
+  highlight_photo_url: string | null;
+};
+
 export type CandidatePublicData = {
   profile: CandidateProfile | null;
   suggested_questions: Pick<SuggestedQuestion, "question" | "topic">[];
   topics: TopicItem[];
   districts: string[];
+  visited_places: VisitedPlace[];
   chat_btn: ChatBtnConfig;
 };
 

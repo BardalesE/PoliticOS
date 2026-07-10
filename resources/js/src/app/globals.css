@@ -41,6 +41,7 @@
     --page-bg:        color-mix(in srgb, rgb(var(--brand-primary-rgb)) 4%, #f3f2ef);
     --page-soft:      color-mix(in srgb, rgb(var(--brand-primary-rgb)) 8%, #eceae6);
     --page-ink:       #0f1a12;
+    --page-ink-soft:  #4c5b51;
     --page-line:      color-mix(in srgb, rgb(var(--brand-primary-rgb)) 6%, rgba(0,0,0,0.11));
     --page-shadow:    color-mix(in srgb, rgb(var(--brand-primary-rgb)) 18%, rgba(0,0,0,0.18));
   }

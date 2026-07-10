@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { useParams } from "next/navigation";
 import { TenantLink } from "@/components/ui/TenantLink";
 import { ArrowLeft, Clock, Users, Radio, Send, User, Pencil } from "lucide-react";
 import { LivePlayer } from "@/components/live/LivePlayer";
-import { resolveTenantSlug } from "@/lib/api";
+import { LiveBadge } from "@/components/live/LiveBadge";
+import { tenantHeaders } from "@/lib/api";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
@@ -94,10 +96,7 @@ export default function StreamViewerPage() {
 
   // Candidate profile
   useEffect(() => {
-    const tenant = resolveTenantSlug();
-    fetch(`${API}/candidate`, {
-      headers: tenant ? { "X-Tenant": tenant } : {},
-    })
+    fetch(`${API}/candidate`, { headers: tenantHeaders() })
       .then(r => r.ok ? r.json() : null)
       .then(d => d && setCandidate(d))
       .catch(() => {});
@@ -107,7 +106,7 @@ export default function StreamViewerPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`${API}/livestreams/${key}/info`);
+        const res = await fetch(`${API}/livestreams/${key}/info`, { headers: tenantHeaders() });
         if (!res.ok) { setNotFound(true); return; }
         setInfo(await res.json());
       } catch { setNotFound(true); }
@@ -123,7 +122,7 @@ export default function StreamViewerPage() {
     const poll = async () => {
       try {
         const since = lastIdRef.current;
-        const res   = await fetch(`${API}/livestreams/${key}/comments${since ? `?since=${since}` : ""}`);
+        const res   = await fetch(`${API}/livestreams/${key}/comments${since ? `?since=${since}` : ""}`, { headers: tenantHeaders() });
         if (!res.ok) return;
         const data: Comment[] = await res.json();
         if (!data.length) return;
@@ -157,7 +156,7 @@ export default function StreamViewerPage() {
     try {
       const res = await fetch(`${API}/livestreams/${key}/comments`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...tenantHeaders() },
         body: JSON.stringify({ viewer_name: viewerName, message: message.trim() }),
       });
       if (res.ok) setMessage("");
@@ -167,11 +166,11 @@ export default function StreamViewerPage() {
   // ── Not found ─────────────────────────────────────────────────────────
   if (notFound) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center text-center px-6">
+      <div className="min-h-screen flex items-center justify-center text-center px-6" style={{ background: "var(--page-bg)" }}>
         <div>
-          <Radio size={44} className="mx-auto mb-4 text-gray-300" />
-          <p className="text-gray-700 font-semibold">Transmisión no encontrada</p>
-          <TenantLink href="/en-vivo" className="text-red-600 hover:text-red-700 text-sm mt-3 inline-block">
+          <Radio size={44} className="mx-auto mb-4 text-ink-300" />
+          <p className="text-ink-700 font-semibold">Transmisión no encontrada</p>
+          <TenantLink href="/en-vivo" className="text-brand-600 hover:text-brand-700 text-sm mt-3 inline-block">
             ← Volver a En Vivo
           </TenantLink>
         </div>
@@ -184,21 +183,16 @@ export default function StreamViewerPage() {
 
   // ── Render ────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
+    <div className="min-h-screen text-ink-900" style={{ background: "var(--page-bg)" }}>
 
       {/* Top nav */}
-      <div className="border-b border-gray-200 bg-white px-6 py-3">
+      <div className="bg-white px-6 py-3" style={{ borderBottom: "1px solid var(--page-line)" }}>
         <div className="max-w-6xl mx-auto flex items-center gap-3">
-          <TenantLink href="/en-vivo" className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 text-sm transition-colors">
+          <TenantLink href="/en-vivo" className="flex items-center gap-1.5 text-ink-500 hover:text-ink-900 text-sm transition-colors">
             <ArrowLeft size={15} />
             En vivo
           </TenantLink>
-          {isLive && (
-            <span className="flex items-center gap-1.5 bg-red-600 text-white text-xs font-bold px-2.5 py-0.5 rounded-full ml-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-              EN VIVO
-            </span>
-          )}
+          {isLive && <LiveBadge className="ml-2" />}
         </div>
       </div>
 
@@ -210,11 +204,11 @@ export default function StreamViewerPage() {
           <LivePlayer streamKey={key} apiUrl={API} />
 
           {info && (
-            <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-4">
+            <div className="bg-white rounded-2xl p-5 space-y-4" style={{ border: "1px solid var(--page-line)" }}>
               {/* Title */}
               <div>
-                <h1 className="text-xl font-bold text-gray-900 leading-snug">{info.title}</h1>
-                <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-gray-500">
+                <h1 className="font-serif text-xl font-bold text-ink-900 leading-snug">{info.title}</h1>
+                <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-ink-500">
                   {info.started_at && (
                     <span className="flex items-center gap-1.5">
                       <Clock size={11} />
@@ -238,30 +232,25 @@ export default function StreamViewerPage() {
               </div>
 
               {/* Broadcaster */}
-              <div className="flex items-center gap-3 py-3 border-t border-b border-gray-100">
-                <div className="shrink-0 w-10 h-10 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center ring-2 ring-red-500/20">
+              <div className="flex items-center gap-3 py-3 border-t border-b border-ink-100">
+                <div className="relative shrink-0 w-10 h-10 rounded-full overflow-hidden bg-ink-100 flex items-center justify-center ring-2 ring-brand-500/20">
                   {candidate?.photo_url
-                    ? <img src={candidate.photo_url} alt={candidate.name} className="w-full h-full object-cover" />
-                    : <Radio size={16} className="text-red-500" />
+                    ? <Image src={candidate.photo_url} alt={candidate.name} fill sizes="40px" className="object-cover" />
+                    : <Radio size={16} className="text-brand-500" />
                   }
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-gray-900 truncate">{candidate?.name ?? "Candidato"}</p>
-                  <p className="text-gray-500 text-xs truncate">{candidate?.title ?? candidate?.party ?? "Transmisión"}</p>
+                  <p className="font-semibold text-sm text-ink-900 truncate">{candidate?.name ?? "Candidato"}</p>
+                  <p className="text-ink-500 text-xs truncate">{candidate?.title ?? candidate?.party ?? "Transmisión"}</p>
                 </div>
-                {isLive && (
-                  <span className="shrink-0 flex items-center gap-1.5 bg-red-50 border border-red-200 text-red-600 text-xs font-bold px-3 py-1.5 rounded-full">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                    EN VIVO
-                  </span>
-                )}
+                {isLive && <LiveBadge variant="soft" className="shrink-0 px-3 py-1.5" />}
                 {isEnded && (
-                  <span className="shrink-0 text-gray-400 text-xs bg-gray-100 px-3 py-1.5 rounded-full">Grabación</span>
+                  <span className="shrink-0 text-ink-400 text-xs bg-ink-100 px-3 py-1.5 rounded-full">Grabación</span>
                 )}
               </div>
 
               {info.description && (
-                <p className="text-gray-600 text-sm leading-relaxed">{info.description}</p>
+                <p className="text-ink-600 text-sm leading-relaxed">{info.description}</p>
               )}
             </div>
           )}
@@ -269,14 +258,14 @@ export default function StreamViewerPage() {
 
         {/* ── Chat panel ────────────────────────────────────────── */}
         <div
-          className="bg-white rounded-2xl border border-gray-200 overflow-hidden flex flex-col lg:sticky lg:top-5"
-          style={{ height: "clamp(480px, calc(100vh - 90px), 800px)" }}
+          className="bg-white rounded-2xl overflow-hidden flex flex-col lg:sticky lg:top-5"
+          style={{ height: "clamp(480px, calc(100vh - 90px), 800px)", border: "1px solid var(--page-line)" }}
         >
           {/* Header */}
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between shrink-0">
-            <h3 className="font-semibold text-sm text-gray-900">Chat en vivo</h3>
+          <div className="px-4 py-3 border-b border-ink-100 flex items-center justify-between shrink-0">
+            <h3 className="font-semibold text-sm text-ink-900">Chat en vivo</h3>
             {isLive && info && info.current_viewers > 0 && (
-              <span className="flex items-center gap-1 text-xs text-gray-400">
+              <span className="flex items-center gap-1 text-xs text-ink-400">
                 <Users size={11} />
                 {info.current_viewers}
               </span>
@@ -285,12 +274,12 @@ export default function StreamViewerPage() {
 
           {/* ── Name join form ── */}
           {(!viewerName || editingName) && (
-            <div className="px-4 py-4 bg-red-50 border-b border-red-100 shrink-0">
-              <p className="text-xs font-semibold text-red-700 mb-0.5 flex items-center gap-1.5">
+            <div className="px-4 py-4 bg-brand-50 border-b border-brand-100 shrink-0">
+              <p className="text-xs font-semibold text-brand-700 mb-0.5 flex items-center gap-1.5">
                 <User size={12} />
                 {editingName ? "Cambiar nombre" : "¿Cómo te llamas?"}
               </p>
-              <p className="text-[11px] text-red-500/80 mb-3">
+              <p className="text-[11px] text-brand-600/80 mb-3">
                 {editingName ? "Tu nuevo nombre aparecerá en los próximos comentarios." : "Ingresa tu nombre para participar en el chat."}
               </p>
               <div className="flex gap-2">
@@ -302,19 +291,19 @@ export default function StreamViewerPage() {
                   onKeyDown={e => e.key === "Enter" && saveName()}
                   placeholder="Tu nombre..."
                   maxLength={50}
-                  className="flex-1 text-sm px-3 py-2 rounded-lg border border-red-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-400"
+                  className="flex-1 text-sm px-3 py-2 rounded-lg border border-brand-200 bg-white text-ink-900 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-400"
                 />
                 <button
                   onClick={saveName}
                   disabled={!nameInput.trim()}
-                  className="px-3 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 disabled:opacity-40 transition-colors whitespace-nowrap"
+                  className="px-3 py-2 bg-brand-500 text-white text-xs font-bold rounded-lg hover:bg-brand-600 disabled:opacity-40 transition-colors whitespace-nowrap"
                 >
                   {editingName ? "Guardar" : "Unirse"}
                 </button>
                 {editingName && (
                   <button
                     onClick={() => { setEditingName(false); setNameInput(""); }}
-                    className="px-3 py-2 text-gray-400 hover:text-gray-700 text-xs rounded-lg border border-gray-200 transition-colors"
+                    className="px-3 py-2 text-ink-400 hover:text-ink-700 text-xs rounded-lg border border-ink-200 transition-colors"
                   >
                     Cancelar
                   </button>
@@ -327,8 +316,8 @@ export default function StreamViewerPage() {
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3.5">
             {comments.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center gap-2">
-                <Radio size={28} className="text-gray-200" />
-                <p className="text-gray-400 text-xs">Sé el primero en comentar</p>
+                <Radio size={28} className="text-ink-200" />
+                <p className="text-ink-400 text-xs">Sé el primero en comentar</p>
               </div>
             ) : (
               comments.map(c => (
@@ -338,10 +327,10 @@ export default function StreamViewerPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline gap-1.5">
-                      <span className="text-xs font-semibold text-gray-800">{c.viewer_name}</span>
-                      <span className="text-[10px] text-gray-400 shrink-0">{timeAgo(c.created_at)}</span>
+                      <span className="text-xs font-semibold text-ink-800">{c.viewer_name}</span>
+                      <span className="text-[10px] text-ink-400 shrink-0">{timeAgo(c.created_at)}</span>
                     </div>
-                    <p className="text-sm text-gray-700 break-words leading-snug mt-0.5">{c.message}</p>
+                    <p className="text-sm text-ink-700 break-words leading-snug mt-0.5">{c.message}</p>
                   </div>
                 </div>
               ))
@@ -350,7 +339,7 @@ export default function StreamViewerPage() {
           </div>
 
           {/* Input area */}
-          <div className="px-4 py-3 border-t border-gray-100 shrink-0">
+          <div className="px-4 py-3 border-t border-ink-100 shrink-0">
             {viewerName && !editingName ? (
               <div className="space-y-2">
                 {/* Who am I */}
@@ -358,10 +347,10 @@ export default function StreamViewerPage() {
                   <div className={`w-4 h-4 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0 ${avatarColor(viewerName)}`}>
                     {viewerName[0].toUpperCase()}
                   </div>
-                  <span className="text-xs font-medium text-gray-600 truncate">{viewerName}</span>
+                  <span className="text-xs font-medium text-ink-600 truncate">{viewerName}</span>
                   <button
                     onClick={() => { setEditingName(true); setNameInput(viewerName); }}
-                    className="ml-auto text-gray-300 hover:text-gray-600 transition-colors"
+                    className="ml-auto text-ink-300 hover:text-ink-600 transition-colors"
                     title="Cambiar nombre"
                   >
                     <Pencil size={11} />
@@ -377,12 +366,12 @@ export default function StreamViewerPage() {
                     onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendComment(); } }}
                     placeholder="Escribe un comentario..."
                     maxLength={300}
-                    className="flex-1 text-sm px-3 py-2 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-400 focus:bg-white transition-colors"
+                    className="flex-1 text-sm px-3 py-2 rounded-xl border border-ink-200 bg-ink-100/50 text-ink-900 placeholder-ink-400 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:bg-white transition-colors"
                   />
                   <button
                     onClick={sendComment}
                     disabled={!message.trim() || sending}
-                    className="p-2 bg-red-600 text-white rounded-xl hover:bg-red-700 disabled:opacity-40 transition-colors"
+                    className="p-2 bg-brand-500 text-white rounded-xl hover:bg-brand-600 disabled:opacity-40 transition-colors"
                   >
                     <Send size={16} />
                   </button>
@@ -392,7 +381,7 @@ export default function StreamViewerPage() {
               /* No name yet — prompt */
               <button
                 onClick={() => { setEditingName(false); /* force show form */ setViewerName(""); }}
-                className="w-full text-sm py-2.5 border border-gray-200 rounded-xl text-gray-500 hover:border-red-300 hover:text-red-600 transition-colors"
+                className="w-full text-sm py-2.5 border border-ink-200 rounded-xl text-ink-500 hover:border-brand-300 hover:text-brand-600 transition-colors"
               >
                 Únete para comentar →
               </button>

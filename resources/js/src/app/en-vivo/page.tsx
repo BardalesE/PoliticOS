@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { TenantLink } from "@/components/ui/TenantLink";
 import { Radio, Clock, Users, Video, Wifi } from "lucide-react";
+import { tenantHeaders } from "@/lib/api";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
@@ -44,7 +45,7 @@ export default function EnVivoPage() {
   // (light mode — bg-gray-50)
 
   useEffect(() => {
-    fetch(`${API}/candidate`)
+    fetch(`${API}/candidate`, { headers: tenantHeaders() })
       .then(r => r.ok ? r.json() : null)
       .then(d => d && setCandidate(d))
       .catch(() => {});
@@ -53,7 +54,7 @@ export default function EnVivoPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`${API}/livestreams`);
+        const res = await fetch(`${API}/livestreams`, { headers: tenantHeaders() });
         const data = await res.json();
         setStreams(Array.isArray(data) ? data : []);
       } catch {}

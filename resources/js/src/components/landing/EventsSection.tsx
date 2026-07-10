@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
-import { CalendarDays, MapPin, Clock, ArrowRight, Radio, Zap } from "lucide-react";
+import { CalendarDays, MapPin, Clock, ArrowRight, Radio } from "lucide-react";
 import { TenantLink } from "@/components/ui/TenantLink";
 import { homeApi, type CampaignEvent } from "@/lib/api";
 import { useCandidate } from "@/context/CandidateContext";
@@ -56,10 +56,7 @@ function Digit({ value, label }: { value: number; label: string }) {
     <div className="flex flex-col items-center gap-2 flex-shrink-0">
       <div
         className="relative w-14 sm:w-[72px] h-14 sm:h-[72px] rounded-xl sm:rounded-2xl overflow-hidden flex items-center justify-center"
-        style={{
-          background: "linear-gradient(145deg, color-mix(in srgb, rgb(var(--brand-dark-rgb)) 55%, black) 0%, rgb(var(--brand-primary-rgb)) 60%, color-mix(in srgb, rgb(var(--brand-primary-rgb)) 75%, white) 100%)",
-          boxShadow: "0 8px 24px var(--brand-glow-40), inset 0 1px 0 rgba(255,255,255,0.15)",
-        }}
+        style={{ background: "rgb(var(--brand-primary-rgb))" }}
       >
         <div className="absolute inset-x-0 top-1/2 h-px bg-black/20 z-10" />
         <div className="absolute inset-x-0 top-0 h-1/2 bg-white/[0.08] rounded-t-2xl" />
@@ -114,16 +111,13 @@ function EventMiniCard({ event, index }: { event: CampaignEvent; index: number }
       <motion.div
         whileHover={{ y: -3 }}
         transition={{ type: "spring", stiffness: 300, damping: 20 }}
-        className="flex items-center gap-4 p-4 rounded-2xl bg-white border border-ink-200 hover:border-brand-300 transition-colors duration-200"
-        style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.05)" }}
+        className="flex items-center gap-4 p-4 rounded-2xl bg-white border hover:border-brand-300 transition-colors duration-200"
+        style={{ borderColor: "var(--page-line)" }}
       >
         {/* Fecha */}
         <div
           className="flex-shrink-0 w-14 h-14 rounded-xl flex flex-col items-center justify-center"
-          style={{
-            background: "var(--brand-grad)",
-            boxShadow: "0 4px 14px var(--brand-glow-35)",
-          }}
+          style={{ background: "rgb(var(--brand-primary-rgb))" }}
         >
           <span className="text-white font-serif font-extrabold text-xl leading-none">{df.day}</span>
           <span className="text-white/70 text-[9px] font-extrabold tracking-wider mt-0.5">{df.month}</span>
@@ -243,15 +237,18 @@ export function EventsSection({
           transition={{ duration: 0.5 }}
           className="mb-12"
         >
-          <span className="inline-flex items-center gap-2 bg-brand-50 border border-brand-200 text-brand-700 text-[10px] font-extrabold uppercase tracking-[2px] px-4 py-2 rounded-full mb-4">
-            <Zap size={11} />
+          <span
+            className="inline-flex items-center gap-2 border text-ink-600 text-[11px] font-bold uppercase tracking-[1.5px] px-4 py-1.5 rounded-full mb-4"
+            style={{ borderColor: "var(--page-line)" }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: "rgb(var(--brand-primary-rgb))" }} />
             {badge}
           </span>
           <h2 className="font-serif text-3xl md:text-4xl font-bold text-ink-900 mt-2">
             {title.includes("*")
               ? title.split(/(\*[^*]+\*)/).map((p, i) =>
                   p.startsWith("*") && p.endsWith("*")
-                    ? <span key={i} style={{ background: "var(--brand-grad)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>{p.slice(1,-1)}</span>
+                    ? <span key={i} style={{ color: "rgb(var(--brand-primary-rgb))" }}>{p.slice(1,-1)}</span>
                     : <span key={i}>{p}</span>
                 )
               : title
@@ -270,16 +267,13 @@ export function EventsSection({
             className="lg:col-span-2"
           >
             <div
-              className="rounded-2xl overflow-hidden border border-brand-200"
-              style={{ boxShadow: "0 8px 32px var(--brand-glow-15)" }}
+              className="rounded-2xl overflow-hidden border"
+              style={{ borderColor: "var(--page-line)" }}
             >
               {/* Header */}
-              <div className="px-5 py-4" style={{ background: "var(--brand-grad)" }}>
+              <div className="px-5 py-4" style={{ background: "rgb(var(--brand-primary-rgb))" }}>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="relative flex h-2 w-2 shrink-0">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
-                  </span>
+                  <span className="inline-flex rounded-full h-2 w-2 bg-white shrink-0" />
                   <p className="text-[10px] uppercase tracking-[0.2em] text-white/90 font-extrabold truncate">
                     {displayEvent ? displayEvent.title : "Elecciones 2026"}
                   </p>
@@ -304,7 +298,7 @@ export function EventsSection({
                     animate={{ scale: [1, 1.04, 1] }}
                     transition={{ duration: 1.5, repeat: Infinity }}
                     className="font-serif text-3xl font-bold"
-                    style={{ background: "var(--brand-grad)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}
+                    style={{ color: "rgb(var(--brand-primary-rgb))" }}
                   >
                     ¡Es hoy! 🗳️
                   </motion.p>
@@ -358,10 +352,10 @@ export function EventsSection({
           >
             {displayEvent ? (
               <motion.div
-                whileHover={{ y: -4 }}
+                whileHover={{ y: -2 }}
                 transition={{ type: "spring", stiffness: 200, damping: 20 }}
-                className="rounded-2xl overflow-hidden border border-ink-200 bg-white"
-                style={{ boxShadow: "0 8px 40px var(--brand-glow-10)" }}
+                className="rounded-2xl overflow-hidden border bg-white"
+                style={{ borderColor: "var(--page-line)" }}
               >
                 {/* Imagen */}
                 <div className="relative aspect-video bg-brand-50 overflow-hidden">
@@ -374,7 +368,7 @@ export function EventsSection({
                       sizes="(max-width: 1024px) 60vw, 45vw"
                     />
                   ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-brand-50 to-brand-100">
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-brand-50">
                       <CalendarDays size={48} className="text-brand-400" />
                       <p className="text-sm text-brand-400 font-medium">Imagen del evento</p>
                     </div>
@@ -382,8 +376,8 @@ export function EventsSection({
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
 
                   {/* Badge destacado */}
-                  <div className="absolute top-3 left-3 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-700 backdrop-blur-sm">
-                    <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                  <div className="absolute top-3 left-3 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-brand-700">
+                    <span className="h-2 w-2 rounded-full bg-white" />
                     <span className="text-xs font-bold text-white">
                       {displayEvent.is_featured ? "Evento destacado" : "Próximo evento"}
                     </span>
@@ -391,7 +385,7 @@ export function EventsSection({
 
                   {/* Hora flotante */}
                   {eventTime && (
-                    <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                    <div className="absolute top-3 right-3 bg-white/90 px-3 py-1.5 rounded-full">
                       <span className="text-xs font-extrabold text-brand-800 flex items-center gap-1">
                         <Clock size={11} /> {eventTime}
                       </span>
@@ -403,7 +397,7 @@ export function EventsSection({
                     <div className="absolute bottom-3 left-3 flex items-center gap-2">
                       <div
                         className="w-11 h-11 rounded-xl flex flex-col items-center justify-center"
-                        style={{ background: "var(--brand-grad)", boxShadow: "0 4px 12px var(--brand-glow-40)" }}
+                        style={{ background: "rgb(var(--brand-primary-rgb))" }}
                       >
                         <span className="text-white font-serif font-extrabold text-base leading-none">{df.day}</span>
                         <span className="text-white/70 text-[8px] font-extrabold tracking-wider">{df.month}</span>
@@ -452,7 +446,7 @@ export function EventsSection({
               <div className="rounded-2xl border border-brand-100 bg-brand-50 p-10 text-center">
                 <div
                   className="inline-flex items-center justify-center h-16 w-16 rounded-2xl mb-4 mx-auto"
-                  style={{ background: "var(--brand-grad)", boxShadow: "0 8px 24px var(--brand-glow-30)" }}
+                  style={{ background: "rgb(var(--brand-primary-rgb))" }}
                 >
                   <CalendarDays size={28} className="text-white" />
                 </div>

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { homeApi, type TeamMember } from "@/lib/api";
@@ -68,13 +69,14 @@ export function TeamSection({ initialMembers }: { initialMembers?: TeamMember[] 
             Las personas detrás del{" "}
             <em className="not-italic" style={{ color: "rgb(var(--brand-dark-rgb))" }}>cambio.</em>
           </h2>
-          <p className="mt-3 text-base" style={{ color: "#4c5b51" }}>
+          <p className="mt-3 text-base" style={{ color: "var(--page-ink-soft)" }}>
             Un equipo comprometido, con experiencia en gestión pública y trabajo de campo.
           </p>
         </motion.div>
 
-        {/* Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
+        {/* Grid — flex centrado: con 1 o 2 integrantes las tarjetas quedan
+            al centro en vez de pegadas a la esquina de un grid de 4 columnas */}
+        <div className="flex flex-wrap justify-center gap-5">
           {display.map((member, i) => (
             <motion.div
               key={member.id}
@@ -82,7 +84,7 @@ export function TeamSection({ initialMembers }: { initialMembers?: TeamMember[] 
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-60px" }}
               transition={{ duration: 0.35, delay: i * 0.07 }}
-              className="text-center"
+              className="text-center w-[calc(50%-0.625rem)] sm:w-48 lg:w-52"
             >
               {/* Avatar cuadrado */}
               <div
@@ -93,10 +95,12 @@ export function TeamSection({ initialMembers }: { initialMembers?: TeamMember[] 
                 }}
               >
                 {member.photo_url ? (
-                  <img
+                  <Image
                     src={member.photo_url}
                     alt={member.name}
-                    className="w-full h-full object-cover object-top"
+                    fill
+                    sizes="(max-width: 640px) 50vw, 208px"
+                    className="object-cover object-top"
                   />
                 ) : (
                   <span

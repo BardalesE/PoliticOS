@@ -21,6 +21,21 @@ class KnowledgeDocumentController extends Controller
         );
     }
 
+    // GET /api/knowledge  (público — portal de transparencia)
+    // Solo documentos activos y solo los campos para listar/enlazar:
+    // nunca exponer `content` (texto completo extraído para el RAG).
+    public function publicIndex(): JsonResponse
+    {
+        return response()->json(
+            KnowledgeDocument::where('is_active', true)
+                ->orderByDesc('created_at')
+                ->get([
+                    'id', 'title', 'description', 'topic', 'file_url',
+                    'source_url', 'source_type', 'file_size', 'is_active', 'created_at',
+                ])
+        );
+    }
+
     public function store(Request $request): JsonResponse
     {
         $tenant = app('tenant');

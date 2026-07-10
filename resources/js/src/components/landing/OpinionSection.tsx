@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageSquarePlus, Send, CheckCircle2, MapPin, User, ChevronDown } from "lucide-react";
+import { Send, CheckCircle2, MapPin, User, ChevronDown } from "lucide-react";
+import { TenantLink } from "@/components/ui/TenantLink";
 import { useCandidate } from "@/context/CandidateContext";
 
 interface FormState {
@@ -30,26 +31,27 @@ export function OpinionSection() {
 
   const shortName = profile.name.split(" ")[0];
 
+  // WhatsApp es hoy el único canal real de esta sección: sin número
+  // configurado no hay a dónde enviar el mensaje, así que no se simula
+  // un envío exitoso — se deshabilita el submit y se ofrece el chat.
+  const channelAvailable = !!profile.whatsapp_number;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.message.trim()) return;
+    if (!form.message.trim() || !channelAvailable) return;
     setLoading(true);
 
-    // Si hay WhatsApp, abre con el mensaje pre-armado
-    if (profile.whatsapp_number) {
-      const text = [
-        `*Opinión ciudadana — Campaña ${shortName}*`,
-        form.name    ? `👤 ${form.name}`    : "",
-        form.district? `📍 ${form.district}` : "",
-        form.topic   ? `🏷 ${form.topic}`    : "",
-        `💬 ${form.message}`,
-      ].filter(Boolean).join("\n");
+    const text = [
+      `*Opinión ciudadana — Campaña ${shortName}*`,
+      form.name    ? `👤 ${form.name}`    : "",
+      form.district? `📍 ${form.district}` : "",
+      form.topic   ? `🏷 ${form.topic}`    : "",
+      `💬 ${form.message}`,
+    ].filter(Boolean).join("\n");
 
-      const number = profile.whatsapp_number.replace(/[^0-9]/g, "");
-      window.open(`https://wa.me/${number}?text=${encodeURIComponent(text)}`, "_blank");
-    }
+    const number = profile.whatsapp_number!.replace(/[^0-9]/g, "");
+    window.open(`https://wa.me/${number}?text=${encodeURIComponent(text)}`, "_blank");
 
-    // Simular envío (200ms) y mostrar éxito
     await new Promise((r) => setTimeout(r, 800));
     setLoading(false);
     setSent(true);
@@ -78,21 +80,17 @@ export function OpinionSection() {
             viewport={{ once: true, margin: "-60px" }}
             transition={{ duration: 0.5 }}
           >
-            <span className="inline-flex items-center gap-2 bg-brand-50 border border-brand-200 text-brand-700 text-[10px] font-extrabold uppercase tracking-[2px] px-4 py-2 rounded-full mb-6">
-              <MessageSquarePlus size={11} />
+            <span
+              className="inline-flex items-center gap-2 border text-ink-600 text-[11px] font-bold uppercase tracking-[1.5px] px-4 py-1.5 rounded-full mb-6"
+              style={{ borderColor: "var(--page-line)" }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: "rgb(var(--brand-primary-rgb))" }} />
               Tu opinión importa
             </span>
 
             <h2 className="font-serif text-3xl md:text-4xl font-bold text-ink-900 leading-tight mb-4">
               Dile a {shortName}{" "}
-              <span
-                style={{
-                  background: "var(--brand-grad)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}
-              >
+              <span style={{ color: "rgb(var(--brand-primary-rgb))" }}>
                 lo que piensas.
               </span>
             </h2>
@@ -118,7 +116,7 @@ export function OpinionSection() {
                 >
                   <div
                     className="w-6 h-6 rounded-full flex-shrink-0 grid place-items-center"
-                    style={{ background: "var(--brand-grad)" }}
+                    style={{ background: "rgb(var(--brand-primary-rgb))" }}
                   >
                     <CheckCircle2 size={13} className="text-white" />
                   </div>
@@ -136,8 +134,8 @@ export function OpinionSection() {
             transition={{ duration: 0.5, delay: 0.05 }}
           >
             <div
-              className="bg-white rounded-2xl border border-ink-200 p-6 sm:p-8"
-              style={{ boxShadow: "0 8px 40px var(--brand-glow-10)" }}
+              className="bg-white rounded-2xl p-6 sm:p-8"
+              style={{ border: "1px solid var(--page-line)" }}
             >
               <AnimatePresence mode="wait">
                 {!sent ? (
@@ -151,12 +149,13 @@ export function OpinionSection() {
                   >
                     {/* Nombre */}
                     <div>
-                      <label className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-500 mb-1.5">
-                        Tu nombre <span className="text-ink-300 font-normal normal-case tracking-normal">(opcional)</span>
+                      <label htmlFor="opinion-name" className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-500 mb-1.5">
+                        Tu nombre <span className="text-ink-400 font-normal normal-case tracking-normal">(opcional)</span>
                       </label>
                       <div className="relative">
                         <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-300 pointer-events-none" />
                         <input
+                          id="opinion-name"
                           type="text"
                           placeholder="Ej: María López"
                           value={form.name}
@@ -169,12 +168,13 @@ export function OpinionSection() {
                     {/* Caserío + Tema — fila */}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-500 mb-1.5">
+                        <label htmlFor="opinion-district" className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-500 mb-1.5">
                           Tu caserío
                         </label>
                         <div className="relative">
                           <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-300 pointer-events-none" />
                           <select
+                            id="opinion-district"
                             value={form.district}
                             onChange={(e) => setForm({ ...form, district: e.target.value })}
                             className="w-full appearance-none pl-9 pr-8 py-3 rounded-xl border border-ink-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-100 text-sm text-ink-700 outline-none transition-all duration-200 bg-white cursor-pointer"
@@ -189,11 +189,12 @@ export function OpinionSection() {
                       </div>
 
                       <div>
-                        <label className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-500 mb-1.5">
+                        <label htmlFor="opinion-topic" className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-500 mb-1.5">
                           Tema
                         </label>
                         <div className="relative">
                           <select
+                            id="opinion-topic"
                             value={form.topic}
                             onChange={(e) => setForm({ ...form, topic: e.target.value })}
                             className="w-full appearance-none px-3 pr-8 py-3 rounded-xl border border-ink-200 focus:border-brand-400 focus:ring-4 focus:ring-brand-100 text-sm text-ink-700 outline-none transition-all duration-200 bg-white cursor-pointer"
@@ -210,10 +211,11 @@ export function OpinionSection() {
 
                     {/* Mensaje */}
                     <div>
-                      <label className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-500 mb-1.5">
+                      <label htmlFor="opinion-message" className="block text-[11px] font-extrabold uppercase tracking-wider text-ink-500 mb-1.5">
                         Tu mensaje <span className="text-brand-500">*</span>
                       </label>
                       <textarea
+                        id="opinion-message"
                         required
                         rows={4}
                         placeholder={`Escríbele directamente a ${shortName}...`}
@@ -226,14 +228,11 @@ export function OpinionSection() {
                     {/* Submit */}
                     <motion.button
                       type="submit"
-                      disabled={loading || !form.message.trim()}
+                      disabled={loading || !form.message.trim() || !channelAvailable}
                       whileHover={{ scale: loading ? 1 : 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl text-sm font-extrabold uppercase tracking-wider text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                      style={{
-                        background: "var(--brand-grad)",
-                        boxShadow: "0 6px 20px var(--brand-glow-30)",
-                      }}
+                      className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl text-sm font-bold uppercase tracking-wide text-white transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{ background: "rgb(var(--brand-primary-rgb))" }}
                     >
                       {loading ? (
                         <span className="flex items-center gap-2">
@@ -247,11 +246,19 @@ export function OpinionSection() {
                       )}
                     </motion.button>
 
-                    <p className="text-center text-[11px] text-ink-400 font-medium">
-                      {profile.whatsapp_number
-                        ? "Se enviará vía WhatsApp al equipo de campaña."
-                        : "Tu mensaje será revisado por el equipo de campaña."}
-                    </p>
+                    {channelAvailable ? (
+                      <p className="text-center text-[11px] text-ink-400 font-medium">
+                        Se enviará vía WhatsApp al equipo de campaña.
+                      </p>
+                    ) : (
+                      <p className="text-center text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                        Este canal aún no está disponible. Mientras tanto puedes{" "}
+                        <TenantLink href="/chat" className="font-bold underline underline-offset-2">
+                          escribirle al asistente de {shortName}
+                        </TenantLink>
+                        .
+                      </p>
+                    )}
                   </motion.form>
                 ) : (
                   <motion.div
@@ -265,7 +272,7 @@ export function OpinionSection() {
                       animate={{ scale: 1 }}
                       transition={{ type: "spring", stiffness: 200, damping: 15, delay: 0.1 }}
                       className="w-16 h-16 rounded-full grid place-items-center mb-5"
-                      style={{ background: "var(--brand-grad)", boxShadow: "0 8px 24px var(--brand-glow-35)" }}
+                      style={{ background: "rgb(var(--brand-primary-rgb))" }}
                     >
                       <CheckCircle2 size={30} className="text-white" />
                     </motion.div>

@@ -1,10 +1,12 @@
 "use client";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, Shield, ChevronRight } from "lucide-react";
+import Image from "next/image";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useCandidate } from "@/context/CandidateContext";
 import { TenantLink } from "@/components/ui/TenantLink";
+import { tenantHeaders } from "@/lib/api";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
@@ -14,7 +16,7 @@ const NAV_DEFS = [
   { href: "/galeria",    label: "Galería" },
   { href: "/videos",     label: "Videos" },
   { href: "/en-vivo",    label: "En vivo", live: true },
-  { href: "/distritos",  label: "Caseríos" },
+  { href: "/distritos",  label: "Lugares Visitados" },
   { href: "/chat",       label: "Chat IA" },
 ];
 
@@ -35,7 +37,7 @@ export function Navbar() {
   useEffect(() => {
     const check = async () => {
       try {
-        const res = await fetch(`${API}/livestreams`);
+        const res = await fetch(`${API}/livestreams`, { headers: tenantHeaders() });
         if (!res.ok) return;
         const list = await res.json();
         setIsLive(Array.isArray(list) && list.some((s: { status: string }) => s.status === "live"));
@@ -62,13 +64,13 @@ export function Navbar() {
         <div className="bg-brand-700">
           <div className="mx-auto max-w-7xl px-5 py-2 flex items-center justify-between gap-3">
             <span className="text-[11px] font-semibold text-white/80 hidden sm:block">
-              {profile.party || "Perú Primero"} · {profile.location}
+              {profile.party || "Campaña Electoral"} · {profile.location}
             </span>
             <span className="text-[11px] font-semibold text-white/80 sm:hidden">
               Lista N°{profile.list_number} · {profile.location}
             </span>
             <TenantLink
-              href="/transparencia"
+              href="/#documentos"
               className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white
                          text-[10px] sm:text-[11px] font-bold uppercase px-3 py-1.5 rounded-full
                          transition-colors shrink-0 border border-white/20"
@@ -85,7 +87,7 @@ export function Navbar() {
           className="bg-white border-b border-ink-200 transition-all duration-300"
           style={{
             boxShadow: scrolled
-              ? "0 4px 24px var(--brand-glow-10)"
+              ? "0 2px 12px rgba(0,0,0,0.06)"
               : "0 1px 0 rgba(0,0,0,0.06)",
           }}
         >
@@ -95,14 +97,16 @@ export function Navbar() {
               {/* Logo */}
               <TenantLink href="/" className="flex items-center gap-3 shrink-0 group">
                 <div
-                  className="w-11 h-11 rounded-xl overflow-hidden border-2 border-brand-100 shadow-sm
+                  className="relative w-11 h-11 rounded-xl overflow-hidden border-2 border-brand-100 shadow-sm
                               group-hover:border-brand-400 group-hover:shadow-md transition-all duration-200 shrink-0"
                 >
                   {profile.logo_url ? (
-                    <img
+                    <Image
                       src={profile.logo_url}
                       alt={profile.party || "Logo"}
-                      className="w-full h-full object-cover"
+                      fill
+                      sizes="44px"
+                      className="object-cover"
                     />
                   ) : (
                     <div className="w-full h-full bg-brand-700 text-white font-serif font-extrabold text-lg grid place-items-center">
@@ -112,7 +116,7 @@ export function Navbar() {
                 </div>
                 <div className="hidden sm:block leading-tight">
                   <p className="text-[11px] font-extrabold uppercase tracking-[1.5px] text-brand-700">
-                    {profile.party || "Perú Primero"}
+                    {profile.party || "Campaña Electoral"}
                   </p>
                   <p className="text-xs font-semibold text-ink-500">
                     {shortName} · {profile.title}
@@ -169,14 +173,10 @@ export function Navbar() {
                   <TenantLink
                     href="/chat"
                     className="inline-flex items-center gap-2 bg-brand-700 hover:bg-brand-900 text-white
-                               px-5 py-2.5 rounded-xl text-sm font-extrabold uppercase tracking-wider
-                               transition-all duration-200"
-                    style={{ boxShadow: "0 4px 16px var(--brand-glow-30)" }}
+                               px-5 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wide
+                               transition-colors duration-150"
                   >
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
-                    </span>
+                    <span className="inline-flex rounded-full h-2 w-2 bg-white" />
                     Chatear
                   </TenantLink>
                 </motion.div>
@@ -223,9 +223,9 @@ export function Navbar() {
               {/* Header del drawer */}
               <div className="bg-brand-700 px-5 py-4 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-lg overflow-hidden border-2 border-white/30 shrink-0">
+                  <div className="relative w-9 h-9 rounded-lg overflow-hidden border-2 border-white/30 shrink-0">
                     {profile.logo_url ? (
-                      <img src={profile.logo_url} alt={profile.party || "Logo"} className="w-full h-full object-cover" />
+                      <Image src={profile.logo_url} alt={profile.party || "Logo"} fill sizes="36px" className="object-cover" />
                     ) : (
                       <div className="w-full h-full bg-brand-500 text-white font-serif font-extrabold text-base grid place-items-center">
                         {profile.list_number || "1"}
@@ -234,7 +234,7 @@ export function Navbar() {
                   </div>
                   <div>
                     <p className="text-white font-extrabold text-sm uppercase tracking-wider leading-none">
-                      {profile.party || "Perú Primero"}
+                      {profile.party || "Campaña Electoral"}
                     </p>
                     <p className="text-white/65 text-[11px] font-semibold mt-0.5">
                       Lista N°{profile.list_number}
@@ -299,14 +299,10 @@ export function Navbar() {
                     href="/chat"
                     onClick={() => setOpen(false)}
                     className="flex items-center justify-center gap-2 w-full bg-brand-700 hover:bg-brand-900
-                               text-white py-4 rounded-xl text-base font-extrabold uppercase tracking-wider
-                               transition-all duration-200"
-                    style={{ boxShadow: "0 6px 20px var(--brand-glow-30)" }}
+                               text-white py-4 rounded-xl text-base font-bold uppercase tracking-wide
+                               transition-colors duration-150"
                   >
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-60" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
-                    </span>
+                    <span className="inline-flex rounded-full h-2 w-2 bg-white" />
                     Conversar con {shortName}
                   </TenantLink>
                   <p className="text-center text-xs text-ink-400 mt-3 font-medium">

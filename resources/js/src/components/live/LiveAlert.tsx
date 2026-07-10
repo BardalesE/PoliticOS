@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { TenantLink } from "@/components/ui/TenantLink";
 import { motion, AnimatePresence } from "framer-motion";
 import { Radio, X, Users, ArrowRight } from "lucide-react";
+import { tenantHeaders } from "@/lib/api";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
@@ -24,7 +25,7 @@ export function LiveAlert() {
   useEffect(() => {
     const check = async () => {
       try {
-        const res  = await fetch(`${API}/livestreams`);
+        const res  = await fetch(`${API}/livestreams`, { headers: tenantHeaders() });
         if (!res.ok) return;
         const list: LiveStream[] = await res.json();
         const live = list.find(s => s.status === "live") ?? null;

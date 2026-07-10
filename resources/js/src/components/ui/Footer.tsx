@@ -1,21 +1,23 @@
 "use client";
+import Image from "next/image";
 import { MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 import { useCandidate } from "@/context/CandidateContext";
 import { TenantLink } from "@/components/ui/TenantLink";
 
+// Las anclas usan la forma /#id para funcionar también desde otras páginas.
 const contentLinks = [
-  { href: "/propuestas", label: "Propuestas" },
-  { href: "/distritos",  label: "Caseríos" },
-  { href: "/galeria",    label: "Galería" },
-  { href: "/videos",     label: "Videos" },
-  { href: "/documentos", label: "Documentos" },
+  { href: "/propuestas",   label: "Propuestas" },
+  { href: "/distritos",    label: "Caseríos" },
+  { href: "/galeria",      label: "Galería" },
+  { href: "/videos",       label: "Videos" },
+  { href: "/#documentos",  label: "Documentos" },
 ];
 
 const participaLinks = [
-  { href: "/#agenda",         label: "Agenda" },
+  { href: "/#eventos",        label: "Agenda" },
   { href: "/#servicios",      label: "Servicios" },
-  { href: "/#opinion",        label: "Tu voz" },
+  { href: "/#opiniones",      label: "Tu voz" },
   { href: "/en-vivo",         label: "En vivo" },
   { href: "/chat",            label: "Chatbot IA" },
 ];
@@ -49,11 +51,11 @@ export function Footer() {
             {/* Badge + meta */}
             <div className="flex items-center gap-3 mb-4">
               <div
-                className="w-12 h-12 rounded-[13px] grid place-items-center text-white font-serif font-bold text-xl flex-shrink-0 overflow-hidden"
+                className="relative w-12 h-12 rounded-[13px] grid place-items-center text-white font-serif font-bold text-xl flex-shrink-0 overflow-hidden"
                 style={{ background: "linear-gradient(150deg, rgb(var(--brand-primary-rgb)), rgb(var(--brand-dark-rgb)))" }}
               >
                 {profile.logo_url ? (
-                  <img src={profile.logo_url} alt={profile.party || "Logo"} className="w-full h-full object-cover" />
+                  <Image src={profile.logo_url} alt={profile.party || "Logo"} fill sizes="48px" className="object-cover" />
                 ) : (
                   profile.list_number || "1"
                 )}

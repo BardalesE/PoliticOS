@@ -5,11 +5,13 @@ import dynamic from "next/dynamic";
 import { Navbar }            from "@/components/ui/Navbar";
 import { Hero }              from "@/components/landing/Hero";
 import { StatsBar }          from "@/components/landing/StatsBar";
-import { ListaUnoBanner }    from "@/components/landing/ListaUnoBanner";
+import { Countdown }         from "@/components/landing/Countdown";
 import { AssistantPreview }  from "@/components/landing/AssistantPreview";
 import { LiveStreamBanner }  from "@/components/landing/LiveStreamBanner";
 
 // ── Bajo el fold — carga diferida (split de bundle) ──────────────────────────
+const DosVias         = dynamic(() => import("@/components/landing/DosVias").then(m => ({ default: m.DosVias })));
+const BioSection      = dynamic(() => import("@/components/landing/BioSection").then(m => ({ default: m.BioSection })));
 const Proposals       = dynamic(() => import("@/components/landing/Proposals").then(m => ({ default: m.Proposals })));
 const MediaSection    = dynamic(() => import("@/components/landing/MediaSection").then(m => ({ default: m.MediaSection })));
 const DocumentsSection= dynamic(() => import("@/components/landing/DocumentsSection").then(m => ({ default: m.DocumentsSection })));
@@ -29,6 +31,7 @@ import type {
 
 const DEFAULTS: HomeSettings = {
   show_hero:          "1",
+  show_bio:           "1",
   show_assistant:     "1",
   show_proposals:     "1",
   show_multimedia:    "1",
@@ -36,6 +39,7 @@ const DEFAULTS: HomeSettings = {
   show_events:        "1",
   show_districts:     "1",
   show_team:          "1",
+  show_opinion:       "1",
   show_connection:    "1",
   events_title:       "Próximos encuentros con el pueblo.",
   events_badge:       "Agenda",
@@ -69,17 +73,21 @@ export default function DynamicHome({
 }: Props) {
   const settings = { ...DEFAULTS, ...(initialSettings ?? {}) };
 
+  // Orden mobile-first por capas de atención: gancho (hero + identidad +
+  // urgencia + prueba social) → oferta (propuestas) → confianza (multimedia,
+  // asistente, agenda, territorio) → profundidad (documentos, equipo) → cierre.
   return (
     <main className="landing-main">
       <LiveStreamBanner />
       <Navbar />
       {on(settings, "show_hero")       && <Hero initialHero={initialHero ?? null} />}
-      {on(settings, "show_hero")       && <StatsBar proposalsCount={initialProposals.length} />}
-      {on(settings, "show_hero")       && <ListaUnoBanner />}
-      {on(settings, "show_assistant")  && <AssistantPreview />}
+      <Countdown featured={initialFeatured} electionDateIso={settings.election_date_iso} />
+      {on(settings, "show_hero")       && <StatsBar proposalsCount={initialProposals.length} settings={settings} />}
+      {on(settings, "show_assistant") && on(settings, "show_opinion") && <DosVias />}
+      {on(settings, "show_bio")        && <BioSection />}
       {on(settings, "show_proposals")  && <Proposals initialData={initialProposals} />}
       {on(settings, "show_multimedia") && <MediaSection initialPhotos={initialGallery} initialVideos={initialVideos} />}
-      {on(settings, "show_documents")  && <DocumentsSection />}
+      {on(settings, "show_assistant")  && <AssistantPreview />}
       {on(settings, "show_events")     && (
         <EventsSection
           initialEvents={initialEvents}
@@ -90,9 +98,10 @@ export default function DynamicHome({
         />
       )}
       {on(settings, "show_districts")  && <Districts />}
+      {on(settings, "show_documents")  && <DocumentsSection />}
       {on(settings, "show_team")       && <TeamSection initialMembers={initialTeam} />}
+      {on(settings, "show_opinion")    && <OpinionSection />}
       {on(settings, "show_connection") && <Connection />}
-      <OpinionSection />
       <Footer />
       <ChatFAB />
     </main>

@@ -16,15 +16,17 @@ export function AssistantPreview() {
       desc:  "Envía tu opinión y propuesta directamente al equipo.",
       to:    "chat",
     },
+    // Ambas tarjetas apuntan al ancla de DocumentsSection: las rutas
+    // /transparencia y /documentos no existen en app/ y eran 404 reales.
     {
-      href:  "/transparencia",
+      href:  "#documentos",
       icon:  Flag,
       title: "Portal de Transparencia",
       desc:  "Consulta el financiamiento y los gastos de campaña.",
       to:    "transparencia",
     },
     {
-      href:  "/documentos",
+      href:  "#documentos",
       icon:  FileText,
       title: "Documentos públicos",
       desc:  "Plan de gobierno, hoja de vida y declaraciones juradas.",
@@ -69,7 +71,7 @@ export function AssistantPreview() {
             Estamos para{" "}
             <em className="not-italic" style={{ color: "rgb(var(--brand-primary-rgb))" }}>servirte.</em>
           </h2>
-          <p className="mt-3 text-base" style={{ color: "#4c5b51" }}>
+          <p className="mt-3 text-base" style={{ color: "var(--page-ink-soft)" }}>
             Canales directos entre tú y la campaña. Transparencia y respuesta en cada paso.
           </p>
         </motion.div>
@@ -81,7 +83,7 @@ export function AssistantPreview() {
             const isEven = i % 2 === 1;
             return (
               <motion.div
-                key={s.href}
+                key={s.to}
                 initial={{ opacity: 0, y: 28 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-60px" }}
@@ -89,18 +91,16 @@ export function AssistantPreview() {
               >
                 <TenantLink
                   href={s.href}
-                  className="group flex flex-col h-full bg-white rounded-[18px] overflow-hidden transition-all duration-300"
+                  className="group flex flex-col h-full bg-white rounded-[18px] overflow-hidden transition-[border-color,transform] duration-150"
                   style={{ border: "1px solid var(--page-line)", padding: "28px 24px" }}
                   onMouseEnter={(e) => {
                     const el = e.currentTarget as HTMLElement;
-                    el.style.transform = "translateY(-5px)";
-                    el.style.boxShadow = "0 26px 50px -30px var(--page-shadow)";
-                    el.style.borderColor = "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 30%, transparent)";
+                    el.style.transform = "translateY(-2px)";
+                    el.style.borderColor = "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 35%, var(--page-line))";
                   }}
                   onMouseLeave={(e) => {
                     const el = e.currentTarget as HTMLElement;
                     el.style.transform = "";
-                    el.style.boxShadow = "";
                     el.style.borderColor = "var(--page-line)";
                   }}
                 >
@@ -130,7 +130,7 @@ export function AssistantPreview() {
                   >
                     {s.title}
                   </h3>
-                  <p className="text-sm leading-relaxed flex-1" style={{ color: "#4c5b51" }}>
+                  <p className="text-sm leading-relaxed flex-1" style={{ color: "var(--page-ink-soft)" }}>
                     {s.desc}
                   </p>
 

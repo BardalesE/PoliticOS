@@ -25,6 +25,11 @@ class CandidateProfileController extends Controller
         $districts = District::where('is_active', true)
             ->orderBy('sort_order')
             ->pluck('name');
+        // "Lugares Visitados" (home pública) — subconjunto de districts que
+        // ya tiene fecha real de visita. Campo nuevo, no reemplaza
+        // `districts` (Hero/OpinionSection lo siguen usando como lista
+        // simple de nombres para el buscador de zona).
+        $visitedPlaces = District::visitedPublic();
         $ai = \App\Models\AiSetting::current();
 
         return response()->json([
@@ -32,6 +37,7 @@ class CandidateProfileController extends Controller
             'suggested_questions' => $questions,
             'topics'              => $topics,
             'districts'           => $districts,
+            'visited_places'      => $visitedPlaces,
             'chat_btn'            => [
                 'text'     => $ai->chat_btn_text,
                 'subtitle' => $ai->chat_subtitle ?? 'IA · 24/7',

@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Wifi, WifiOff, Maximize2, Volume2, VolumeX, Loader2, PlayCircle } from "lucide-react";
+import { resolveTenantSlug, tenantHeaders } from "@/lib/api";
+import { LiveBadge } from "@/components/live/LiveBadge";
 
 interface StreamInfo {
   title: string;
@@ -153,7 +155,7 @@ function LiveStreamPlayer({ streamKey, base, info }: {
     if (fetchingRef.current) return false;
     fetchingRef.current = true;
     try {
-      const res = await fetch(`${info.chunks_base_url}/${seq}`);
+      const res = await fetch(`${info.chunks_base_url}/${seq}`, { headers: tenantHeaders() });
       if (!res.ok) return false;
       queueRef.current.push(await res.arrayBuffer());
       nextChunkRef.current = seq + 1;
@@ -178,7 +180,7 @@ function LiveStreamPlayer({ streamKey, base, info }: {
       // Ping backend with our token
       fetch(`${base}/livestreams/${streamKey}/ping`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...tenantHeaders() },
         body: JSON.stringify({ viewer_token: viewerToken.current }),
       }).catch(() => {});
 
@@ -208,10 +210,7 @@ function LiveStreamPlayer({ streamKey, base, info }: {
 
       {/* EN VIVO badge */}
       {connected && (
-        <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-lg pointer-events-none">
-          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-          EN VIVO
-        </div>
+        <LiveBadge className="absolute top-3 left-3 pointer-events-none" />
       )}
 
       {/* Controls on hover */}
@@ -242,7 +241,7 @@ export function LivePlayer({ streamKey, apiUrl }: LivePlayerProps) {
 
     const load = async () => {
       try {
-        const res = await fetch(`${base}/livestreams/${streamKey}/info`);
+        const res = await fetch(`${base}/livestreams/${streamKey}/info`, { headers: tenantHeaders() });
         if (!res.ok) { setError("Transmisión no encontrada."); return; }
         const data: StreamInfo = await res.json();
         if (!destroyed) setInfo(data);
@@ -280,7 +279,11 @@ export function LivePlayer({ streamKey, apiUrl }: LivePlayerProps) {
 
   // ── RECORDED: simple <video> with the /recording streaming endpoint ──
   if (info.status === "ended") {
-    return <RecordingPlayer src={`${base}/livestreams/${streamKey}/recording`} />;
+    // El <video src> no puede llevar headers: el tenant viaja como query
+    // param (?tenant=), que ResolveTenant también acepta.
+    const slug = resolveTenantSlug();
+    const src = `${base}/livestreams/${streamKey}/recording${slug ? `?tenant=${encodeURIComponent(slug)}` : ""}`;
+    return <RecordingPlayer src={src} />;
   }
 
   // ── LIVE: MSE-based player ───────────────────────────────────────────
