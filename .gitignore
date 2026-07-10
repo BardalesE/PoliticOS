@@ -24,6 +24,11 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+# MCP config — contiene API keys de servidores MCP (TestSprite, etc.) en texto plano
+/.mcp.json
+# Artefactos generados por TestSprite MCP — tmp/config.json trae la API key de TestSprite
+/testsprite_tests
+/resources/js/testsprite_tests
 
 # Next.js
 /resources/js/node_modules
