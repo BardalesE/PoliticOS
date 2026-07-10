@@ -43,6 +43,12 @@ php artisan route:cache   || echo "[entrypoint] WARN: route:cache falló (rutas 
 if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
     php artisan migrate --force \
         || echo "[entrypoint] WARN: migrate falló — revisa credenciales DB_* / que la BD de Railway esté arriba"
+    # Las BDs de los tenants (tabla `tenants`) NO las cubre el migrate de
+    # arriba: sin esto, una migración nueva deja los schemas de tenant
+    # desactualizados y los endpoints públicos que usan columnas nuevas
+    # devuelven 500. Idempotente, no tumba el arranque.
+    php artisan tenant:migrate --force \
+        || echo "[entrypoint] WARN: tenant:migrate falló — revisa la tabla tenants / credenciales por tenant"
 fi
 
 # 4 ── seed inicial (solo primer deploy: RUN_SEED=true) ───────────────────────
