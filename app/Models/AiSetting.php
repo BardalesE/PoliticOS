@@ -7,15 +7,21 @@ use Illuminate\Database\Eloquent\Model;
 class AiSetting extends Model
 {
     protected $fillable = [
-        'provider', 'model', 'max_tokens', 'temperature',
+        'provider', 'api_key', 'model', 'max_tokens', 'temperature',
         'fallback_provider', 'system_prompt', 'mode',
         'chat_subtitle', 'chat_btn_text', 'chat_btn_image_url',
         'chat_btn_shape', 'chat_btn_color', 'chat_btn_size', 'chat_btn_position',
     ];
 
+    // api_key nunca sale de la BD en texto plano — Laravel cifra/descifra
+    // transparentemente con APP_KEY. No la expongas en respuestas JSON: usa
+    // $setting->api_key !== null en su lugar (ver AiSettingController::show()).
+    protected $hidden = ['api_key'];
+
     protected $casts = [
         'max_tokens'  => 'integer',
         'temperature' => 'float',
+        'api_key'     => 'encrypted',
     ];
 
     public static function current(): self
