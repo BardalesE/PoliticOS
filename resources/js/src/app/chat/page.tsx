@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FileText, Play, Link as LinkIcon, X, ImageIcon, ShieldAlert, AlertTriangle, ArrowRight, RotateCcw } from "lucide-react";
+import { FileText, Play, Link as LinkIcon, X, ImageIcon, ShieldAlert, AlertTriangle, ArrowRight, RotateCcw, Mic, Square } from "lucide-react";
 import ConsentModal from "@/components/chat/ConsentModal";
 import AIBadge from "@/components/chat/AIBadge";
 import { LiveAlert } from "@/components/live/LiveAlert";
@@ -85,6 +85,28 @@ const THINKING_STEPS = [
 function formatSavedDate(ts: number): string {
   if (!ts) return "fecha desconocida";
   return new Date(ts).toLocaleDateString("es-PE", { day: "numeric", month: "long", year: "numeric" });
+}
+
+// ─── Micrófono (Web Speech API) ────────────────────────────────────────────────
+// Sin tipos oficiales en el lib de TS del proyecto — se define el mínimo acá en
+// vez de instalar una dependencia solo para esto. Soporte real: Chrome/Edge/
+// Safari (prefijo webkit). Firefox no la implementa — feature detection oculta
+// el botón ahí en vez de mostrar uno roto.
+interface MinimalSpeechRecognition extends EventTarget {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start(): void;
+  stop(): void;
+  onresult: ((event: any) => void) | null;
+  onerror: ((event: any) => void) | null;
+  onend: (() => void) | null;
+}
+
+function getSpeechRecognitionCtor(): (new () => MinimalSpeechRecognition) | null {
+  if (typeof window === "undefined") return null;
+  const w = window as any;
+  return w.SpeechRecognition || w.webkitSpeechRecognition || null;
 }
 
 // ─── Modal de alerta por mensaje ininteligible ────────────────────────────────
@@ -452,6 +474,47 @@ export default function ChatPage() {
 
   // ── Mejora 2: welcome back ───────────────────────────────────────────────────
   const [welcomeBack, setWelcomeBack] = useState<WelcomeBack | null>(null);
+
+  // ── Micrófono (Web Speech API) ───────────────────────────────────────────────
+  const [listening, setListening] = useState(false);
+  const [micSupported, setMicSupported] = useState(false);
+  const recognitionRef = useRef<MinimalSpeechRecognition | null>(null);
+
+  useEffect(() => {
+    setMicSupported(getSpeechRecognitionCtor() !== null);
+    return () => recognitionRef.current?.stop();
+  }, []);
+
+  function toggleMic() {
+    if (inputDisabled) return;
+
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    const Ctor = getSpeechRecognitionCtor();
+    if (!Ctor) return;
+
+    const recognition = new Ctor();
+    recognition.lang = "es-PE";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onresult = (event: any) => {
+      const transcript = event?.results?.[0]?.[0]?.transcript ?? "";
+      if (transcript) {
+        // Se agrega al texto existente, por si ya había algo escrito.
+        setInput((prev) => (prev.trim() ? `${prev.trim()} ${transcript}` : transcript));
+      }
+    };
+    recognition.onerror = () => setListening(false);
+    recognition.onend = () => setListening(false);
+
+    recognitionRef.current = recognition;
+    setListening(true);
+    recognition.start();
+  }
 
   // ── Guardar historial en localStorage al cambiar los mensajes ────────────────
   useEffect(() => {
@@ -1194,6 +1257,22 @@ export default function ChatPage() {
                 disabled={inputDisabled}
                 className="flex-1 px-4 py-3 border border-zinc-300 rounded-full focus:outline-none focus:ring-2 focus:ring-zinc-900 text-sm disabled:opacity-50"
               />
+              {micSupported && (
+                <button
+                  type="button"
+                  onClick={toggleMic}
+                  disabled={inputDisabled}
+                  aria-label={listening ? "Detener grabación" : "Hablar en vez de escribir"}
+                  aria-pressed={listening}
+                  className={`shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    listening
+                      ? "bg-red-500 text-white shadow-sm"
+                      : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                  }`}
+                >
+                  {listening ? <Square size={16} fill="currentColor" /> : <Mic size={17} />}
+                </button>
+              )}
               <button
                 onClick={send}
                 disabled={inputDisabled || !input.trim()}
@@ -1202,6 +1281,12 @@ export default function ChatPage() {
                 {streaming ? "..." : "Enviar"}
               </button>
             </div>
+            {listening && (
+              <p className="text-[11px] text-red-500 text-center mt-1.5 flex items-center justify-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
+                Escuchando... toca el cuadrado para detener
+              </p>
+            )}
             <p className="text-[10px] text-zinc-400 text-center mt-1.5">
               IA basada en información pública. Verifica decisiones electorales en{" "}
               <a className="underline" href="https://infogob.jne.gob.pe" target="_blank" rel="noopener noreferrer">infogob.jne.gob.pe</a>
