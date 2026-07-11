@@ -63,7 +63,7 @@ export function StatsBar({
               >
                 {s.value}
               </span>
-              <span className="block text-xs font-medium" style={{ color: "#a9bdb0" }}>
+              <span className="block text-xs font-medium" style={{ color: "#b5afa3" }}>
                 {s.label}
               </span>
             </motion.div>

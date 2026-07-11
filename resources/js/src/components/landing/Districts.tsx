@@ -61,7 +61,7 @@ function PlaceCard({ place, onOpen }: { place: VisitedPlace; onOpen: () => void 
         <b className="block text-sm font-bold leading-tight" style={{ color: "var(--page-ink)" }}>
           {place.name}
         </b>
-        <span className="text-[11px] mt-0.5" style={{ color: "#6b7b6f" }}>
+        <span className="text-[11px] mt-0.5" style={{ color: "#6e695f" }}>
           Visitado {formatVisitedDate(place.visited_at)}
         </span>
         {hasHighlight && place.highlight_text && (
@@ -153,7 +153,7 @@ function PlainDistrictsFallback({ districts }: { districts: string[] }) {
             <b className="block text-sm font-bold leading-tight" style={{ color: "var(--page-ink)" }}>
               {district}
             </b>
-            <span className="text-xs mt-0.5" style={{ color: "#6b7b6f" }}>
+            <span className="text-xs mt-0.5" style={{ color: "#6e695f" }}>
               Ver plan local
             </span>
           </TenantLink>

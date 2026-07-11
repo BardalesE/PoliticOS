@@ -76,7 +76,7 @@ export default {
       fontFamily: {
         sans:    ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
         serif:   ["var(--font-serif)", "Source Serif 4", "Georgia", "serif"],
-        display: ["var(--font-serif)", "Source Serif 4", "Georgia", "serif"],
+        display: ["var(--font-display)", "Fraunces", "Georgia", "serif"],
       },
       // Escala tipográfica de la landing — mobile-first vía clamp().
       // Consolida los valores que las secciones usaban inline; usar

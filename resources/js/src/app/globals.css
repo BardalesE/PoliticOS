@@ -37,11 +37,13 @@
     --brand-glow-30:  rgb(var(--brand-primary-rgb) / 0.30);
     --brand-glow-35:  rgb(var(--brand-primary-rgb) / 0.35);
     --brand-glow-40:  rgb(var(--brand-primary-rgb) / 0.40);
-    /* Landing page background tokens (Roberto design) */
-    --page-bg:        color-mix(in srgb, rgb(var(--brand-primary-rgb)) 4%, #f3f2ef);
-    --page-soft:      color-mix(in srgb, rgb(var(--brand-primary-rgb)) 8%, #eceae6);
-    --page-ink:       #0f1a12;
-    --page-ink-soft:  #4c5b51;
+    /* Landing page background tokens — paleta editorial validada en el
+       mockup rigo_home_7tabs (crema #FAF6EF / negro cálido #1b1a17).
+       El color-mix conserva el tinte sutil de marca por tenant. */
+    --page-bg:        color-mix(in srgb, rgb(var(--brand-primary-rgb)) 3%, #FAF6EF);
+    --page-soft:      color-mix(in srgb, rgb(var(--brand-primary-rgb)) 7%, #f3eee3);
+    --page-ink:       #1b1a17;
+    --page-ink-soft:  #57534a;
     --page-line:      color-mix(in srgb, rgb(var(--brand-primary-rgb)) 6%, rgba(0,0,0,0.11));
     --page-shadow:    color-mix(in srgb, rgb(var(--brand-primary-rgb)) 18%, rgba(0,0,0,0.18));
   }
@@ -224,6 +226,12 @@
 .landing-main {
   background: var(--page-bg);
   position: relative;
+}
+/* Titulares de la landing en Fraunces (lenguaje editorial del mockup);
+   el cuerpo y los títulos menores (h3) siguen en Source Serif 4. */
+.landing-main h1,
+.landing-main h2 {
+  font-family: var(--font-display), Georgia, serif;
 }
 /* Grain texture overlay — subtle paper feel, pure CSS */
 .landing-main::before {

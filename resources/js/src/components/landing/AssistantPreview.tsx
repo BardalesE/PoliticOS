@@ -19,14 +19,14 @@ export function AssistantPreview() {
     // Ambas tarjetas apuntan al ancla de DocumentsSection: las rutas
     // /transparencia y /documentos no existen en app/ y eran 404 reales.
     {
-      href:  "#documentos",
+      href:  "/?seccion=documentos",
       icon:  Flag,
       title: "Portal de Transparencia",
       desc:  "Consulta el financiamiento y los gastos de campaña.",
       to:    "transparencia",
     },
     {
-      href:  "#documentos",
+      href:  "/?seccion=documentos",
       icon:  FileText,
       title: "Documentos públicos",
       desc:  "Plan de gobierno, hoja de vida y declaraciones juradas.",

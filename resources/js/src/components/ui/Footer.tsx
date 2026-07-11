@@ -5,21 +5,24 @@ import { motion } from "framer-motion";
 import { useCandidate } from "@/context/CandidateContext";
 import { TenantLink } from "@/components/ui/TenantLink";
 
-// Las anclas usan la forma /#id para funcionar también desde otras páginas.
+// Fase 7: la home es de pestañas — las secciones se abren con ?seccion=
+// (deep-link real), no con anclas que quedarían ocultas tras las pestañas.
+// "Servicios" (#servicios / AssistantPreview) se retiró por redundante y
+// "Tu voz" desapareció como link: la opinión ahora es un modal dentro de la
+// home (botón en DosVias), no una URL enlazable; su equivalente es el chat.
 const contentLinks = [
-  { href: "/propuestas",   label: "Propuestas" },
-  { href: "/distritos",    label: "Caseríos" },
-  { href: "/galeria",      label: "Galería" },
-  { href: "/videos",       label: "Videos" },
-  { href: "/#documentos",  label: "Documentos" },
+  { href: "/propuestas",           label: "Propuestas" },
+  { href: "/distritos",            label: "Caseríos" },
+  { href: "/galeria",              label: "Galería" },
+  { href: "/videos",               label: "Videos" },
+  { href: "/?seccion=documentos",  label: "Documentos" },
 ];
 
 const participaLinks = [
-  { href: "/#eventos",        label: "Agenda" },
-  { href: "/#servicios",      label: "Servicios" },
-  { href: "/#opiniones",      label: "Tu voz" },
-  { href: "/en-vivo",         label: "En vivo" },
-  { href: "/chat",            label: "Chatbot IA" },
+  { href: "/?seccion=eventos",  label: "Agenda" },
+  { href: "/?seccion=lugares",  label: "Lugares Visitados" },
+  { href: "/en-vivo",           label: "En vivo" },
+  { href: "/chat",              label: "Chatbot IA" },
 ];
 
 export function Footer() {
@@ -27,7 +30,7 @@ export function Footer() {
   const shortName = profile.name.split(" ")[0];
 
   return (
-    <footer style={{ background: "var(--page-ink, #0f1a12)", color: "#cfe0d3" }}>
+    <footer style={{ background: "var(--page-ink, #0f1a12)", color: "#d9d4c9" }}>
 
       {/* Franja tricolor */}
       <div className="flex h-[5px]">
@@ -85,7 +88,7 @@ export function Footer() {
             )}
 
             {/* Ubicación */}
-            <span className="flex items-center gap-2 text-sm" style={{ color: "#a9bdb0" }}>
+            <span className="flex items-center gap-2 text-sm" style={{ color: "#b5afa3" }}>
               <MapPin size={15} style={{ color: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 80%, white)", flexShrink: 0 }} />
               {profile.location}
             </span>
@@ -100,7 +103,7 @@ export function Footer() {
           >
             <h4
               className="text-[11.5px] font-bold uppercase tracking-[.16em] mb-4"
-              style={{ color: "#86a08e" }}
+              style={{ color: "#8e887b" }}
             >
               Contenido
             </h4>
@@ -109,12 +112,12 @@ export function Footer() {
                 key={l.href}
                 href={l.href}
                 className="block text-sm font-semibold py-1.5 transition-all duration-200 hover:translate-x-1"
-                style={{ color: "#cfe0d3" }}
+                style={{ color: "#d9d4c9" }}
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLElement).style.color = "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 80%, white)";
                 }}
                 onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.color = "#cfe0d3";
+                  (e.currentTarget as HTMLElement).style.color = "#d9d4c9";
                 }}
               >
                 {l.label}
@@ -131,7 +134,7 @@ export function Footer() {
           >
             <h4
               className="text-[11.5px] font-bold uppercase tracking-[.16em] mb-4"
-              style={{ color: "#86a08e" }}
+              style={{ color: "#8e887b" }}
             >
               Participa
             </h4>
@@ -140,12 +143,12 @@ export function Footer() {
                 key={l.href}
                 href={l.href}
                 className="block text-sm font-semibold py-1.5 transition-all duration-200 hover:translate-x-1"
-                style={{ color: "#cfe0d3" }}
+                style={{ color: "#d9d4c9" }}
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLElement).style.color = "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 80%, white)";
                 }}
                 onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.color = "#cfe0d3";
+                  (e.currentTarget as HTMLElement).style.color = "#d9d4c9";
                 }}
               >
                 {l.label}
@@ -162,11 +165,11 @@ export function Footer() {
           >
             <h4
               className="text-[11.5px] font-bold uppercase tracking-[.16em] mb-4"
-              style={{ color: "#86a08e" }}
+              style={{ color: "#8e887b" }}
             >
               Elecciones
             </h4>
-            <p className="text-sm mb-1" style={{ color: "#a9bdb0" }}>
+            <p className="text-sm mb-1" style={{ color: "#b5afa3" }}>
               {profile.party || "Campaña Electoral"}
             </p>
             <p className="text-sm font-semibold text-white mb-5">
@@ -204,14 +207,14 @@ export function Footer() {
       {/* Bottom bar */}
       <div style={{ borderTop: "1px solid rgba(255,255,255,0.09)" }}>
         <div className="max-w-5xl mx-auto px-5 py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span className="text-[12.5px]" style={{ color: "#86a08e" }}>
+          <span className="text-[12.5px]" style={{ color: "#8e887b" }}>
             © {new Date().getFullYear()} {profile.name}
             {profile.party ? ` · ${profile.party}` : ""}
             {profile.location ? ` · ${profile.location}` : ""}
           </span>
           <span
             className="text-[12.5px] font-semibold uppercase tracking-[.14em]"
-            style={{ color: "#86a08e", opacity: 0.7 }}
+            style={{ color: "#8e887b", opacity: 0.7 }}
           >
             Plataforma digital de campaña
           </span>

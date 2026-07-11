@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Source_Serif_4 } from "next/font/google";
+import { Fraunces, Inter, Source_Serif_4 } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
 import { ThemeProvider } from "next-themes";
@@ -56,6 +56,16 @@ const serif = Source_Serif_4({
   preload: true,
 });
 
+// Fraunces solo para titulares (h1/h2 de la landing, vía --font-display):
+// el cuerpo de texto largo se queda en Source Serif 4, más legible en párrafos.
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-display",
+  weight: ["600", "700", "900"],
+  style: ["normal", "italic"],
+  display: "swap",
+});
+
 export async function generateMetadata(): Promise<Metadata> {
   const data = await fetchCandidate();
   const name      = data?.profile?.name     ?? "Candidato";
@@ -95,7 +105,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const initialCandidate = await fetchCandidate();
 
   return (
-    <html lang="es" className={`${inter.variable} ${serif.variable}`} suppressHydrationWarning>
+    <html lang="es" className={`${inter.variable} ${serif.variable} ${fraunces.variable}`} suppressHydrationWarning>
       <body className="min-h-screen bg-white font-sans">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <CandidateProvider initialData={initialCandidate}>
