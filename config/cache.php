@@ -77,6 +77,18 @@ return [
             'lock_connection' => env('REDIS_CACHE_LOCK_CONNECTION', 'default'),
         ],
 
+        // Store dedicado para SESSION_STORE=session (ver config/database.php:
+        // conexión redis 'session' → REDIS_SESSION_DB). Sin este store, Laravel
+        // interpreta "session" como el driver interno Illuminate\Cache\SessionStore
+        // (pensado para tests, sin soporte Redis) y el request revienta con
+        // "Call to undefined method Illuminate\Cache\SessionStore::setConnection()"
+        // en cuanto SESSION_DRIVER=redis. Bug encontrado en QA — ver informe.
+        'session' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_SESSION_CONNECTION', 'session'),
+            'lock_connection' => env('REDIS_SESSION_LOCK_CONNECTION', 'default'),
+        ],
+
         'dynamodb' => [
             'driver' => 'dynamodb',
             'key' => env('AWS_ACCESS_KEY_ID'),
