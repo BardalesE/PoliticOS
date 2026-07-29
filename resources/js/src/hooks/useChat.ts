@@ -2,9 +2,9 @@
 import { useState, useCallback, useRef } from "react";
 import type { Message } from "@/types/chat";
 import { findMockResponse } from "@/lib/mockResponses";
-import { resolveTenantSlug } from "@/lib/api";
+import { resolveTenantSlug, normalizeApiBase } from "@/lib/api";
 
-const API_URL  = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+const API_URL  = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
 const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === "true";
 
 const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

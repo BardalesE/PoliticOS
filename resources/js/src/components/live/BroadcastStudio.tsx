@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, CameraOff, Mic, MicOff, Radio, Square, AlertCircle, Loader2, Users, Monitor, Smartphone, Tablet } from "lucide-react";
+import { normalizeApiBase } from "@/lib/api";
 
 interface BroadcastStudioProps {
   streamKey: string;
@@ -24,7 +25,7 @@ interface ViewerRecord {
 }
 
 export function BroadcastStudio({ streamKey, streamId, token, apiUrl, onStatusChange }: BroadcastStudioProps) {
-  const base = apiUrl ?? (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
+  const base = normalizeApiBase(apiUrl ?? (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"));
 
   const videoRef    = useRef<HTMLVideoElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);

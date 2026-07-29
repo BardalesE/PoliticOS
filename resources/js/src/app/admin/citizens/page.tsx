@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { adminApi, request, resolveTenantSlug } from "@/lib/api";
+import { adminApi, request, resolveTenantSlug, normalizeApiBase } from "@/lib/api";
 import {
   Users, Download, Search, Filter, Phone, Mail, MapPin,
   Star, TrendingUp, RefreshCw, Copy, Check, ChevronDown,
@@ -112,7 +112,7 @@ export default function CitizensPage() {
   async function handleExport() {
     if (!token) return;
     setExporting(true);
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+    const API_URL = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
     const slug    = resolveTenantSlug();
     const params  = new URLSearchParams();
     if (filterDistrict)  params.set("district",  filterDistrict);

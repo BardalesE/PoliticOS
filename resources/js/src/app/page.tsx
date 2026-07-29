@@ -5,8 +5,9 @@ import type {
   Proposal, CampaignEvent, TeamMember,
   CampaignPhoto, CampaignVideo,
 } from "@/lib/api";
+import { normalizeApiBase } from "@/lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
+const API_URL = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api");
 
 async function get<T>(
   path: string,

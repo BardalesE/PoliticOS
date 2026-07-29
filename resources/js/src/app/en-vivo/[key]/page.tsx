@@ -7,9 +7,9 @@ import { TenantLink } from "@/components/ui/TenantLink";
 import { ArrowLeft, Clock, Users, Radio, Send, User, Pencil } from "lucide-react";
 import { LivePlayer } from "@/components/live/LivePlayer";
 import { LiveBadge } from "@/components/live/LiveBadge";
-import { tenantHeaders } from "@/lib/api";
+import { tenantHeaders, normalizeApiBase } from "@/lib/api";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+const API = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
 
 // ── Avatar color based on name ────────────────────────────────────────────
 const COLORS = [

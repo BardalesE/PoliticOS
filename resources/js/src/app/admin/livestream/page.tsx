@@ -11,8 +11,9 @@ import { Modal } from "@/components/admin/Modal";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { FormField } from "@/components/admin/FormField";
 import { BroadcastStudio } from "@/components/live/BroadcastStudio";
+import { normalizeApiBase } from "@/lib/api";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+const API = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
 
 interface LiveStream {
   id: number;

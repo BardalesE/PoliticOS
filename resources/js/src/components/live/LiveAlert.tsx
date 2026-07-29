@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { TenantLink } from "@/components/ui/TenantLink";
 import { motion, AnimatePresence } from "framer-motion";
 import { Radio, X, Users, ArrowRight } from "lucide-react";
-import { tenantHeaders } from "@/lib/api";
+import { tenantHeaders, normalizeApiBase } from "@/lib/api";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+const API = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
 
 interface LiveStream {
   title: string;

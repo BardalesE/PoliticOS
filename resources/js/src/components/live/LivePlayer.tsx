@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Wifi, WifiOff, Maximize2, Volume2, VolumeX, Loader2, PlayCircle } from "lucide-react";
-import { resolveTenantSlug, tenantHeaders } from "@/lib/api";
+import { resolveTenantSlug, tenantHeaders, normalizeApiBase } from "@/lib/api";
 import { LiveBadge } from "@/components/live/LiveBadge";
 
 interface StreamInfo {
@@ -230,7 +230,7 @@ function LiveStreamPlayer({ streamKey, base, info }: {
 
 // ── Main exported component ────────────────────────────────────────────────
 export function LivePlayer({ streamKey, apiUrl }: LivePlayerProps) {
-  const base = apiUrl ?? (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
+  const base = normalizeApiBase(apiUrl ?? (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"));
 
   const [info, setInfo]   = useState<StreamInfo | null>(null);
   const [error, setError] = useState<string | null>(null);

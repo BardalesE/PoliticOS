@@ -3,7 +3,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Radio, ArrowRight } from "lucide-react";
 import { TenantLink } from "@/components/ui/TenantLink";
-import { tenantHeaders, type HomeSettings } from "@/lib/api";
+import { tenantHeaders, normalizeApiBase, type HomeSettings } from "@/lib/api";
 import type {
   Proposal, CampaignEvent, TeamMember, CampaignPhoto, CampaignVideo,
 } from "@/lib/api";
@@ -15,7 +15,7 @@ import { Districts }        from "@/components/landing/Districts";
 import { TeamSection }      from "@/components/landing/TeamSection";
 import { DocumentsSection } from "@/components/landing/DocumentsSection";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+const API = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
 
 // Las 7 pestañas de la home (orden validado en el mockup rigo_home_7tabs).
 // `flag` es el toggle de home-settings que puede apagar la pestaña por tenant;

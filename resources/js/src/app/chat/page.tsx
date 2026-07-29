@@ -7,7 +7,7 @@ import ConsentModal from "@/components/chat/ConsentModal";
 import AIBadge from "@/components/chat/AIBadge";
 import { LiveAlert } from "@/components/live/LiveAlert";
 import { useCandidate } from "@/context/CandidateContext";
-import { resolveTenantSlug } from "@/lib/api";
+import { resolveTenantSlug, normalizeApiBase } from "@/lib/api";
 import { TenantLink } from "@/components/ui/TenantLink";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -43,7 +43,7 @@ interface WelcomeBack {
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+const API = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
 
 const LS_HISTORY        = "politicos_chat_history";
 const LS_SAVED_AT       = "politicos_chat_saved_at";

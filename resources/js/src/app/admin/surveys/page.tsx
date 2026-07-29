@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { surveysApi, resolveTenantSlug, type SurveyDashboard, type SurveyJourney } from "@/lib/api";
+import { surveysApi, resolveTenantSlug, normalizeApiBase, type SurveyDashboard, type SurveyJourney } from "@/lib/api";
 import { TopicsChart } from "@/components/admin/charts/TopicsChart";
 import { SurveySupportByPlaceChart } from "@/components/admin/charts/SurveySupportByPlaceChart";
 import {
@@ -42,7 +42,7 @@ export default function SurveysDashboardPage() {
   async function handleExport() {
     if (!token) return;
     setExporting(true);
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+    const API_URL = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
     const slug    = resolveTenantSlug();
     const params  = new URLSearchParams();
     if (journeyId) params.set("journey_id", String(journeyId));

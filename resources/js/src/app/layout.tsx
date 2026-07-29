@@ -7,8 +7,9 @@ import { CandidateProvider } from "@/context/CandidateContext";
 import { DynamicTitle } from "@/components/DynamicTitle";
 import { TenantGuard } from "@/components/TenantGuard";
 import type { CandidatePublicData } from "@/lib/api";
+import { normalizeApiBase } from "@/lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api";
+const API_URL = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api");
 
 async function resolveTenantSlugServer(): Promise<string> {
   const reqHeaders = await headers();

@@ -3,7 +3,18 @@
  * Cliente API tipado para el backend Laravel.
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+// Normaliza NEXT_PUBLIC_API_URL: acepta el valor con o sin sufijo "/api" y con o
+// sin slash final, para que un typo de config (falta el "/api") no rompa CORS
+// silenciosamente — las rutas de Laravel solo llevan CORS en el grupo "api/*"
+// (ver config/cors.php), así que pegarle a la raíz del dominio nunca trae el
+// header Access-Control-Allow-Origin y el navegador lo reporta como error de
+// red genérico ("Failed to fetch"), no como 404.
+export function normalizeApiBase(url: string): string {
+  const trimmed = url.replace(/\/+$/, "");
+  return trimmed.endsWith("/api") ? trimmed : `${trimmed}/api`;
+}
+
+const API_URL = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
 // Dev: set NEXT_PUBLIC_TENANT_SLUG in .env.local
 // Prod: auto-detected from subdomain (maria.politicos.pe → "maria")
 const BASE_DOMAIN = process.env.NEXT_PUBLIC_BASE_DOMAIN || "";

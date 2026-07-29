@@ -6,9 +6,9 @@ import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useCandidate } from "@/context/CandidateContext";
 import { TenantLink } from "@/components/ui/TenantLink";
-import { tenantHeaders } from "@/lib/api";
+import { tenantHeaders, normalizeApiBase } from "@/lib/api";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+const API = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
 
 const NAV_DEFS = [
   { href: "/",           label: "Inicio" },
