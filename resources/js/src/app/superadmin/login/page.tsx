@@ -26,10 +26,19 @@ export default function SuperAdminLogin() {
       login(key.trim());
       router.replace("/superadmin");
     } catch (err) {
-      if (err instanceof ApiError && err.status === 403) {
-        setError("Clave incorrecta. Acceso denegado.");
+      if (err instanceof ApiError) {
+        // Backend respondió (no es un problema de red/CORS): mostrar la causa real.
+        setError(
+          err.status === 403
+            ? "Clave incorrecta. Acceso denegado."
+            : `Error del servidor (HTTP ${err.status}): ${err.message}`
+        );
       } else {
-        setError("No se pudo conectar al servidor. Verifica que el backend esté corriendo.");
+        // fetch() nunca completó el round-trip: red, DNS, o CORS bloqueando
+        // la respuesta. err.message trae el motivo real que da el navegador
+        // (p.ej. "Failed to fetch" / "NetworkError when attempting to fetch").
+        const detail = err instanceof Error ? err.message : String(err);
+        setError(`No se pudo conectar al backend (${detail}). Revisa NEXT_PUBLIC_API_URL y CORS (FRONTEND_URL) en el backend.`);
       }
     } finally {
       setLoading(false);
