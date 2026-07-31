@@ -16,15 +16,22 @@ class MergeStreamChunksJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public string $queue  = 'video';
-    public int    $tries  = 1;
-    public int    $timeout = 7200; // 2 horas máx para streams largos
+    public int $tries  = 1;
+    public int $timeout = 7200; // 2 horas máx para streams largos
 
     public function __construct(public int $streamId, public ?string $tenantSlug = null)
     {
         // Capturado en el request (o en TenantContext::run); el worker de cola
         // corre con la DB por defecto y necesita reconectar a la del tenant.
         $this->tenantSlug ??= TenantContext::currentSlug();
+
+        // No redeclarar $queue como propiedad tipada: el trait Queueable ya
+        // la declara sin tipo (`public $queue;`) — una redeclaración con tipo
+        // ('string') es incompatible en PHP y provoca un fatal error al
+        // componer la clase ("define the same property... incompatible").
+        // Rompía CUALQUIER dispatch de este job (ej. LiveStreamController::stop()
+        // con 500 "Error interno del servidor"). Usar onQueue() en su lugar.
+        $this->onQueue('video');
     }
 
     public function handle(): void

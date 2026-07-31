@@ -11,7 +11,7 @@ import { Modal } from "@/components/admin/Modal";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { FormField } from "@/components/admin/FormField";
 import { BroadcastStudio } from "@/components/live/BroadcastStudio";
-import { normalizeApiBase } from "@/lib/api";
+import { normalizeApiBase, tenantHeaders } from "@/lib/api";
 
 const API = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
 
@@ -53,16 +53,33 @@ export default function LivestreamPage() {
 
   const [form, setForm] = useState({ title: "", description: "", scheduled_at: "" });
 
-  const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" };
+  // Sin X-Tenant, ResolveTenant resuelve a otra BD y el Bearer token de Sanctum
+  // (que vive en la BD del tenant) no se encuentra ahí → 401 disfrazado de
+  // "Error al guardar." genérico. Ver informe de QA (deuda ya documentada en
+  // REPORTE-fase-envivo.md).
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    ...tenantHeaders(),
+  };
 
   // ── Fetch ─────────────────────────────────────────────────────────────
   const fetch$ = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`${API}/admin/livestreams`, { headers });
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        // Antes un 401/403 se tragaba en silencio (Array.isArray(data)?data:[])
+        // y la página se veía vacía ("Crea la primera"), ocultando que en
+        // realidad no cargó por falta de permiso/tenant.
+        throw new Error(data?.message || `Error al cargar transmisiones (HTTP ${res.status}).`);
+      }
       setStreams(Array.isArray(data) ? data : []);
-    } catch { setError("Error al cargar transmisiones."); }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Error al cargar transmisiones.");
+    }
     finally { setLoading(false); }
   }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -92,7 +109,13 @@ export default function LivestreamPage() {
       const url    = editTarget ? `${API}/admin/livestreams/${editTarget.id}` : `${API}/admin/livestreams`;
       const method = editTarget ? "PUT" : "POST";
       const res = await fetch(url, { method, headers, body: JSON.stringify(form) });
-      if (!res.ok) throw new Error("Error al guardar.");
+      if (!res.ok) {
+        // Mostrar el mensaje real del backend (ej. "no tienes este feature en
+        // tu plan") en vez del genérico "Error al guardar." que ocultaba la
+        // causa real (401 por tenant, 403 por gate de plan, 422 de validación).
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.message || `Error al guardar (HTTP ${res.status}).`);
+      }
       setShowForm(false);
       await fetch$();
     } catch (e: unknown) {
@@ -105,10 +128,16 @@ export default function LivestreamPage() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await fetch(`${API}/admin/livestreams/${deleteTarget.id}`, { method: "DELETE", headers });
+      const res = await fetch(`${API}/admin/livestreams/${deleteTarget.id}`, { method: "DELETE", headers });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.message || `Error al eliminar (HTTP ${res.status}).`);
+      }
       setDeleteTarget(null);
       await fetch$();
-    } catch { setError("Error al eliminar."); }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Error al eliminar.");
+    }
     finally { setDeleting(false); }
   };
 

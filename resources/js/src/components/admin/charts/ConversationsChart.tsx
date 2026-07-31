@@ -8,9 +8,19 @@ import { useCandidate } from "@/context/CandidateContext";
 type DataPoint = { date: string; count: number };
 type Granularity = "hour" | "day" | "month";
 
+// "YYYY-MM-DD" (sin hora, granularidad day/month) el motor JS lo interpreta
+// como UTC medianoche (ECMA-262) — con el navegador en America/Lima (UTC-5)
+// eso cae al día anterior ("31 jul" se mostraba como "30 jul"). Forzamos
+// parseo local agregando la hora. Los strings de granularidad "hour" (traen
+// hora, sin sufijo de zona) ya se parsean como locales por defecto, quedan
+// intactos.
+function parseLocal(value: string): Date {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00`) : new Date(value);
+}
+
 function formatTick(value: string, granularity: Granularity): string {
   if (!value) return "";
-  const d = new Date(value);
+  const d = parseLocal(value);
   if (isNaN(d.getTime())) return value;
   if (granularity === "hour") {
     return d.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -24,7 +34,7 @@ function formatTick(value: string, granularity: Granularity): string {
 
 function formatTooltipDate(value: string, granularity: Granularity): string {
   if (!value) return "";
-  const d = new Date(value);
+  const d = parseLocal(value);
   if (isNaN(d.getTime())) return value;
   if (granularity === "hour") {
     return d.toLocaleString("es-PE", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", hour12: false });
