@@ -158,6 +158,12 @@ export async function request<T>(
 
   if (isGet) {
     _cache.set(cacheKey(endpoint, token), { data, expires: Date.now() + ttl });
+  } else {
+    // El comentario de arriba ("cleared on POST/PUT/DELETE mutations") no era
+    // cierto hasta este fix: ninguna mutación invalidaba nada, así que un GET
+    // al mismo endpoint (incluido el propio panel admin viendo su cambio)
+    // podía devolver el dato viejo hasta 30s después de guardar.
+    invalidateCache(endpoint);
   }
   return data;
 }

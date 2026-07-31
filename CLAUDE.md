@@ -280,6 +280,8 @@ DB_DATABASE=...                # BD del tenant por defecto en local
 APP_TENANT_SLUG=...            # tenant activo en local (en prod: subdominio)
 SUPER_ADMIN_KEY=...            # acceso a /api/superadmin/*
 INGEST_KEY=...                 # auth del servicio Python de ingest
+REVALIDATE_SECRET=...          # avisa al frontend (POST /api/revalidate) tras guardar
+                                # branding/contenido — mismo valor en Vercel/Next.js
 
 AI_PROVIDER=claude             # claude | openai
 ANTHROPIC_API_KEY=... / CLAUDE_MODEL=...

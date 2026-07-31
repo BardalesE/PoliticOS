@@ -108,6 +108,13 @@ services:
       - key: INGEST_KEY
         generateValue: true
 
+      # ── Revalidación del frontend (SaaS: cambios instantáneos) ──────────
+      # Genera un valor (openssl rand -hex 32) y pégalo TAMBIÉN como
+      # REVALIDATE_SECRET en las env vars del proyecto de Vercel — debe ser
+      # exactamente el mismo string en ambos lados.
+      - key: REVALIDATE_SECRET
+        sync: false
+
       # ── Control del entrypoint (deploy/render/entrypoint.sh) ────────────
       # La BD ya está migrada y sembrada desde tu PC; en el deploy solo se
       # revalida (idempotente). RUN_SEED en false para no re-sembrar.
