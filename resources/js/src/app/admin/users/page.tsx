@@ -16,7 +16,7 @@ const ROLES = [
   { value: "admin", label: "Admin" },
 ];
 
-type FormData = { name: string; email: string; password: string; role: string };
+type FormData = { name: string; email: string; password: string; role: "admin" | "editor" };
 const empty: FormData = { name: "", email: "", password: "", role: "admin" };
 const toFormData = (u: AdminUser): FormData => ({
   name: u.name, email: u.email, password: "", role: u.role,
@@ -66,7 +66,7 @@ export default function UsersPage() {
     setSaving(true); setError(null);
     try {
       if (editing) {
-        const payload: any = { name: form.name, email: form.email, role: form.role };
+        const payload: Partial<AdminUser> & { password?: string } = { name: form.name, email: form.email, role: form.role };
         if (form.password) payload.password = form.password;
         await adminApi.users.update(token, editing.id, payload);
       } else {
@@ -76,8 +76,8 @@ export default function UsersPage() {
         });
       }
       closeModal(); load(page);
-    } catch (err: any) {
-      setError(err?.message ?? "Error guardando usuario.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error guardando usuario.");
     } finally { setSaving(false); }
   }
 
@@ -87,8 +87,8 @@ export default function UsersPage() {
     try {
       await adminApi.users.delete(token, deleteTarget.id);
       setDeleteTarget(null); load(page);
-    } catch (err: any) {
-      setError(err?.message ?? "Error eliminando usuario.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Error eliminando usuario.");
     } finally { setDeleting(false); }
   }
 
@@ -150,7 +150,7 @@ export default function UsersPage() {
                         ? <ShieldCheck size={13} className="text-brand-400" />
                         : <Shield size={13} className="text-purple-400" />
                       }
-                      <Badge variant={u.role as any} />
+                      <Badge variant={u.role} />
                     </div>
                   </td>
                   <td className="px-4 py-3 text-gray-500">

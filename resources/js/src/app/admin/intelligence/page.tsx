@@ -316,7 +316,13 @@ function PulseTab({ data, colors }: { data: Pulse; colors: string[] }) {
   );
 }
 
-function ChartTooltip({ active, payload, label, suffix = "" }: { active?: boolean; payload?: any[]; label?: string; suffix?: string }) {
+type ChartTooltipRow = { geo_region?: string; inferred_segment?: string; district?: string };
+
+// Tipo mínimo propio (no el TooltipContentProps oficial de Recharts, ver
+// nota en ConversationsChart.tsx).
+type TooltipRenderProps = { active?: boolean; label?: string; payload?: { value: number; name?: string; payload: ChartTooltipRow }[] };
+
+function ChartTooltip({ active, payload, label, suffix = "" }: TooltipRenderProps & { suffix?: string }) {
   if (!active || !payload?.length) return null;
   const row = payload[0]?.payload ?? {};
   const name = row.geo_region ?? row.inferred_segment ?? row.district ?? payload[0]?.name ?? label;

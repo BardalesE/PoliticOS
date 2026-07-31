@@ -7,6 +7,13 @@ import {
 import { useCandidate } from "@/context/CandidateContext";
 
 type DataPoint = { date: string; count: number };
+
+// Tipo mínimo propio en vez del TooltipContentProps oficial de Recharts:
+// ese tipo exige TODAS sus props como requeridas al pasar <CustomTooltip .../>
+// como `content` (Recharts las inyecta en runtime vía cloneElement, pero
+// TS no lo sabe), lo cual obliga a fricciones que no valen la pena para un
+// componente de presentación puro sin operaciones inseguras sobre los datos.
+type TooltipRenderProps = { active?: boolean; payload?: { value: number }[]; label?: string };
 type Granularity = "hour" | "day" | "month";
 
 // "YYYY-MM-DD" (sin hora, granularidad day/month) el motor JS lo interpreta
@@ -46,7 +53,7 @@ function formatTooltipDate(value: string, granularity: Granularity): string {
   return d.toLocaleDateString("es-PE", { day: "numeric", month: "long" });
 }
 
-function CustomTooltip({ active, payload, label, granularity }: any) {
+function CustomTooltip({ active, payload, label, granularity }: TooltipRenderProps & { granularity: Granularity }) {
   if (!active || !payload?.length) return null;
   const dateStr = label ? formatTooltipDate(label, granularity as Granularity) : "";
   return (

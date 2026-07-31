@@ -94,14 +94,18 @@ function formatSavedDate(ts: number): string {
 // vez de instalar una dependencia solo para esto. Soporte real: Chrome/Edge/
 // Safari (prefijo webkit). Firefox no la implementa — feature detection oculta
 // el botón ahí en vez de mostrar uno roto.
+interface MinimalSpeechRecognitionEvent {
+  results: { [index: number]: { [index: number]: { transcript: string } } };
+}
+
 interface MinimalSpeechRecognition extends EventTarget {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
   start(): void;
   stop(): void;
-  onresult: ((event: any) => void) | null;
-  onerror: ((event: any) => void) | null;
+  onresult: ((event: MinimalSpeechRecognitionEvent) => void) | null;
+  onerror: ((event: Event) => void) | null;
   onend: (() => void) | null;
 }
 
@@ -503,7 +507,7 @@ export default function ChatPage() {
     recognition.continuous = false;
     recognition.interimResults = false;
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event) => {
       const transcript = event?.results?.[0]?.[0]?.transcript ?? "";
       if (transcript) {
         // Se agrega al texto existente, por si ya había algo escrito.

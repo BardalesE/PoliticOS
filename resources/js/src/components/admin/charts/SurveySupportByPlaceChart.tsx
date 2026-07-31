@@ -12,12 +12,16 @@ const LABELS = { si: "Sí", no: "No", indeciso: "Indeciso" } as const;
 
 type DataPoint = { place: string; si: number; no: number; indeciso: number; total: number };
 
-function CustomTooltip({ active, payload, label }: any) {
+// Tipo mínimo propio (no el TooltipContentProps oficial de Recharts, ver
+// nota en ConversationsChart.tsx).
+type TooltipRenderProps = { active?: boolean; label?: string; payload?: { value: number; color: string; dataKey: string }[] };
+
+function CustomTooltip({ active, payload, label }: TooltipRenderProps) {
   if (!active || !payload?.length) return null;
   return (
     <div className="bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 shadow-xl">
       <p className="text-xs font-semibold text-gray-700 mb-1">{label}</p>
-      {payload.map((p: any) => (
+      {payload.map((p) => (
         <p key={p.dataKey} className="text-xs text-gray-600 flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-full" style={{ backgroundColor: p.color }} />
           {LABELS[p.dataKey as keyof typeof LABELS]}: <span className="font-bold text-gray-900">{p.value}</span>

@@ -14,7 +14,11 @@ function parseLocal(value: string): Date {
   return new Date(`${value}T00:00:00`);
 }
 
-function CustomTooltip({ active, payload, label }: any) {
+// Tipo mínimo propio (no el TooltipContentProps oficial de Recharts, ver
+// nota en ConversationsChart.tsx).
+type TooltipRenderProps = { active?: boolean; payload?: { value: number }[]; label?: string };
+
+function CustomTooltip({ active, payload, label }: TooltipRenderProps) {
   if (!active || !payload?.length) return null;
   const date = label ? parseLocal(label).toLocaleDateString("es-PE", { weekday: "long", day: "numeric", month: "short" }) : "";
   return (
