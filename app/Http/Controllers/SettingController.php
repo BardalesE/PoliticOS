@@ -3,11 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\Setting;
+use App\Services\FrontendRevalidationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class SettingController extends Controller
 {
+    public function __construct(private FrontendRevalidationService $revalidation) {}
+
+
     // GET /api/home-settings  (público)
     public function publicIndex(): JsonResponse
     {
@@ -31,6 +35,8 @@ class SettingController extends Controller
         foreach ($data['settings'] as $key => $value) {
             Setting::setValue($key, $value);
         }
+
+        $this->revalidation->notify(app('tenant')?->slug);
 
         return response()->json(Setting::allAsArray());
     }

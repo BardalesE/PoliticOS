@@ -20,20 +20,15 @@ const EMPTY: Partial<CandidateProfile> = {
   tiktok_url: "", facebook_url: "", instagram_url: "", whatsapp_number: "",
 };
 
-const COLORS_CACHE_KEY = "brand_colors";
-const PROFILE_CACHE_KEY = "candidate_profile_cache";
-
-function updatePublicProfileCache(profile: Partial<CandidateProfile>) {
-  try {
-    const raw = localStorage.getItem(PROFILE_CACHE_KEY);
-    if (raw) {
-      const cached = JSON.parse(raw);
-      cached.profile = profile;
-      localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(cached));
-    }
-  } catch {}
-}
-
+// Antes esta función también escribía en localStorage ("brand_colors" /
+// "candidate_profile_cache", sin sufijo de tenant) para que CandidateContext
+// recogiera el cambio en la próxima carga — pero CandidateContext lee las
+// claves CON sufijo de tenant (tenantStorageKey()), así que esas escrituras
+// nunca se leían: código muerto. La propagación real al sitio público ahora
+// la resuelve el backend (FrontendRevalidationService → POST /api/revalidate
+// → revalidateTag/revalidatePath), así que no hace falta duplicarla aquí.
+// Esto solo aplica el color en vivo a ESTA pestaña del admin (preview
+// inmediato al guardar), sin persistir nada.
 function applyBrandColors(primary?: string | null, dark?: string | null, accent?: string | null) {
   const root = document.documentElement;
   if (primary) {
@@ -47,10 +42,6 @@ function applyBrandColors(primary?: string | null, dark?: string | null, accent?
     if (m) root.style.setProperty("--brand-dark-rgb", `${parseInt(m[1],16)} ${parseInt(m[2],16)} ${parseInt(m[3],16)}`);
   }
   if (accent) root.style.setProperty("--brand-accent", accent);
-  // Persist so CandidateContext applies the right color on next page load
-  try {
-    localStorage.setItem(COLORS_CACHE_KEY, JSON.stringify({ primary, dark, accent }));
-  } catch {}
 }
 
 // ─── Drop zone imagen ────────────────────────────────────────────────────────
@@ -320,9 +311,8 @@ export default function CandidateProfilePage() {
     if (!token) return;
     setSaving(true); setError(null);
     try {
-      const updated = await adminApiExtended.candidateProfile.update(token, form);
+      await adminApiExtended.candidateProfile.update(token, form);
       applyBrandColors(form.color_primary, form.color_dark, form.color_accent);
-      updatePublicProfileCache(updated);
       await loadPresets();
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -337,7 +327,6 @@ export default function CandidateProfilePage() {
       const activated = await adminApiExtended.candidatePresets.activate(token, id);
       setForm(activated);
       applyBrandColors(activated.color_primary, activated.color_dark, activated.color_accent);
-      updatePublicProfileCache(activated);
       await loadPresets();
     } catch {}
     finally { setActivatingId(null); }

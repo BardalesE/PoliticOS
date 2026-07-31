@@ -3,17 +3,29 @@
 namespace App\Http\Controllers;
 
 use App\Models\HeroSetting;
+use App\Services\FrontendRevalidationService;
+use App\Support\CacheBust;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 class HeroSettingController extends Controller
 {
+    public function __construct(private FrontendRevalidationService $revalidation) {}
+
     // GET /api/hero-settings  (público)
     public function show(): JsonResponse
     {
         $hero = HeroSetting::where('is_active', true)->first();
-        return response()->json($hero); // null si no existe → frontend usa defaults
+        if (!$hero) return response()->json(null); // frontend usa defaults
+
+        // Cache-busting: solo en la respuesta pública (ver CacheBust). El
+        // endpoint de admin (adminShow) devuelve la URL canónica sin tocar.
+        $data = $hero->toArray();
+        $data['image_url'] = CacheBust::url($hero->image_url, $hero->updated_at);
+        $data['video_url'] = CacheBust::url($hero->video_url, $hero->updated_at);
+
+        return response()->json($data);
     }
 
     // GET /api/admin/hero-settings  (admin)
@@ -46,6 +58,8 @@ class HeroSettingController extends Controller
         $hero = HeroSetting::firstOrNew([]);
         $hero->fill($data)->save();
 
+        $this->revalidation->notify(app('tenant')?->slug);
+
         return response()->json($hero);
     }
 
@@ -63,6 +77,8 @@ class HeroSettingController extends Controller
         $hero = HeroSetting::firstOrNew([]);
         $hero->video_url = $url;
         $hero->save();
+
+        $this->revalidation->notify(app('tenant')?->slug);
 
         return response()->json(['url' => $url, 'hero' => $hero]);
     }
