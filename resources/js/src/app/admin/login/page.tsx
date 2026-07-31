@@ -91,12 +91,13 @@ export default function AdminLoginPage() {
 
             {/* Email */}
             <div>
-              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+              <label htmlFor="admin-login-email" className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
                 Correo electrónico
               </label>
               <div className="relative">
                 <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 <input
+                  id="admin-login-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -110,12 +111,13 @@ export default function AdminLoginPage() {
 
             {/* Password */}
             <div>
-              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+              <label htmlFor="admin-login-password" className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
                 Contraseña
               </label>
               <div className="relative">
                 <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 <input
+                  id="admin-login-password"
                   type={showPass ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

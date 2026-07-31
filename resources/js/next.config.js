@@ -14,7 +14,21 @@ const apiHost = (() => {
 // ningún header de seguridad — sin protección de documento contra clickjacking.
 // Mismas directivas que app/Http/Middleware/SecurityHeaders.php del lado API,
 // adaptadas para el documento (agrega connect-src hacia el backend).
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "";
+//
+// Auditoría de calidad (Fase 13): connect-src debe ser el ORIGEN (protocolo +
+// host + puerto), sin el path "/api" — un source de CSP con path exige que la
+// URL de la petición coincida EXACTAMENTE con ese path (no como prefijo), así
+// que "http://localhost:8000/api" solo permitía conectar a esa ruta literal y
+// bloqueaba TODAS las llamadas reales (/api/candidate, /api/auth/login, etc.),
+// tumbando el login y el chat en cualquier navegador que aplique el CSP en
+// serio. Se detectó al escribir los specs de Playwright de esta misma fase.
+const apiOrigin = (() => {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_API_URL ?? "").origin;
+  } catch {
+    return "";
+  }
+})();
 const csp = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js requiere unsafe-eval en dev
@@ -22,7 +36,7 @@ const csp = [
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: blob: https: http:",
   "media-src 'self' blob:",
-  `connect-src 'self' ${apiUrl} https://api.anthropic.com`,
+  `connect-src 'self' ${apiOrigin} https://api.anthropic.com`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
