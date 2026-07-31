@@ -120,7 +120,6 @@ ANTHROPIC_API_KEY=${ANTHROPIC_KEY}
 CLAUDE_MODEL=claude-haiku-4-5-20251001
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4o-mini
-AI_MAX_TOKENS=600
 
 # ─── Embeddings ───────────────────────────────────────────────────────────────
 AI_EMBEDDINGS_DRIVER=mysql_fulltext

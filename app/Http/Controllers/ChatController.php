@@ -133,6 +133,7 @@ class ChatController extends Controller
             'attack_detected' => $response['attack_detected'] ?? false,
             'attack_category' => $response['attack_category'] ?? null,
             'pepa_metadata'   => $response['pepa_metadata'] ?? null,
+            'is_fallback'     => $response['ai_resting'] ?? false,
         ]);
 
         $this->applyPepaMetaToSession($session, $response['pepa_metadata'] ?? null);
@@ -280,6 +281,7 @@ class ChatController extends Controller
                             'attack_detected' => $meta['attack_detected'] ?? false,
                             'attack_category' => $meta['attack_category'] ?? null,
                             'pepa_metadata'   => $meta['pepa_metadata'] ?? null,
+                            'is_fallback'     => $meta['ai_resting'] ?? false,
                         ]);
                         $this->applyPepaMetaToSession($session, $meta['pepa_metadata'] ?? null);
                         if (config('queue.default') !== 'sync') {

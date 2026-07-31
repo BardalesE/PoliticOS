@@ -10,7 +10,7 @@ class ChatMessage extends Model
         'session_id', 'role', 'content', 'topic', 'media',
         'sentiment', 'emotion', 'intent', 'concerns',
         'attack_detected', 'attack_category', 'analysis_raw',
-        'pepa_metadata',
+        'pepa_metadata', 'is_fallback',
         'district_mentioned', 'proposals_detected', 'problems_mentioned',
     ];
 
@@ -21,6 +21,7 @@ class ChatMessage extends Model
         'proposals_detected' => 'array',
         'problems_mentioned' => 'array',
         'attack_detected'    => 'boolean',
+        'is_fallback'        => 'boolean',
         'sentiment'          => 'float',
     ];
 

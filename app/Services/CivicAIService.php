@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\AiProviderException;
 use App\Models\AiSetting;
 use App\Models\AttackResponse;
 use App\Models\CampaignPhoto;
@@ -17,6 +18,7 @@ use App\Models\QuestionCluster;
 use App\Models\Topic;
 use App\Models\VisitorProfile;
 use GuzzleHttp\Client as GuzzleClient;
+use GuzzleHttp\Exception\RequestException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -372,7 +374,13 @@ class CivicAIService
     // ─── HISTORIAL CONVERSACIONAL ─────────────────────────────────────────
     private function getConversationHistory(ChatSession $session): array
     {
+        // is_fallback=true son los mensajes de "descanso" (todos los providers
+        // fallaron). Se excluyen del historial que se manda de vuelta al LLM:
+        // dejarlos entrar aquí formaba un bucle de retroalimentación (el propio
+        // fallback trae 5 propuestas completas) que inflaba el próximo request
+        // justo cuando ya estaba fallando por límite de tokens.
         $rawMessages = ChatMessage::where('session_id', $session->id)
+            ->where('is_fallback', false)
             ->orderBy('created_at')
             ->get();
 
@@ -387,7 +395,12 @@ class CivicAIService
         if (!empty($history) && end($history)['role'] === 'user') {
             array_pop($history);
         }
-        return array_slice($history, -8);
+        // Ventana corta a propósito: cada turno de historial se manda de vuelta
+        // al LLM en cada mensaje nuevo, así que es de los rubros que más pesan
+        // en el presupuesto de tokens (ver CivicAIService::buildContext). 4
+        // turnos (2 idas y vueltas) alcanza para seguimiento conversacional sin
+        // acercarse al límite de tokens/minuto del tier gratis de Groq.
+        return array_slice($history, -4);
     }
 
     // ─── CONSTRUCCIÓN DE CONTEXTO RAG ─────────────────────────────────────
@@ -448,8 +461,14 @@ class CivicAIService
             }
         }
 
-        // RAG: documentos relevantes vía driver de embeddings
-        $docs = $this->embeddings->search($userMessage, 4, $topic ? ['topic' => $topic] : []);
+        // RAG: documentos relevantes vía driver de embeddings.
+        // 3 docs x 1,200 chars (antes 4 x 2,200 ≈ 2,500 tokens solo de RAG) —
+        // recorte deliberado: el RAG era el rubro más pesado del presupuesto
+        // de tokens por mensaje contra el límite de 12,000 TPM del tier gratis
+        // de Groq. extractExcerpt() ya prioriza el fragmento más relevante
+        // (ver MySQLFulltextEmbeddings), así que menos texto no pierde la
+        // parte que importa.
+        $docs = $this->embeddings->search($userMessage, 3, $topic ? ['topic' => $topic] : []);
 
         if (!empty($docs)) {
             if (($this->config->mode ?? 'campaign') === 'pepa') {
@@ -460,7 +479,7 @@ class CivicAIService
                 $parts[] = "\nDOCUMENTACIÓN OFICIAL (plan de gobierno, entrevistas, declaraciones):";
                 foreach ($docs as $d) {
                     $title = $d['title'] ?: 'Documento';
-                    $excerpt = mb_substr($d['excerpt'], 0, 2200);
+                    $excerpt = mb_substr($d['excerpt'], 0, 1200);
                     $parts[] = "=== {$title} ===\n{$excerpt}";
                 }
             }
@@ -512,7 +531,7 @@ class CivicAIService
                 $title  = $d['title'] ?: 'Documento';
                 $type   = $typeLabels[$d['metadata']['source_type'] ?? 'pdf'] ?? 'documento';
                 $source = $d['metadata']['source_url'] ?? $d['metadata']['file_url'] ?? '';
-                $excerpt = mb_substr($d['excerpt'], 0, 2200);
+                $excerpt = mb_substr($d['excerpt'], 0, 1200);
                 $parts[] = "— {$title} [{$type}] [Fuente: {$source}]\n{$excerpt}";
             }
         }
@@ -617,6 +636,12 @@ class CivicAIService
     }
 
     // ─── LLAMADA A LA IA ─────────────────────────────────────────────────
+    // Máximo de reintentos POR provider ante un 429 (rate limit transitorio).
+    // 401/403/otros errores no se reintentan: no cambian de un intento a otro,
+    // así que se salta al siguiente provider inmediatamente.
+    private const MAX_RATE_LIMIT_RETRIES = 1;
+    private const MAX_RETRY_WAIT_SECONDS = 3;
+
     private function callAI(string $userMessage, string $context, array $history, array $segment,
                             ?array $attack, ChatSession $session, ?string $topic): string
     {
@@ -629,16 +654,33 @@ class CivicAIService
         $systemPrompt = $this->buildSystemPrompt($context, $segment, $attack, $session, $topic);
 
         foreach ($providers as $provider) {
-            try {
-                $reply = $this->callProvider($provider, $userMessage, $systemPrompt, $history);
-                if (!empty($reply)) return $reply;
-            } catch (\Throwable $e) {
-                Log::warning("AI provider '{$provider}' failed", [
-                    'error'    => $e->getMessage(),
-                    'provider' => $provider,
-                    'model'    => $this->config->model ?? 'unknown',
-                    'key_set'  => !empty(config("services.ai.{$provider}_key")),
-                ]);
+            for ($attempt = 0; $attempt <= self::MAX_RATE_LIMIT_RETRIES; $attempt++) {
+                try {
+                    $reply = $this->callProvider($provider, $userMessage, $systemPrompt, $history);
+                    if (!empty($reply)) return $reply;
+                    break; // respuesta vacía sin excepción: no reintentar, siguiente provider
+                } catch (AiProviderException $e) {
+                    Log::warning("AI provider '{$provider}' failed", [
+                        'error'    => $e->getMessage(),
+                        'provider' => $provider,
+                        'status'   => $e->status,
+                        'attempt'  => $attempt + 1,
+                        'model'    => $this->config->model ?? 'unknown',
+                    ]);
+                    if ($e->isRateLimited() && $attempt < self::MAX_RATE_LIMIT_RETRIES) {
+                        sleep(min($e->retryAfterSeconds ?? 2, self::MAX_RETRY_WAIT_SECONDS));
+                        continue; // reintenta el mismo provider una vez
+                    }
+                    break; // 401/403/5xx, o ya se agotó el reintento: siguiente provider
+                } catch (\Throwable $e) {
+                    Log::warning("AI provider '{$provider}' failed", [
+                        'error'    => $e->getMessage(),
+                        'provider' => $provider,
+                        'model'    => $this->config->model ?? 'unknown',
+                        'key_set'  => !empty(config("services.ai.{$provider}_key")),
+                    ]);
+                    break;
+                }
             }
         }
 
@@ -652,24 +694,35 @@ class CivicAIService
     }
 
     /**
+     * Parsea el header `Retry-After` de un provider. Puede venir como segundos
+     * ("2") o como fecha HTTP; solo nos interesa el caso segundos (el que
+     * mandan Groq/OpenAI/Anthropic en 429), así que ignoramos el resto.
+     */
+    private function parseRetryAfter(?string $header): ?int
+    {
+        if ($header === null || !ctype_digit(trim($header))) return null;
+        return (int) trim($header);
+    }
+
+    /**
      * Límite de tokens efectivo para la generación. En modo PEPA el output es un
      * JSON estructurado (respuesta_usuario + metadata_interna); con poco techo el
-     * modelo trunca el JSON a media generación y dispara el fallback. Aplicamos un
-     * piso para garantizar el contrato, incluso en tenants ya provisionados cuyo
-     * AiSetting tiene un max_tokens bajo guardado en su DB. El admin puede subirlo
-     * (se respeta con max()), nunca bajarlo por debajo del piso en modo PEPA.
-     * Como max_tokens es un TOPE (no una reserva) y Groq/OpenAI facturan por token
-     * generado, subir el piso no encarece la respuesta típica corta.
+     * modelo trunca el JSON a media generación y dispara el fallback. En modo
+     * campaña el texto plano también se corta a medio pensamiento con un techo
+     * bajo — mismo síntoma, menos visible porque no rompe un contrato JSON.
+     * Aplicamos el piso a AMBOS modos (antes solo a PEPA), incluso en tenants ya
+     * provisionados cuyo AiSetting tiene un max_tokens bajo guardado en su DB. El
+     * admin puede subirlo (se respeta con max()), nunca bajarlo por debajo del
+     * piso. Como max_tokens es un TOPE (no una reserva) y Groq/OpenAI facturan
+     * por token generado, subir el piso no encarece la respuesta típica corta.
      */
-    private const PEPA_MIN_MAX_TOKENS = 1200;
+    private const MIN_MAX_TOKENS = 1200;
 
     private function effectiveMaxTokens(): int
     {
-        $configured = (int) ($this->config->max_tokens ?? 600);
+        $configured = (int) ($this->config->max_tokens ?? self::MIN_MAX_TOKENS);
 
-        return ($this->config->mode ?? 'campaign') === 'pepa'
-            ? max($configured, self::PEPA_MIN_MAX_TOKENS)
-            : $configured;
+        return max($configured, self::MIN_MAX_TOKENS);
     }
 
     private function callProvider(string $provider, string $userMessage, string $systemPrompt, array $history): string
@@ -749,7 +802,11 @@ class CivicAIService
                 'status' => $response->status(),
                 'body'   => $response->body(),
             ]);
-            throw new \RuntimeException("HTTP {$response->status()}: ".$response->body());
+            throw new AiProviderException(
+                "HTTP {$response->status()}: ".$response->body(),
+                $response->status(),
+                $this->parseRetryAfter($response->header('Retry-After'))
+            );
         }
 
         return $response->json('choices.0.message.content') ?? '';
@@ -781,7 +838,11 @@ class CivicAIService
                 'status' => $response->status(),
                 'body'   => $response->body(),
             ]);
-            throw new \RuntimeException("Claude HTTP {$response->status()}: ".$response->body());
+            throw new AiProviderException(
+                "Claude HTTP {$response->status()}: ".$response->body(),
+                $response->status(),
+                $this->parseRetryAfter($response->header('Retry-After'))
+            );
         }
 
         return $response->json('content.0.text') ?? '';
@@ -801,15 +862,48 @@ class CivicAIService
         $systemPrompt = $this->buildSystemPrompt($context, $segment, $attack, $session, $topic);
 
         foreach ($providers as $provider) {
-            try {
-                $this->callProviderStream($provider, $userMessage, $systemPrompt, $history, $onChunk);
-                return;
-            } catch (\Throwable $e) {
-                Log::warning("Streaming provider '{$provider}' failed", ['error' => $e->getMessage()]);
+            for ($attempt = 0; $attempt <= self::MAX_RATE_LIMIT_RETRIES; $attempt++) {
+                try {
+                    $this->callProviderStream($provider, $userMessage, $systemPrompt, $history, $onChunk);
+                    return;
+                } catch (AiProviderException $e) {
+                    Log::warning("Streaming provider '{$provider}' failed", [
+                        'error'   => $e->getMessage(),
+                        'status'  => $e->status,
+                        'attempt' => $attempt + 1,
+                    ]);
+                    if ($e->isRateLimited() && $attempt < self::MAX_RATE_LIMIT_RETRIES) {
+                        sleep(min($e->retryAfterSeconds ?? 2, self::MAX_RETRY_WAIT_SECONDS));
+                        continue;
+                    }
+                    break;
+                } catch (\Throwable $e) {
+                    Log::warning("Streaming provider '{$provider}' failed", ['error' => $e->getMessage()]);
+                    break;
+                }
             }
         }
 
         $onChunk('__AI_RESTING__');
+    }
+
+    /**
+     * Convierte una RequestException de Guzzle (lanzada automáticamente por
+     * http_errors=true en 4xx/5xx) en AiProviderException, para que el
+     * streaming reciba el mismo tratamiento de reintento/fallback que el
+     * path síncrono. Si no hay response (fallo de red puro), deja pasar la
+     * excepción original.
+     */
+    private function rethrowAsAiProviderException(RequestException $e): never
+    {
+        $response = $e->getResponse();
+        if (!$response) throw $e;
+
+        throw new AiProviderException(
+            $e->getMessage(),
+            $response->getStatusCode(),
+            $this->parseRetryAfter($response->getHeaderLine('Retry-After') ?: null)
+        );
     }
 
     private function callProviderStream(string $provider, string $userMessage, string $systemPrompt,
@@ -820,13 +914,13 @@ class CivicAIService
             'openai' => $this->streamOpenCompatible(
                 $userMessage, $systemPrompt, $history, $onChunk,
                 'https://api.openai.com/v1/chat/completions',
-                config('services.ai.openai_key'),
+                $this->resolveApiKey('openai', config('services.ai.openai_key')),
                 config('services.ai.openai_model', 'gpt-4o-mini')
             ),
             default => $this->streamOpenCompatible(
                 $userMessage, $systemPrompt, $history, $onChunk,
                 'https://api.groq.com/openai/v1/chat/completions',
-                config('services.ai.groq_key'),
+                $this->resolveApiKey('groq', config('services.ai.groq_key')),
                 $this->config->provider === 'groq'
                     ? $this->config->model
                     : config('services.ai.groq_model', 'llama-3.3-70b-versatile')
@@ -842,23 +936,27 @@ class CivicAIService
         $messages[] = ['role' => 'user', 'content' => $userMessage];
 
         $client = new GuzzleClient(['timeout' => 60]);
-        $response = $client->post($url, [
-            'headers' => [
-                'Authorization' => "Bearer {$apiKey}",
-                'Content-Type'  => 'application/json',
-                'Accept'        => 'text/event-stream',
-            ],
-            'body' => json_encode(array_merge([
-                'model' => $model,
-                'temperature' => $this->config->temperature,
-                'max_tokens'  => $this->effectiveMaxTokens(),
-                'messages'    => $messages,
-                'stream'      => true,
-            ], ($this->config->mode ?? 'campaign') === 'pepa'
-                ? ['response_format' => ['type' => 'json_object']]
-                : [])),
-            'stream' => true,
-        ]);
+        try {
+            $response = $client->post($url, [
+                'headers' => [
+                    'Authorization' => "Bearer {$apiKey}",
+                    'Content-Type'  => 'application/json',
+                    'Accept'        => 'text/event-stream',
+                ],
+                'body' => json_encode(array_merge([
+                    'model' => $model,
+                    'temperature' => $this->config->temperature,
+                    'max_tokens'  => $this->effectiveMaxTokens(),
+                    'messages'    => $messages,
+                    'stream'      => true,
+                ], ($this->config->mode ?? 'campaign') === 'pepa'
+                    ? ['response_format' => ['type' => 'json_object']]
+                    : [])),
+                'stream' => true,
+            ]);
+        } catch (RequestException $e) {
+            $this->rethrowAsAiProviderException($e);
+        }
 
         $this->processSSEStream($response->getBody(), $onChunk, function ($line) {
             if (!str_starts_with($line, 'data: ') || $line === 'data: [DONE]') return null;
@@ -877,22 +975,26 @@ class CivicAIService
             : config('services.ai.claude_model', 'claude-haiku-4-5-20251001');
 
         $client = new GuzzleClient(['timeout' => 60]);
-        $response = $client->post('https://api.anthropic.com/v1/messages', [
-            'headers' => [
-                'x-api-key'         => config('services.ai.claude_key'),
-                'anthropic-version' => '2023-06-01',
-                'Content-Type'      => 'application/json',
-                'Accept'            => 'text/event-stream',
-            ],
-            'body' => json_encode([
-                'model' => $model,
-                'max_tokens' => $this->effectiveMaxTokens(),
-                'system' => $systemPrompt,
-                'messages' => $messages,
+        try {
+            $response = $client->post('https://api.anthropic.com/v1/messages', [
+                'headers' => [
+                    'x-api-key'         => $this->resolveApiKey('claude', config('services.ai.claude_key')),
+                    'anthropic-version' => '2023-06-01',
+                    'Content-Type'      => 'application/json',
+                    'Accept'            => 'text/event-stream',
+                ],
+                'body' => json_encode([
+                    'model' => $model,
+                    'max_tokens' => $this->effectiveMaxTokens(),
+                    'system' => $systemPrompt,
+                    'messages' => $messages,
+                    'stream' => true,
+                ]),
                 'stream' => true,
-            ]),
-            'stream' => true,
-        ]);
+            ]);
+        } catch (RequestException $e) {
+            $this->rethrowAsAiProviderException($e);
+        }
 
         $this->processSSEStream($response->getBody(), $onChunk, function ($line) {
             if (!str_starts_with($line, 'data: ')) return null;

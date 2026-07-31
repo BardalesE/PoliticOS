@@ -28,8 +28,8 @@ class AiSettingSeederV2 extends Seeder
                 'provider'          => env('AI_PROVIDER', 'groq'),
                 'model'             => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
                 'fallback_provider' => 'claude',
-                'temperature'       => 0.65,
-                'max_tokens'        => 700,
+                'temperature'       => 0.4,
+                'max_tokens'        => 1200,
                 'system_prompt'     => $prompt,
                 'mode'              => 'pepa',
             ]
