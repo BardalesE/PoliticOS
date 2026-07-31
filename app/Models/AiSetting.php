@@ -30,7 +30,7 @@ class AiSetting extends Model
             'provider'         => config('services.ai.provider', 'groq'),
             'model'            => config('services.ai.groq_model', 'llama-3.3-70b-versatile'),
             'max_tokens'       => 1200,
-            'temperature'      => 0.65,
+            'temperature'      => 0.4,
             'fallback_provider' => 'claude',
             'system_prompt'     => '',
             'chat_subtitle'     => 'IA · 24/7',

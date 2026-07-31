@@ -195,9 +195,17 @@ class PepaResponseParsingTest extends TestCase
         $this->assertSame(2000, $this->effectiveMaxTokens('pepa', 2000));
     }
 
-    public function test_effective_max_tokens_leaves_campaign_untouched(): void
+    public function test_effective_max_tokens_floors_campaign_too(): void
     {
-        $this->assertSame(600, $this->effectiveMaxTokens('campaign', 600));
+        // Antes el piso solo aplicaba en modo PEPA — un tenant con 600 en modo
+        // campaña truncaba respuestas sin ninguna protección. Ahora el piso
+        // aplica a ambos modos (ver CivicAIService::MIN_MAX_TOKENS).
+        $this->assertSame(1200, $this->effectiveMaxTokens('campaign', 600));
+    }
+
+    public function test_effective_max_tokens_respects_higher_admin_value_in_campaign(): void
+    {
+        $this->assertSame(2000, $this->effectiveMaxTokens('campaign', 2000));
     }
 
     /**
