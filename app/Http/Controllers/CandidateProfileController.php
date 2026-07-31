@@ -197,7 +197,7 @@ class CandidateProfileController extends Controller
         $preset = CandidateProfile::findOrFail($id);
 
         if ($preset->is_active) {
-            return response()->json(['error' => 'No puedes eliminar el perfil activo.'], 422);
+            return response()->json(['message' => 'No puedes eliminar el perfil activo.'], 422);
         }
 
         $preset->delete();
