@@ -558,7 +558,7 @@ export default function AdminDashboard() {
                   .map((t, i) => {
                     const max = data.top_topics[0]?.count ?? 1;
                     const pct = Math.round((t.count / max) * 100);
-                    const RANK_COLORS = [brandColor,"#E85D04","#F59E0B","#16A34A","#2563EB","#7C3AED","#DB2777","#0891B2"];
+                    const RANK_COLORS = [brandColor,"#2563EB","#16A34A","#F59E0B","#7C3AED","#0891B2","#DB2777","#E85D04"];
                     const color = RANK_COLORS[i % RANK_COLORS.length];
                     return (
                       <div key={t.topic} className="flex items-center gap-3">

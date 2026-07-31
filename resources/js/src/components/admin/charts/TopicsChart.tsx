@@ -2,7 +2,10 @@
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useCandidate } from "@/context/CandidateContext";
 
-const STATIC_COLORS = ["#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ef4444", "#06b6d4", "#84cc16"];
+// Paleta categórica unificada del panel admin (validada con
+// dataviz/scripts/validate_palette.js — orden fijo, no rotar). El primer
+// color lo pone el tenant (profile.color_primary); estos son los 7 restantes.
+const STATIC_COLORS = ["#2563EB", "#16A34A", "#F59E0B", "#7C3AED", "#0891B2", "#DB2777", "#E85D04"];
 
 type DataPoint = { topic: string; count: number };
 
@@ -39,7 +42,7 @@ type TopicsChartProps = { data: DataPoint[] };
 
 export function TopicsChart({ data }: TopicsChartProps) {
   const { profile } = useCandidate();
-  const COLORS = [profile.color_primary || "#6366f1", ...STATIC_COLORS];
+  const COLORS = [profile.color_primary || "#DC2626", ...STATIC_COLORS];
 
   return (
     <ResponsiveContainer width="100%" height={240}>

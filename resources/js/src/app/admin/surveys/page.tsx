@@ -91,7 +91,7 @@ export default function SurveysDashboardPage() {
         </div>
         <div className="flex items-center gap-2">
           <Link href="/encuestar"
-            className="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-700 text-white text-sm font-semibold rounded-xl transition">
+            className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold rounded-xl transition-colors">
             <Smartphone size={15} /> Encuestar en campo
           </Link>
           <button onClick={load} className="p-2 rounded-xl text-gray-500 hover:bg-gray-100 transition">

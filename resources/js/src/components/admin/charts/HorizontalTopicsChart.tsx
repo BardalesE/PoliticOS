@@ -5,7 +5,9 @@ import {
 } from "recharts";
 import { useCandidate } from "@/context/CandidateContext";
 
-const STATIC_COLORS = ["#E85D04", "#F59E0B", "#16A34A", "#2563EB", "#7C3AED", "#DB2777", "#0891B2"];
+// Misma paleta unificada que TopicsChart/RANK_COLORS (ver
+// dataviz/scripts/validate_palette.js) — orden fijo, no rotar.
+const STATIC_COLORS = ["#2563EB", "#16A34A", "#F59E0B", "#7C3AED", "#0891B2", "#DB2777", "#E85D04"];
 
 type DataPoint = { topic: string; count: number };
 

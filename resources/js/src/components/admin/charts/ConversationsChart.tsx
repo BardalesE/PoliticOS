@@ -1,4 +1,5 @@
 "use client";
+import { useId } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine,
@@ -61,6 +62,9 @@ type Props = { data: DataPoint[]; height?: number; granularity?: Granularity };
 export function ConversationsChart({ data, height = 280, granularity = "day" }: Props) {
   const { profile } = useCandidate();
   const color = profile.color_primary || "#DC2626";
+  // id único por instancia — evita colisión de <linearGradient> si el chart
+  // se renderiza más de una vez en la misma página.
+  const gradientId = `brandGradient-${useId()}`;
 
   const avg = data.length > 0
     ? Math.round(data.reduce((s, d) => s + d.count, 0) / data.length)
@@ -76,7 +80,7 @@ export function ConversationsChart({ data, height = 280, granularity = "day" }: 
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={data} margin={{ top: 8, right: 4, left: -24, bottom: 0 }}>
         <defs>
-          <linearGradient id="brandGradient" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%"  stopColor={color} stopOpacity={0.2} />
             <stop offset="95%" stopColor={color} stopOpacity={0} />
           </linearGradient>
@@ -114,7 +118,7 @@ export function ConversationsChart({ data, height = 280, granularity = "day" }: 
           dataKey="count"
           stroke={color}
           strokeWidth={2}
-          fill="url(#brandGradient)"
+          fill={`url(#${gradientId})`}
           dot={false}
           activeDot={{ r: 5, fill: color, stroke: "#ffffff", strokeWidth: 2 }}
         />
