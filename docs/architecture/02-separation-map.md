@@ -21,21 +21,21 @@
 
 | Archivo | Núcleo | Electoral | Documental | Branding | Acción |
 |---------|--------|-----------|------------|----------|--------|
-| `app/Services/JamesAIService.php` | ✅ Mayormente | — | — | ⚠️ Parcial | **Generalizar**: renombrar a `CivicAIService`, extraer `detectIdentityQuestion()` (usa nombre del candidato) a capa branding |
+| `app/Services/CivicAIService.php` | ✅ | — | — | — | **Resuelto** — renombrado desde `JamesAIService`; `detectIdentityQuestion()` ya lee `$this->candidate->name` (branding), no hardcodea nombre |
 | `app/Services/EmbeddingsServiceInterface.php` | ✅ | — | — | — | **Mantener** — contrato limpio |
 | `app/Services/QdrantEmbeddings.php` | ✅ | — | — | ⚠️ Nombre colección `politicos_{slug}_docs` | **Mantener** — colección es parametrizable |
-| `app/Services/MySQLFulltextEmbeddings.php` | ✅ | — | — | — | **Mantener** — ya completamente genérico |
-| `app/Services/IntelligenceService.php` | ✅ | ⚠️ Parcial | — | — | **Generalizar**: tiene referencias a `role='james'` implícitas; queries agnósticas de candidato |
+| `app/Services/MySQLFulltextEmbeddings.php` | ✅ | — | — | — | **Mantener** — ya completamente genérico. Fase 3 (QA chatbot): `extractExcerpt()` puntúa por relevancia real en vez de la primera coincidencia, stopwords en español, filtro de topic soft-retry |
+| `app/Services/IntelligenceService.php` | ✅ | — | — | — | **Resuelto** — sin referencias a `role='james'`, queries 100% agnósticas de candidato. Fase 3 (QA analytics): `attackFeed.total_week` ahora SQL COUNT real (no `->count()` de PHP sobre colección truncada); `attack_spike_threshold` parametrizable vía `AiSetting` (antes fijo en 10, ver fila de `GenerateAlertsJob` abajo) |
 | `app/Services/GeoIPService.php` | ✅ | — | — | — | **Mantener** — completamente neutral |
 
 ### Backend — Jobs
 
 | Archivo | Núcleo | Electoral | Documental | Branding | Acción |
 |---------|--------|-----------|------------|----------|--------|
-| `app/Jobs/AnalyzeMessageJob.php` | ✅ | — | — | — | **Mantener** — clasificador agnóstico |
+| `app/Jobs/AnalyzeMessageJob.php` | ✅ | — | — | — | **Resuelto** (Fase 3, QA analytics) — `detectDistrict()` tenía 19 distritos de UN candidato (San Miguel/Cajamarca) hardcodeados, no detectado por esta auditoría original. Ahora usa `District::activeKeywordsMap()` del tenant, igual que `CivicAIService`. `scoreSentiment`/`detectConcerns` con límite de palabra + negación básica |
 | `app/Jobs/GeolocateSessionJob.php` | ✅ | — | — | — | **Mantener** |
-| `app/Jobs/GenerateAlertsJob.php` | ✅ | ⚠️ Umbral hardcodeado (10 ataques) | — | — | **Parametrizar** umbrales de alerta |
-| `app/Jobs/ClusterTopQuestionsJob.php` | ✅ | — | — | — | **Mantener** |
+| `app/Jobs/GenerateAlertsJob.php` | ✅ | — | — | — | **Resuelto** (Fase 3) — umbral movido a `AiSetting.attack_spike_threshold` (configurable por tenant, default 10). El baseline horario ya no asume 7 días completos de historia ni se autoincluye la última hora |
+| `app/Jobs/ClusterTopQuestionsJob.php` | ✅ | — | — | — | **Mantener** — Fase 3 (QA analytics): corregido bug de ventana (leía 30 días, borraba solo "hoy", duplicaba conteos entre corridas); ahora procesa el día anterior completo, un `analyzed_date` = un snapshot limpio |
 
 ### Backend — Controladores
 
@@ -67,8 +67,8 @@
 | Archivo | Núcleo | Electoral | Documental | Branding | Acción |
 |---------|--------|-----------|------------|----------|--------|
 | `app/Models/KnowledgeDocument.php` | ✅ | — | ✅ | — | **Mantener** |
-| `app/Models/ChatSession.php` | ✅ | — | — | — | **Mantener** |
-| `app/Models/ChatMessage.php` | ✅ | ⚠️ | — | — | **Parametrizar**: el valor `'james'` en `role` debe ser `'assistant'` o configurable |
+| `app/Models/ChatSession.php` | ✅ | — | — | — | **Mantener** — Fase 3 (QA analytics): `$fillable` le faltaban `geo_province`/`geo_district` (mass-assignment las descartaba, `geoBreakdown()` por provincia/distrito siempre vacío). Ya agregadas |
+| `app/Models/ChatMessage.php` | ✅ | — | — | — | **Resuelto** — `role` es `'user'`/`'assistant'` genérico (migración `rename_chat_message_role_james_to_assistant`). Fase 1 (QA chatbot): agregado `is_fallback` para excluir del historial que se manda al LLM las respuestas de "descanso" |
 | `app/Models/Topic.php` | ✅ | — | ✅ | — | **Mantener** |
 | `app/Models/District.php` | ✅ | — | ✅ | — | **Mantener** — cargable desde DB, no hardcoded |
 | `app/Models/Proposal.php` | ✅ | — | ✅ | — | **Mantener** |
@@ -134,7 +134,7 @@
 
 | Capa | Módulos ya limpios | Módulos a limpiar |
 |------|-------------------|-------------------|
-| **Núcleo cívico** | EmbeddingsInterface, MySQLFulltext, Qdrant, GeoIP, IntelligenceService, todos los Jobs, ResolveTenant, ChatController, Admin CRUD, todos los modelos excepto ChatMessage role | JamesAIService (nombre + identity), classifier.py TARGET_CANDIDATES, GenerateAlertsJob umbrales |
+| **Núcleo cívico** | EmbeddingsInterface, MySQLFulltext, Qdrant, GeoIP, IntelligenceService, CivicAIService (renombrado, ya generalizado), AnalyzeMessageJob (distrito generalizado a `District`), GenerateAlertsJob (umbral parametrizado), ChatMessage (role genérico), todos los Jobs, ResolveTenant, ChatController, Admin CRUD | classifier.py `TARGET_CANDIDATES` (pipeline Python, fuera del alcance de las Fases 1-3 de Laravel/Next.js) |
 | **Electoral temporal** | KeikoSeeder, RobertoSanchezSeeder | Mover a training-data/, agregar veda electoral middleware |
 | **Conocimiento documental** | KnowledgeDocument, ExternalSignal, Topic, District, Proposal, Faq | Ninguno — ya genérico |
 | **Branding** | CandidateProfile, AiSetting, HeroSetting, prompts via DB | politicos_v2_prompt.txt como default, `{{candidatos}}` en pepa_prompt |
