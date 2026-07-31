@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 
 class SuperAdminController extends Controller
 {
@@ -169,7 +170,12 @@ class SuperAdminController extends Controller
                 ->where('email', $tenant->admin_email)
                 ->update(['password' => \Illuminate\Support\Facades\Hash::make($newPassword)]);
         } catch (\Throwable $e) {
-            return response()->json(['message' => 'No se pudo conectar a la DB del tenant: ' . $e->getMessage()], 500);
+            Log::error('Reset de contraseña falló al conectar a la DB del tenant', [
+                'tenant_id' => $tenant->id,
+                'tenant_slug' => $tenant->slug,
+                'error' => $e->getMessage(),
+            ]);
+            return response()->json(['message' => 'No se pudo conectar a la DB del tenant.'], 500);
         } finally {
             DB::purge('tenant_creds');
         }
