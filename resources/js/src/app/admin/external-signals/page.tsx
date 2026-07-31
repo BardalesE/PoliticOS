@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { request } from "@/lib/api";
+import { PageHeader } from "@/components/admin/PageHeader";
+import { EmptyState } from "@/components/admin/EmptyState";
+import { Radio, Eye } from "lucide-react";
 
 const adminGet = (token: string, path: string) =>
   request<any>(`/admin${path}`, {}, token);
@@ -47,17 +50,14 @@ export default function ExternalSignalsPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6">
-      <header className="mb-5">
-        <h1 className="text-2xl font-bold">Señales Externas</h1>
-        <p className="text-sm text-zinc-500">Menciones del candidato en redes, noticias y documentos públicos</p>
-      </header>
+    <div className="p-4 md:p-6 lg:p-8">
+      <PageHeader title="Señales Externas" subtitle="Menciones en redes, noticias y documentos públicos" />
 
       <div className="flex gap-3 mb-4 flex-wrap">
         <select
           value={filterSource}
           onChange={(e) => setFilterSource(e.target.value)}
-          className="border border-zinc-300 rounded-lg px-3 py-2 text-sm"
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
         >
           {SOURCES.map((s) => <option key={s} value={s}>{s === "all" ? "Todas las fuentes" : s}</option>)}
         </select>
@@ -72,12 +72,12 @@ export default function ExternalSignalsPage() {
         </label>
       </div>
 
-      {loading ? <p className="text-zinc-500">Cargando...</p> : (
+      {loading ? <p className="text-gray-500">Cargando...</p> : (
         <div className="space-y-3">
           {items.map((s) => (
-            <article key={s.id} className="bg-white border border-zinc-200 rounded-xl p-4">
+            <article key={s.id} className="bg-white border border-gray-200 rounded-xl p-4">
               <div className="flex flex-wrap gap-1.5 mb-2 items-center">
-                <span className="text-xs bg-zinc-100 text-zinc-700 font-medium px-2 py-0.5 rounded-full">
+                <span className="text-xs bg-gray-100 text-gray-700 font-medium px-2 py-0.5 rounded-full">
                   {s.source}{s.source_name ? ` · ${s.source_name}` : ""}
                 </span>
                 {s.is_attack && (
@@ -94,20 +94,20 @@ export default function ExternalSignalsPage() {
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                     s.sentiment > 0 ? "bg-emerald-100 text-emerald-700" :
                     s.sentiment < 0 ? "bg-red-100 text-red-700" :
-                    "bg-zinc-100 text-zinc-700"
+                    "bg-gray-100 text-gray-700"
                   }`}>
                     Sent: {s.sentiment.toFixed(2)}
                   </span>
                 )}
                 {s.engagement > 0 && (
-                  <span className="text-xs text-zinc-500">👁 {s.engagement}</span>
+                  <span className="text-xs text-gray-500">👁 {s.engagement}</span>
                 )}
-                <span className="text-xs text-zinc-400 ml-auto">
+                <span className="text-xs text-gray-400 ml-auto">
                   {new Date(s.captured_at).toLocaleString("es-PE")}
                 </span>
               </div>
-              {s.title && <h3 className="font-bold text-sm text-zinc-900 mb-1">{s.title}</h3>}
-              <p className="text-sm text-zinc-700 leading-relaxed">{s.content}</p>
+              {s.title && <h3 className="font-bold text-sm text-gray-900 mb-1">{s.title}</h3>}
+              <p className="text-sm text-gray-700 leading-relaxed">{s.content}</p>
               {s.source_url && (
                 <a
                   href={s.source_url}
@@ -121,7 +121,7 @@ export default function ExternalSignalsPage() {
             </article>
           ))}
           {items.length === 0 && (
-            <p className="text-sm text-zinc-500 text-center py-10">
+            <p className="text-sm text-gray-500 text-center py-10">
               No hay señales todavía. El servicio Python de ingesta aún no envió datos.
             </p>
           )}

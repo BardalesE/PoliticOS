@@ -32,7 +32,7 @@ interface LiveStream {
 }
 
 const statusLabels: Record<string, { label: string; cls: string }> = {
-  idle:  { label: "Programado",  cls: "bg-zinc-100 text-zinc-700" },
+  idle:  { label: "Programado",  cls: "bg-gray-100 text-gray-700" },
   live:  { label: "EN VIVO",     cls: "bg-red-100 text-red-700 font-bold" },
   ended: { label: "Finalizado",  cls: "bg-emerald-100 text-emerald-700" },
 };
@@ -186,7 +186,7 @@ export default function LivestreamPage() {
       {broadcastTarget && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="font-bold text-zinc-900 flex items-center gap-2">
+            <h2 className="font-bold text-gray-900 flex items-center gap-2">
               <Radio size={16} className="text-red-600" />
               Estudio de transmisión — {broadcastTarget.title}
             </h2>
@@ -194,7 +194,7 @@ export default function LivestreamPage() {
               href={viewerUrl(broadcastTarget.stream_key)}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-zinc-500 underline hover:text-zinc-700"
+              className="text-xs text-gray-500 underline hover:text-gray-700"
             >
               Ver como espectador →
             </a>
@@ -211,12 +211,12 @@ export default function LivestreamPage() {
 
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <Loader2 size={24} className="animate-spin text-zinc-400" />
+          <Loader2 size={24} className="animate-spin text-gray-400" />
         </div>
       )}
 
       {!loading && streams.length === 0 && (
-        <div className="text-center py-16 text-zinc-400">
+        <div className="text-center py-16 text-gray-400">
           <Video size={40} className="mx-auto mb-3 opacity-30" />
           <p className="text-sm">No hay transmisiones. Crea la primera.</p>
         </div>
@@ -235,7 +235,7 @@ export default function LivestreamPage() {
       {/* All other streams */}
       {otherStreams.length > 0 && (
         <section>
-          <h3 className="text-xs uppercase tracking-wider font-semibold text-zinc-500 mb-3">Transmisiones</h3>
+          <h3 className="text-xs uppercase tracking-wider font-semibold text-gray-500 mb-3">Transmisiones</h3>
           <div className="space-y-3">
             {otherStreams.map(s => <StreamRow key={s.id} s={s} onEdit={openEdit} onDelete={setDeleteTarget} onBroadcast={startStream} viewerUrl={viewerUrl} isBroadcasting={broadcastTarget?.id === s.id} />)}
           </div>
@@ -274,8 +274,8 @@ export default function LivestreamPage() {
             onChange={e => setForm(f => ({ ...f, scheduled_at: e.target.value }))}
           />
           <div className="flex justify-end gap-2 pt-2">
-            <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-zinc-600 hover:bg-zinc-100 rounded-xl">Cancelar</button>
-            <button onClick={save} disabled={saving || !form.title.trim()} className="flex items-center gap-2 px-4 py-2 text-sm bg-zinc-900 text-white rounded-xl disabled:opacity-50 hover:bg-zinc-700">
+            <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-xl">Cancelar</button>
+            <button onClick={save} disabled={saving || !form.title.trim()} className="flex items-center gap-2 px-4 py-2 text-sm bg-brand-600 hover:bg-brand-500 text-white rounded-xl disabled:opacity-50 transition-colors">
               {saving && <Loader2 size={14} className="animate-spin" />}
               {editTarget ? "Guardar" : "Crear"}
             </button>
@@ -312,12 +312,12 @@ function StreamRow({
   const { label, cls } = statusLabels[s.status] ?? statusLabels.idle;
 
   return (
-    <div className="flex items-center gap-4 bg-white border border-zinc-200 rounded-xl p-4">
+    <div className="flex items-center gap-4 bg-white border border-gray-200 rounded-xl p-4">
       {/* Thumbnail */}
-      <div className="shrink-0 w-24 h-14 bg-zinc-100 rounded-lg overflow-hidden flex items-center justify-center">
+      <div className="shrink-0 w-24 h-14 bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
         {s.thumbnail
           ? <img src={s.thumbnail} alt={s.title} className="w-full h-full object-cover" />
-          : <Video size={20} className="text-zinc-400" />
+          : <Video size={20} className="text-gray-400" />
         }
       </div>
 
@@ -327,8 +327,8 @@ function StreamRow({
           <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${cls}`}>{label}</span>
           {s.status === "live" && <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />}
         </div>
-        <p className="font-semibold text-zinc-900 text-sm mt-0.5 truncate">{s.title}</p>
-        <div className="flex items-center gap-4 mt-1 text-xs text-zinc-500">
+        <p className="font-semibold text-gray-900 text-sm mt-0.5 truncate">{s.title}</p>
+        <div className="flex items-center gap-4 mt-1 text-xs text-gray-500">
           {s.started_at && (
             <span className="flex items-center gap-1">
               <Clock size={11} />
@@ -354,7 +354,7 @@ function StreamRow({
             href={viewerUrl(s.stream_key)}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-xs text-zinc-500 underline hover:text-zinc-800 px-2 py-1 rounded"
+            className="text-xs text-gray-500 underline hover:text-gray-800 px-2 py-1 rounded"
           >
             Ver
           </a>
@@ -373,7 +373,7 @@ function StreamRow({
         {s.status === "ended" && !isBroadcasting && (
           <button
             onClick={() => onBroadcast(s)}
-            className="flex items-center gap-1.5 text-xs font-semibold bg-zinc-800 text-white px-3 py-1.5 rounded-lg hover:bg-zinc-700 transition-colors"
+            className="flex items-center gap-1.5 text-xs font-semibold bg-gray-800 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700 transition-colors"
           >
             <Radio size={12} />
             Re-transmitir
@@ -382,7 +382,7 @@ function StreamRow({
 
         <button
           onClick={() => onEdit(s)}
-          className="p-1.5 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-lg transition-colors"
+          className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
           title="Editar"
         >
           <Pencil size={15} />
@@ -390,7 +390,7 @@ function StreamRow({
         <button
           onClick={() => onDelete(s)}
           disabled={s.status === "live"}
-          className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30"
+          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-30"
           title="Eliminar"
         >
           <Trash2 size={15} />
