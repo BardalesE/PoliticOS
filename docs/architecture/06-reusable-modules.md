@@ -95,6 +95,17 @@ $this->index($documentId, $content, ['candidate_id' => 'keiko', 'source_url' => 
 
 **Estado**: ✅ Completamente agnóstico de candidato. Listo para PEPA.
 
+**Fase 3 (QA analytics) — dos bugs reales que esta sección no reflejaba:**
+- Esta afirmación de "agnóstico" no era del todo cierta: `detectDistrict()` tenía 19
+  distritos de UN SOLO candidato (San Miguel/Cajamarca) hardcodeados internamente — para
+  cualquier otro tenant la detección de distrito era basura. Corregido: ahora usa
+  `District::activeKeywordsMap()` del tenant activo, igual que `CivicAIService`.
+- El job en sí nunca se dispatchaba en Render (`QUEUE_CONNECTION=sync`) por un guard
+  invertido en `ChatController` — el clasificador estaba "listo" pero apagado en
+  producción. Ver sección de `ChatController` / informe de QA Fase 3.
+- De paso: `scoreSentiment()`/`detectConcerns()` pasaron de `str_contains()` (substring
+  sin límite de palabra, sin negación) a match por palabra completa + negación básica.
+
 **Qué detecta hoy:**
 - Sentiment (-1.0 a 1.0)
 - Emotion (miedo, enojo, esperanza, frustración, alegría, neutral)
@@ -121,32 +132,28 @@ AnalyzeMessageJob::dispatch($message->id);
 
 ## 5. `IntelligenceService` — Pulso ciudadano
 
-**Estado**: ⚠️ Mayormente generalizado. Un punto de acoplamiento: queries asumen `role` de mensajes del candidato como `'james'`.
+**Estado**: ✅ Generalizado. El acoplamiento a `role='james'` descrito antes ya no existe en
+el código (verificado: cero referencias a `'james'` en todo el archivo) — `segmentAnalysis()`
+y el resto de métodos filtran por `role='user'`/`'assistant'` genérico. `IntelligenceService`
+es completamente reutilizable para cualquier tenant.
 
-**Método `segmentAnalysis()` línea 194:**
-```php
-// Problema: filtra 'james' implícitamente via role del join
-$topicsBySegment = ChatMessage::where('chat_messages.role','james')  // ← acoplado
-```
+**Fase 3 (QA analytics) — bugs corregidos en este servicio:**
+- `attackFeed().total_week` contaba con `->count()` de PHP sobre las colecciones ya
+  truncadas por `->limit($limit)` para el feed — techo silencioso. Ahora `COUNT(*)` SQL real.
+- `generateAlerts()`: el umbral de `attack_spike` (antes fijo en 10) ahora vive en
+  `AiSetting.attack_spike_threshold`, configurable por tenant. El baseline horario ya no
+  asume 7 días completos de historia (escalaba mal con tenants recién provisionados) ni se
+  autoincluye la última hora en su propio promedio.
 
-**Fix propuesto (mínimo):**
-```php
-// Reemplazar 'james' por el rol configurable del asistente
-$assistantRole = config('ai.assistant_role', 'assistant');
-->where('chat_messages.role', $assistantRole)
-```
-
-**Una vez corregido**, `IntelligenceService` es completamente reutilizable para cualquier tenant.
-
-**Interfaz pública (sin cambios):**
+**Interfaz pública (sin cambios de firma):**
 
 | Método | Output | Cache |
 |--------|--------|-------|
 | `citizenPulse()` | Sentiment, emociones, intents, mapa por región | 60s |
 | `attackFeed(limit)` | Feed interno + externo, categorías, velocidad | 120s |
 | `segmentAnalysis()` | Concerns por segmento, funnel, topics | 300s |
-| `realtimeMetrics()` | Sesiones activas, msg/min, alertas | Sin cache |
-| `generateAlerts()` | IntelAlert[] | Sin cache (cron) |
+| `realtimeMetrics()` | Sesiones activas, msg/min, alertas | 10s (esta tabla decía "sin cache" — desincronizada del código, que sí cachea) |
+| `generateAlerts()` | IntelAlert[] | Sin cache — llamado por el cron cada 5 min (ver `.github/workflows/scheduler.yml`, Fase 3) |
 
 ---
 
@@ -257,8 +264,8 @@ class PoliticalEntityDetector {
 | `EmbeddingsServiceInterface` | ✅ Listo | Ninguna | — |
 | `MySQLFulltextEmbeddings` | ✅ Listo | Agregar filtro `candidate_id` | Fase 4 |
 | `QdrantEmbeddings` | ✅ Listo | Propagar `candidate_id` en payload | Fase 4 |
-| `AnalyzeMessageJob` | ✅ Listo | Opcional: agregar `mentioned_politicians` | Fase 6 |
-| `IntelligenceService` | ⚠️ Casi | Corregir `role='james'` por configurable | Fase 2 |
+| `AnalyzeMessageJob` | ✅ Listo | Resuelto en Fase 3 (QA): distrito hardcodeado → `District` del tenant. Opcional: agregar `mentioned_politicians` | Fase 6 |
+| `IntelligenceService` | ✅ Listo | Resuelto — sin referencias a `role='james'` (verificado, Fase 3 QA) | — |
 | `GeoIPService` | ✅ Listo | Ninguna | — |
 | `ResolveTenant` | ✅ Listo | Ninguna | — |
 | `pepa_prompt.txt` | ⚠️ Casi | `{{candidatos_con_docs}}` dinámico | Fase 3 |
