@@ -1300,6 +1300,7 @@ export default function ChatPage() {
             <div className="max-w-3xl mx-auto flex gap-2">
               <input
                 type="text"
+                aria-label="Escribe tu mensaje"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && send()}

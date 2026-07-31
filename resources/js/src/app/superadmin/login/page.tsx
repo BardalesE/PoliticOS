@@ -58,11 +58,12 @@ export default function SuperAdminLogin() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">
+            <label htmlFor="superadmin-key" className="text-xs font-semibold text-gray-500 uppercase tracking-wide block mb-1.5">
               Clave de acceso
             </label>
             <div className="relative">
               <input
+                id="superadmin-key"
                 type={show ? "text" : "password"}
                 value={key}
                 onChange={(e) => setKey(e.target.value)}
