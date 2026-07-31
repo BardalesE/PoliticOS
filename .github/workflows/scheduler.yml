@@ -1,0 +1,28 @@
+name: Scheduler externo (cron gratuito)
+
+# Render (plan gratis) no tiene Cron Job nativo ni worker persistente para
+# correr `php artisan schedule:run`. Sin esto, GenerateAlertsJob (cada 5 min)
+# y ClusterTopQuestionsJob (diario) nunca se disparaban en producción — las
+# alertas automáticas y el clustering de preguntas quedaban permanentemente
+# vacíos. Este workflow reemplaza al cron de servidor: pega cada 5 min a
+# POST /api/system/run-scheduler, y los jobs de routes/console.php deciden
+# por su cuenta si les toca ejecutar según su propio horario.
+#
+# Requiere 2 secrets en este repo (Settings → Secrets and variables →
+# Actions): API_URL (ej. https://politicos.onrender.com) y SCHEDULER_KEY
+# (el mismo valor que SCHEDULER_KEY en el .env de Laravel).
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {} # permite dispararlo a mano desde la pestaña Actions
+
+jobs:
+  run-scheduler:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST /api/system/run-scheduler
+        run: |
+          curl --fail --silent --show-error --max-time 30 \
+            -X POST "${{ secrets.API_URL }}/api/system/run-scheduler" \
+            -H "X-Scheduler-Key: ${{ secrets.SCHEDULER_KEY }}"

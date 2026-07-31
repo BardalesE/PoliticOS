@@ -58,6 +58,13 @@ class ResolveTenant
             return null;
         }
 
+        // El endpoint del cron externo (schedule:run) tampoco es de un tenant
+        // específico: los jobs que dispara iteran todos los tenants por su
+        // cuenta vía TenantContext::forEachTenant.
+        if ($request->is('api/system/*')) {
+            return null;
+        }
+
         $subdomain = $this->subdomainSlug($request);
 
         // En producción el subdominio manda: así un header X-Tenant falsificado

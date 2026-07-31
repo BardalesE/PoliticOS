@@ -25,19 +25,26 @@ class AnalyticsController extends Controller
         }
         [$start, $unit] = $this->resolvePeriod($period);
 
-        $totalConversations = ChatSession::where('created_at', '>=', $start)->count();
+        // "Activa en el periodo" (creada O con mensajes nuevos), no solo
+        // "creada en el periodo" — las sesiones se reutilizan (session_id
+        // persistido en el cliente, ver ChatController::resolveSession), así
+        // que una visita recurrente no crea sesión nueva pero sí manda
+        // mensajes nuevos. Contar solo por creación subcontaba conversaciones
+        // reales. Ver informe de QA.
+        $totalConversations = $this->activeSessionsQuery($start)->count();
         $totalMessages      = ChatMessage::where('created_at', '>=', $start)->count();
 
+        // Agrupado normalizado en PHP, no GROUP BY sobre el texto crudo —
+        // "¿Cuál es tu propuesta de seguridad?" y "cual es tu propuesta de
+        // seguridad" antes contaban como preguntas distintas. Ver informe de QA.
         $topQuestions = ChatMessage::where('role', 'user')
             ->where('created_at', '>=', $start)
-            ->select(
-                DB::raw('LOWER(SUBSTRING(content, 1, 80)) as question'),
-                DB::raw('COUNT(*) as count')
-            )
-            ->groupBy('question')
-            ->orderByDesc('count')
-            ->limit(10)
-            ->get();
+            ->get(['content'])
+            ->countBy(fn ($m) => $this->normalizeQuestionForGrouping($m->content))
+            ->sortDesc()
+            ->take(10)
+            ->map(fn ($count, $question) => ['question' => $question, 'count' => $count])
+            ->values();
 
         $topTopics = ChatMessage::where('role', 'assistant')
             ->where('created_at', '>=', $start)
@@ -85,13 +92,14 @@ class AnalyticsController extends Controller
         ];
 
         // ── Conversaciones (scopeadas al periodo) ────────────────
-        $totalSessions = ChatSession::where('created_at', '>=', $start)->count();
-        // Ventanas fijas: hoy y esta semana no cambian con el filtro
-        $todaySessions = ChatSession::where(function ($q) {
-            $q->whereDate('created_at', today())
-              ->orWhereHas('messages', fn($q2) => $q2->whereDate('created_at', today()));
-        })->count();
-        $weekSessions  = ChatSession::where('created_at', '>=', now()->subDays(7))->count();
+        // "Activa" (creada O con mensajes nuevos) — no solo "creada" — para
+        // que total/today/this_week midan lo mismo entre sí y con
+        // avg_messages. Antes "today" ya usaba este criterio pero "total" y
+        // "this_week" no, así que "hoy" podía salir MAYOR que "esta semana"
+        // con sesiones reutilizadas. Ver informe de QA.
+        $totalSessions = $this->activeSessionsQuery($start)->count();
+        $todaySessions = $this->activeSessionsQuery(today())->count();
+        $weekSessions  = $this->activeSessionsQuery(now()->subDays(7))->count();
         $totalMessages = ChatMessage::where('created_at', '>=', $start)->count();
 
         $avgMessages = $totalSessions > 0
@@ -106,7 +114,11 @@ class AnalyticsController extends Controller
         $days = $this->buildSeries($start, $unit);
 
         // ── Top topics (incluye mensajes sin topic como "general") ──
+        // Antes esta consulta ignoraba $start: cambiar el selector de
+        // periodo en el dashboard no movía este bloque, lo que se lee como
+        // "los números no cuadran". Ver informe de QA.
         $topTopics = ChatMessage::where('role', 'assistant')
+            ->where('created_at', '>=', $start)
             ->select(
                 DB::raw("COALESCE(topic, 'general') as topic"),
                 DB::raw('COUNT(*) as count')
@@ -117,16 +129,31 @@ class AnalyticsController extends Controller
             ->get();
 
         // ── Top preguntas (usa clusters si existen, sino concerns) ──
-        $clusters = QuestionCluster::orderByDesc('message_count')->limit(8)->get();
+        // ClusterTopQuestionsJob genera un snapshot POR DÍA (analyzed_date).
+        // Se filtra al periodo pedido y se agrega con SUM/GROUP BY — sin esto,
+        // un ORDER BY message_count sin fecha podía devolver el mismo tema
+        // repetido varias veces (una fila por día) con conteos que no sumaban
+        // la actividad real del periodo. Ver informe de QA.
+        $clusters = QuestionCluster::where('analyzed_date', '>=', $start->toDateString())
+            ->select(
+                'cluster_label',
+                DB::raw('MAX(representative_question) as representative_question'),
+                DB::raw('SUM(message_count) as message_count')
+            )
+            ->groupBy('cluster_label')
+            ->orderByDesc('message_count')
+            ->limit(8)
+            ->get();
 
         if ($clusters->isNotEmpty()) {
             $topQuestions = $clusters->map(fn($c) => [
                 'question' => $c->representative_question ?: $c->cluster_label,
-                'count'    => $c->message_count,
+                'count'    => (int) $c->message_count,
             ]);
         } else {
             // Fallback: agrupar por concern principal extraído por AnalyzeMessageJob
             $allConcerns = ChatMessage::where('role','user')
+                ->where('created_at', '>=', $start)
                 ->whereNotNull('concerns')
                 ->where('concerns','!=','[]')
                 ->pluck('concerns');
@@ -140,16 +167,18 @@ class AnalyticsController extends Controller
                     ->map(fn($count, $concern) => ['question' => ucfirst($concern), 'count' => $count])
                     ->values();
             } else {
-                // Último recurso: substring de 60 chars
+                // Último recurso: substring normalizado de 60 chars (ver
+                // normalizeQuestionForGrouping — antes agrupaba por el texto
+                // crudo, así que mayúsculas/tildes/puntuación distintas de la
+                // MISMA pregunta contaban como preguntas separadas).
                 $topQuestions = ChatMessage::where('role', 'user')
-                    ->select(
-                        DB::raw('LOWER(SUBSTRING(content, 1, 60)) as question'),
-                        DB::raw('COUNT(*) as count')
-                    )
-                    ->groupBy('question')
-                    ->orderByDesc('count')
-                    ->limit(8)
-                    ->get();
+                    ->where('created_at', '>=', $start)
+                    ->get(['content'])
+                    ->countBy(fn ($m) => $this->normalizeQuestionForGrouping($m->content))
+                    ->sortDesc()
+                    ->take(8)
+                    ->map(fn($count, $question) => ['question' => $question, 'count' => $count])
+                    ->values();
             }
         }
 
@@ -190,6 +219,40 @@ class AnalyticsController extends Controller
                 'end'   => now()->toIso8601String(),
             ],
         ]);
+    }
+
+    // ─── Helpers ────────────────────────────────────────────────────────
+
+    /**
+     * Sesiones "activas" desde $since: creadas O con mensajes nuevos. Las
+     * sesiones se reutilizan (session_id persistido en el cliente), así que
+     * contar solo por fecha de creación subcuenta conversaciones reales de
+     * visitantes recurrentes. Ver informe de QA.
+     */
+    private function activeSessionsQuery(\DateTimeInterface $since)
+    {
+        return ChatSession::where(function ($q) use ($since) {
+            $q->where('created_at', '>=', $since)
+              ->orWhereHas('messages', fn ($q2) => $q2->where('created_at', '>=', $since));
+        });
+    }
+
+    /**
+     * Normaliza una pregunta para agruparla con sus variantes: minúsculas,
+     * sin tildes/puntuación, espacios colapsados. "¿Cuál es tu propuesta de
+     * seguridad?" y "cual es tu propuesta de seguridad" antes contaban como
+     * preguntas distintas (GROUP BY sobre el texto crudo). Ver informe de QA.
+     */
+    private function normalizeQuestionForGrouping(string $content): string
+    {
+        $normalized = mb_strtolower(trim($content));
+        $normalized = strtr($normalized, [
+            'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n',
+        ]);
+        $normalized = preg_replace('/[^\p{L}\p{N}\s]/u', '', $normalized);
+        $normalized = preg_replace('/\s+/', ' ', trim($normalized));
+
+        return mb_substr($normalized, 0, 60);
     }
 
     // ─── Helpers de periodo ───────────────────────────────────────────

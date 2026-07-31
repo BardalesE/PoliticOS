@@ -282,6 +282,9 @@ SUPER_ADMIN_KEY=...            # acceso a /api/superadmin/*
 INGEST_KEY=...                 # auth del servicio Python de ingest
 REVALIDATE_SECRET=...          # avisa al frontend (POST /api/revalidate) tras guardar
                                 # branding/contenido — mismo valor en Vercel/Next.js
+SCHEDULER_KEY=...              # cron externo (GitHub Actions) → POST /api/system/run-scheduler
+                                # mismo valor que el secret SCHEDULER_KEY en GitHub Actions
+APP_TIMEZONE=America/Lima      # default en config/app.php — "hoy" en analytics/alertas/clustering
 
 AI_PROVIDER=claude             # claude | openai
 ANTHROPIC_API_KEY=... / CLAUDE_MODEL=...

@@ -55,6 +55,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'superadmin'   => \App\Http\Middleware\EnsureSuperAdmin::class,
             'plan_feature' => \App\Http\Middleware\CheckPlanFeature::class,
             'ingest_key'   => \App\Http\Middleware\EnsureIngestKey::class,
+            'scheduler_key' => \App\Http\Middleware\EnsureSchedulerKey::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
