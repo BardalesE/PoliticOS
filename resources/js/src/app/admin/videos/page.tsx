@@ -1,4 +1,5 @@
 "use client";
+import { PlanGate } from "@/components/admin/PlanGate";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pencil, Trash2, Loader2, PlayCircle, Upload, X } from "lucide-react";
 import { FilePreviewModal } from "@/components/admin/FilePreviewModal";
@@ -141,7 +142,7 @@ function formatViews(n: number): string {
   return String(n);
 }
 
-export default function VideosPage() {
+function VideosPageInner() {
   const { token } = useAuth();
   const videoRef = useRef<HTMLInputElement>(null);
 
@@ -411,5 +412,13 @@ export default function VideosPage() {
         title={preview?.title}
       />
     </div>
+  );
+}
+
+export default function VideosPage() {
+  return (
+    <PlanGate feature="media">
+      <VideosPageInner />
+    </PlanGate>
   );
 }

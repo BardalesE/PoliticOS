@@ -1,4 +1,5 @@
 "use client";
+import { PlanGate } from "@/components/admin/PlanGate";
 
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -104,7 +105,7 @@ const TAB_ICONS: Record<Tab, React.ElementType> = {
   map: MapIcon,
 };
 
-export default function IntelligencePage() {
+function IntelligencePageInner() {
   const { token } = useAuth();
   const { profile } = useCandidate();
   const brandColor = profile.color_primary || "#DC2626";
@@ -899,5 +900,13 @@ function EmptyTab({ label }: { label: string }) {
       <p className="text-sm">Sin datos de {label} disponibles.</p>
       <p className="text-xs mt-1">Los datos aparecerán cuando haya más conversaciones.</p>
     </div>
+  );
+}
+
+export default function IntelligencePage() {
+  return (
+    <PlanGate feature="intelligence">
+      <IntelligencePageInner />
+    </PlanGate>
   );
 }
