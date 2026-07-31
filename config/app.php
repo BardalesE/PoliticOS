@@ -71,7 +71,12 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    // UTC hardcodeado (ni siquiera vía env) hacía que "hoy" en todo el
+    // sistema (analytics, pulso ciudadano, alertas, clustering diario) se
+    // calculara en el día UTC — para Lima (UTC-5) eso significa que toda la
+    // actividad de 19:00 a 24:00 (el pico real de tráfico de un chat de
+    // campaña) se contaba en el día SIGUIENTE. Ver informe de QA.
+    'timezone' => env('APP_TIMEZONE', 'America/Lima'),
 
     /*
     |--------------------------------------------------------------------------

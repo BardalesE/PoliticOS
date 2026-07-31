@@ -43,15 +43,24 @@ class ClusterTopQuestionsJob implements ShouldQueue
 
     private function cluster(): void
     {
-        $date = today();
+        // Procesa el día ANTERIOR completo — el job corre a las 02:00, así
+        // que "hoy" apenas tendría un par de horas de datos. `analyzed_date`
+        // marca qué día se está resumiendo, no el día en que corrió el job.
+        $date = today()->subDay();
 
-        // Borrar clusters anteriores del mismo día (idempotente)
+        // Borrar clusters de ESE día (idempotente — mismo día que se lee
+        // abajo). Antes esto leía una ventana de 30 días pero solo borraba
+        // "hoy": cada corrida diaria creaba filas nuevas que recontaban en
+        // gran parte los mismos mensajes de días anteriores, inflando el
+        // conteo acumulado y duplicando el mismo tema varias veces en el
+        // ranking (ver informe de QA). Ahora cada `analyzed_date` es un
+        // snapshot limpio y distinto de UN solo día.
         QuestionCluster::where('analyzed_date', $date)->delete();
 
-        // Agrupar por concern principal de los últimos 30 días (acumulado)
+        // Agrupar por concern principal de los mensajes de ese día.
         // Excluye mensajes muy cortos (saludos, pruebas de 1-2 palabras)
-        $messages = ChatMessage::where('role','user')
-            ->where('created_at', '>=', now()->subDays(30))
+        $messages = ChatMessage::where('role', 'user')
+            ->whereDate('created_at', $date)
             ->whereNotNull('concerns')
             ->where('concerns','!=','[]')
             ->whereRaw('CHAR_LENGTH(content) > 10')

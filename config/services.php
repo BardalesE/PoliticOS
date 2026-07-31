@@ -99,4 +99,16 @@ return [
         'secret' => env('REVALIDATE_SECRET'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Cron externo (GitHub Actions) — sustituto de un cron real de servidor
+    |--------------------------------------------------------------------------
+    | POST /api/system/run-scheduler, protegido por X-Scheduler-Key. Ver
+    | .github/workflows/scheduler.yml (dispara cada 5 min, gratis).
+    */
+
+    'scheduler' => [
+        'key' => env('SCHEDULER_KEY'),
+    ],
+
 ];

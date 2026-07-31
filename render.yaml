@@ -41,6 +41,8 @@ services:
         value: es
       - key: APP_FALLBACK_LOCALE
         value: es
+      - key: APP_TIMEZONE
+        value: America/Lima         # afecta "hoy"/alertas/clustering — cambiar solo si el tenant no está en Perú
 
       # ── Logs a stdout/stderr (visibles en Render → Logs) ───────────────
       - key: LOG_CHANNEL
@@ -113,6 +115,15 @@ services:
       # REVALIDATE_SECRET en las env vars del proyecto de Vercel — debe ser
       # exactamente el mismo string en ambos lados.
       - key: REVALIDATE_SECRET
+        sync: false
+
+      # ── Cron externo (GitHub Actions) ────────────────────────────────────
+      # Genera un valor y pégalo TAMBIÉN como secret SCHEDULER_KEY en GitHub
+      # → Settings → Secrets and variables → Actions (mismo repo). Sin esto,
+      # las alertas automáticas y el clustering diario de preguntas no corren
+      # — Render (plan gratis) no tiene Cron Job nativo. Ver
+      # .github/workflows/scheduler.yml.
+      - key: SCHEDULER_KEY
         sync: false
 
       # ── Control del entrypoint (deploy/render/entrypoint.sh) ────────────

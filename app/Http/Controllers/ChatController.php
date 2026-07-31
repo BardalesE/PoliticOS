@@ -139,10 +139,16 @@ class ChatController extends Controller
         $this->applyPepaMetaToSession($session, $response['pepa_metadata'] ?? null);
         $this->capturePotentialDeclaredData($session, $data['declared'] ?? []);
 
-        if (config('queue.default') !== 'sync') {
-            AnalyzeMessageJob::dispatch($userMsg->id)->afterResponse();
-        }
-        if (!$session->geo_country && config('queue.default') !== 'sync') {
+        // ->afterResponse() ya difiere la ejecución hasta después de enviar la
+        // respuesta al cliente (Application::terminating()), sin bloquear al
+        // usuario — funciona igual con QUEUE_CONNECTION=sync (corre inline en
+        // el terminate del propio proceso PHP) que con un worker real. El
+        // guard "!== 'sync'" que había aquí antes SALTABA el dispatch
+        // exactamente en el caso sync (Render, ver render.yaml), así que
+        // sentiment/emotion/intent/concerns/district nunca se calculaban en
+        // producción — no era una limitación de infra, era lógica invertida.
+        AnalyzeMessageJob::dispatch($userMsg->id)->afterResponse();
+        if (!$session->geo_country) {
             GeolocateSessionJob::dispatch($session->id)->afterResponse();
         }
 
@@ -284,10 +290,10 @@ class ChatController extends Controller
                             'is_fallback'     => $meta['ai_resting'] ?? false,
                         ]);
                         $this->applyPepaMetaToSession($session, $meta['pepa_metadata'] ?? null);
-                        if (config('queue.default') !== 'sync') {
-                            AnalyzeMessageJob::dispatch($userMsg->id)->afterResponse();
-                        }
-                        if (!$session->geo_country && config('queue.default') !== 'sync') {
+                        // Ver comentario equivalente en send() — afterResponse()
+                        // difiere la ejecución sin necesitar un worker de colas.
+                        AnalyzeMessageJob::dispatch($userMsg->id)->afterResponse();
+                        if (!$session->geo_country) {
                             GeolocateSessionJob::dispatch($session->id)->afterResponse();
                         }
                     } catch (\Throwable $e) {

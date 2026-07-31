@@ -29,6 +29,7 @@ use App\Http\Controllers\IngestEntityController;
 use App\Http\Controllers\LiveStreamController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\SurveyController;
+use App\Http\Controllers\SystemController;
 
 /*
 |--------------------------------------------------------------------------
@@ -309,3 +310,9 @@ Route::middleware(['throttle:30,1,superadmin', \App\Http\Middleware\EnsureSuperA
         Route::get   ('/tenants/{id}/credentials',    [SuperAdminController::class, 'getCredentials']);
         Route::post  ('/tenants/{id}/reset-password', [SuperAdminController::class, 'resetPassword']);
     });
+
+// ─── Cron externo (sin tenant) ──────────────────────────────────────────
+// Sustituye a un cron real de servidor cuando no hay uno disponible (Render
+// plan gratis). Ver .github/workflows/scheduler.yml.
+Route::post('/system/run-scheduler', [SystemController::class, 'runScheduler'])
+    ->middleware(['scheduler_key', 'throttle:20,1,system-scheduler']);

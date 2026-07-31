@@ -52,8 +52,13 @@ function peakDay(data: { date: string; count: number }[]) {
 }
 
 function todayCount(data: { date: string; count: number }[]) {
-  const today = new Date().toISOString().slice(0, 10);
-  return data.find((d) => d.date === today)?.count ?? 0;
+  // El backend genera la serie con "hoy" siempre como último punto (ver
+  // AnalyticsController::buildSeries), así que tomar el último elemento
+  // evita depender del reloj/zona horaria del navegador del admin — antes
+  // comparaba contra la fecha UTC del navegador, que para un admin en Perú
+  // (UTC-5) navegando de noche podía "adelantarse" un día y no encontrar
+  // coincidencia. Ver informe de QA.
+  return data.length ? data[data.length - 1].count : 0;
 }
 
 // ─── Stat card ────────────────────────────────────────────────────────────
