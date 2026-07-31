@@ -443,10 +443,16 @@ class IntelligenceService
             ->select('topic', DB::raw('COUNT(*) as count'))
             ->groupBy('topic')->having('count','>',50)->get();
 
+        // Promedio semanal de los topics candidatos en una sola query agrupada
+        // en vez de un COUNT() por iteración (antes: N queries para N hot topics).
+        $weeklyCounts = ChatMessage::whereIn('topic', $hotTopics->pluck('topic'))
+            ->where('created_at','>=', now()->subDays(7))
+            ->select('topic', DB::raw('COUNT(*) as count'))
+            ->groupBy('topic')
+            ->pluck('count', 'topic');
+
         foreach ($hotTopics as $hot) {
-            $weeklyAvg = ChatMessage::where('topic', $hot->topic)
-                ->where('created_at','>=', now()->subDays(7))
-                ->count() / 7;
+            $weeklyAvg = ($weeklyCounts[$hot->topic] ?? 0) / 7;
 
             if ($hot->count > $weeklyAvg * 5) {
                 $alerts[] = IntelAlert::firstOrCreate(
