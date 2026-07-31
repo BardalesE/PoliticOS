@@ -10,6 +10,7 @@ class LiveStream extends Model
         'title', 'description', 'status', 'stream_key',
         'thumbnail', 'started_at', 'ended_at',
         'peak_viewers', 'current_viewers', 'chunk_count', 'scheduled_at',
+        'recording_path',
     ];
 
     protected $casts = [

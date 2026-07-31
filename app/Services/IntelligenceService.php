@@ -68,12 +68,18 @@ class IntelligenceService
                 ->select('inferred_segment', DB::raw('COUNT(*) as count'))
                 ->groupBy('inferred_segment')->orderByDesc('count')->get();
 
-            // Intención de voto declarada (de citizen_data)
-            $intentions = DB::table('citizen_data')
-                ->where('field_name','intencion_voto')
+            // Intención de voto — antes leía citizen_data.intencion_voto, una
+            // tabla que solo escribe ChatController::capturePotentialDeclaredData(),
+            // que depende de un payload `declared` que NINGÚN componente del
+            // frontend manda jamás (ruta de datos muerta — el componente que lo
+            // haría, DeclaredDataPrompt.tsx, existe pero no se importa en ningún
+            // lado). chat_sessions.inferred_intention sí lo escribe de verdad
+            // AnalyzeMessageJob::updateSession(). Mismo shape de salida
+            // (field_value/count) para no tocar el frontend. Ver informe de QA.
+            $intentions = ChatSession::whereNotNull('inferred_intention')
                 ->where('created_at','>=',$weekAgo)
-                ->select('field_value', DB::raw('COUNT(*) as count'))
-                ->groupBy('field_value')->orderByDesc('count')->get();
+                ->select(DB::raw('inferred_intention as field_value'), DB::raw('COUNT(*) as count'))
+                ->groupBy('inferred_intention')->orderByDesc('count')->get();
 
             return [
                 'sentiment' => [

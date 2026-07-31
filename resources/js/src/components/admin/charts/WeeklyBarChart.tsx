@@ -7,9 +7,16 @@ import { useCandidate } from "@/context/CandidateContext";
 
 type DataPoint = { date: string; count: number };
 
+// "YYYY-MM-DD" el motor JS lo interpreta como UTC medianoche (ECMA-262) — con
+// el navegador en America/Lima (UTC-5) eso cae al día anterior. Ver el mismo
+// fix en ConversationsChart.tsx.
+function parseLocal(value: string): Date {
+  return new Date(`${value}T00:00:00`);
+}
+
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
-  const date = label ? new Date(label).toLocaleDateString("es-PE", { weekday: "long", day: "numeric", month: "short" }) : "";
+  const date = label ? parseLocal(label).toLocaleDateString("es-PE", { weekday: "long", day: "numeric", month: "short" }) : "";
   return (
     <div className="bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 shadow-xl">
       <p className="text-xs text-gray-400 mb-0.5 capitalize">{date}</p>
@@ -29,7 +36,7 @@ export function WeeklyBarChart({ data }: Props) {
 
   const formatted = last7.map((d) => ({
     ...d,
-    label: new Date(d.date).toLocaleDateString("es-PE", { weekday: "short" }),
+    label: parseLocal(d.date).toLocaleDateString("es-PE", { weekday: "short" }),
   }));
 
   return (

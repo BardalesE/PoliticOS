@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, CameraOff, Mic, MicOff, Radio, Square, AlertCircle, Loader2, Users, Monitor, Smartphone, Tablet } from "lucide-react";
-import { normalizeApiBase } from "@/lib/api";
+import { normalizeApiBase, tenantHeaders } from "@/lib/api";
 
 interface BroadcastStudioProps {
   streamKey: string;
@@ -65,7 +65,9 @@ export function BroadcastStudio({ streamKey, streamId, token, apiUrl, onStatusCh
     const poll = async () => {
       try {
         // Info (viewer count)
-        const r1 = await fetch(`${base}/livestreams/${streamKey}/info`);
+        const r1 = await fetch(`${base}/livestreams/${streamKey}/info`, {
+          headers: { Accept: "application/json", ...tenantHeaders() },
+        });
         if (r1.ok) {
           const d = await r1.json();
           const v = d.current_viewers ?? 0;
@@ -76,7 +78,7 @@ export function BroadcastStudio({ streamKey, streamId, token, apiUrl, onStatusCh
         }
         // Viewer list (admin only)
         const r2 = await fetch(`${base}/admin/livestreams/${streamId}/viewers`, {
-          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json", ...tenantHeaders() },
         });
         if (r2.ok) {
           const d2 = await r2.json();
@@ -101,6 +103,7 @@ export function BroadcastStudio({ streamKey, streamId, token, apiUrl, onStatusCh
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: "application/json",
+            ...tenantHeaders(),
           },
           body: fd,
         });
@@ -129,9 +132,12 @@ export function BroadcastStudio({ streamKey, streamId, token, apiUrl, onStatusCh
       // Notify backend
       const res = await fetch(`${base}/admin/livestreams/${streamId}/start`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json", ...tenantHeaders() },
       });
-      if (!res.ok) throw new Error("Error al iniciar en el servidor.");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.message || "Error al iniciar en el servidor.");
+      }
 
       seqRef.current = 0;
       setChunkCount(0);
@@ -175,7 +181,7 @@ export function BroadcastStudio({ streamKey, streamId, token, apiUrl, onStatusCh
     try {
       await fetch(`${base}/admin/livestreams/${streamId}/stop`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json", ...tenantHeaders() },
       });
     } catch {}
 
