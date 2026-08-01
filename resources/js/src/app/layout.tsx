@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Inter, Source_Serif_4 } from "next/font/google";
+import { Anton, Fraunces, Inter, Source_Serif_4 } from "next/font/google";
 import { headers } from "next/headers";
 import "./globals.css";
 import { ThemeProvider } from "next-themes";
@@ -73,6 +73,17 @@ const fraunces = Fraunces({
   display: "swap",
 });
 
+// Anton: condensada/bold, uso acotado a propósito — NO reemplaza Fraunces en
+// todo el sitio. Solo para los momentos "documentales" del rediseño (Hero,
+// año gigante de cada capítulo de StoryTimeline, píldora flotante) — el
+// resto de titulares (h1/h2 general) se queda en Fraunces.
+const anton = Anton({
+  subsets: ["latin"],
+  variable: "--font-condensed",
+  weight: "400",
+  display: "swap",
+});
+
 export async function generateMetadata(): Promise<Metadata> {
   const data = await fetchCandidate();
   const name      = data?.profile?.name     ?? "Candidato";
@@ -119,7 +130,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const initialCandidate = await fetchCandidate();
 
   return (
-    <html lang="es" className={`${inter.variable} ${serif.variable} ${fraunces.variable}`} suppressHydrationWarning>
+    <html lang="es" className={`${inter.variable} ${serif.variable} ${fraunces.variable} ${anton.variable}`} suppressHydrationWarning>
       <body className="min-h-screen bg-white font-sans">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <CandidateProvider initialData={initialCandidate}>

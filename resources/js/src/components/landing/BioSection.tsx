@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Flag, MapPin, User } from "lucide-react";
 import { useCandidate } from "@/context/CandidateContext";
 import { StoryTimeline } from "@/components/landing/StoryTimeline";
+import { EmphasisText } from "@/lib/textEmphasis";
 
 export function BioSection() {
   const { profile } = useCandidate();
@@ -109,19 +110,45 @@ export function BioSection() {
             </h2>
             {paragraphs.map((p, i) => (
               <p key={i} className="text-base leading-relaxed mb-4" style={{ color: "var(--page-ink-soft)" }}>
-                {p}
+                <EmphasisText text={p} />
               </p>
             ))}
           </motion.div>
-
-          {/* Línea de tiempo — solo si el backend expone hitos */}
-          {timeline.length > 0 && (
-            <div className="mt-8">
-              <StoryTimeline milestones={timeline} />
-            </div>
-          )}
         </div>
       </div>
+
+      {/* Mi Historia — a ancho completo (no dentro de la columna angosta de
+          arriba): el rediseño "documental" necesita el espacio completo
+          para el layout de 3 columnas (año/foto/texto) de cada capítulo. */}
+      {timeline.length > 0 && (
+        <div className="max-w-5xl mx-auto mt-20 md:mt-28">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-60px" }}
+            transition={{ duration: 0.5 }}
+            className="mb-14 md:mb-20 max-w-xl"
+          >
+            <span
+              className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.2em] mb-4"
+              style={{ color: "rgb(var(--brand-primary-rgb))" }}
+            >
+              <span className="w-2 h-2 rounded-full" style={{ background: "rgb(var(--brand-primary-rgb))" }} />
+              Mi Historia
+            </span>
+            <h2
+              className="font-serif font-semibold leading-[1.04] tracking-tight mt-2"
+              style={{ fontSize: "clamp(31px,4.4vw,50px)", color: "var(--page-ink)" }}
+            >
+              Cada capítulo{" "}
+              <em className="not-italic" style={{ color: "rgb(var(--brand-dark-rgb))" }}>
+                cuenta algo real.
+              </em>
+            </h2>
+          </motion.div>
+          <StoryTimeline milestones={timeline} />
+        </div>
+      )}
     </section>
   );
 }

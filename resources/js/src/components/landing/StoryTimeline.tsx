@@ -6,6 +6,8 @@ import {
   ArrowRight, type LucideIcon,
 } from "lucide-react";
 import { TenantLink } from "@/components/ui/TenantLink";
+import { TypewriterHeading } from "@/components/ui/TypewriterHeading";
+import { EmphasisText } from "@/lib/textEmphasis";
 import type { BioMilestone } from "@/lib/api";
 
 const CATEGORY_ICONS: Record<string, LucideIcon> = {
@@ -18,113 +20,120 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
   decision: Milestone,
 };
 
+const CATEGORY_LABELS: Record<string, string> = {
+  origen: "Origen",
+  educacion: "Educación",
+  trabajo: "Trabajo",
+  liderazgo: "Liderazgo",
+  servicio: "Servicio",
+  fundacion: "Fundación",
+  decision: "Decisión",
+};
+
 function iconFor(category?: string | null): LucideIcon {
   if (category && CATEGORY_ICONS[category]) return CATEGORY_ICONS[category];
   return Milestone;
 }
 
-function Dot({ category }: { category?: string | null }) {
-  const Icon = iconFor(category);
-  return (
-    <span
-      className="absolute -left-[31px] top-1 w-8 h-8 rounded-full grid place-items-center shrink-0 md:static md:mb-3"
-      style={{ background: "rgb(var(--brand-primary-rgb))" }}
-    >
-      <Icon size={14} className="text-white" aria-hidden />
-    </span>
-  );
-}
-
 /**
- * Línea de tiempo de vida del candidato — extraída de BioSection para poder
- * reusarla en la sección "Mi Historia" del rediseño narrativo. Mobile: lista
- * vertical con riel a la izquierda (igual que antes). Desktop (md+): tira
- * horizontal con scroll-snap, una tarjeta por hito — se siente más a
- * "documental" que la lista simple.
+ * Línea de tiempo de vida del candidato — rediseño "documental" (inspirado
+ * en el lenguaje de capítulos de una historia de vida: año gigante en
+ * tipografía condensada sobre un riel continuo, foto grande, título con
+ * efecto máquina de escribir, chip de categoría, párrafo con resaltados).
+ * Un solo layout para mobile y desktop (antes había una tira horizontal
+ * aparte en desktop; se unificó para que cada capítulo se sienta como su
+ * propia "página" del scroll, más fiel a la referencia).
  */
 export function StoryTimeline({ milestones }: { milestones: BioMilestone[] }) {
   if (milestones.length === 0) return null;
 
   return (
-    <div>
-      {/* ── Mobile: vertical ── */}
-      <ol
-        className="md:hidden relative border-l-2 pl-6 space-y-7"
-        style={{ borderColor: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 25%, transparent)" }}
-      >
-        {milestones.map((m, i) => (
-          <motion.li
-            key={`${m.year}-${i}`}
-            initial={{ opacity: 0, x: -12 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true, margin: "-40px" }}
-            transition={{ duration: 0.4, delay: i * 0.05 }}
-            className="relative"
-          >
-            <Dot category={m.category} />
-            {m.photo_url && (
-              <div className="relative w-full h-32 rounded-xl overflow-hidden mb-2">
-                <Image src={m.photo_url} alt={m.title} fill sizes="320px" className="object-cover" />
-              </div>
-            )}
-            <p className="text-[11px] font-bold uppercase tracking-[.15em]" style={{ color: "rgb(var(--brand-primary-rgb))" }}>
-              {m.year}
-            </p>
-            <p className="font-serif font-semibold text-base mt-0.5" style={{ color: "var(--page-ink)" }}>
-              {m.title}
-            </p>
-            {m.detail && (
-              <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--page-ink-soft)" }}>
-                {m.detail}
-              </p>
-            )}
-          </motion.li>
-        ))}
-      </ol>
+    <div className="relative">
+      {/* Riel continuo — solo desktop, donde la columna del año tiene una
+          posición fija y predecible (en mobile cada capítulo lleva su
+          propio riel corto, más simple de alinear al apilarse). */}
+      <div
+        className="hidden md:block absolute left-[55px] top-3 bottom-3 w-0.5"
+        style={{ background: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 25%, transparent)" }}
+      />
 
-      {/* ── Desktop: tira horizontal con scroll-snap ── */}
-      <div className="hidden md:block relative">
-        <div
-          className="absolute left-0 right-0 top-4 h-0.5"
-          style={{ background: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 20%, transparent)" }}
-        />
-        <div className="flex gap-5 overflow-x-auto pb-4 snap-x snap-mandatory scroll-pl-1" style={{ scrollbarWidth: "thin" }}>
-          {milestones.map((m, i) => (
+      <div className="space-y-16 md:space-y-24">
+        {milestones.map((m, i) => {
+          const Icon = iconFor(m.category);
+          const hasPhoto = !!m.photo_url;
+
+          return (
             <motion.div
               key={`${m.year}-${i}`}
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 24 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.4, delay: i * 0.05 }}
-              className="relative shrink-0 w-[260px] snap-start pt-1"
+              viewport={{ once: true, margin: "-100px" }}
+              transition={{ duration: 0.5 }}
+              className="relative md:grid md:grid-cols-[110px_260px_1fr] md:gap-8 lg:gap-10"
             >
-              <Dot category={m.category} />
-              <div
-                className="rounded-2xl bg-white overflow-hidden h-full flex flex-col"
-                style={{ border: "1px solid var(--page-line)" }}
-              >
-                {m.photo_url && (
-                  <div className="relative w-full h-28">
-                    <Image src={m.photo_url} alt={m.title} fill sizes="260px" className="object-cover" />
-                  </div>
-                )}
-                <div className="p-4">
-                  <p className="text-[11px] font-bold uppercase tracking-[.15em]" style={{ color: "rgb(var(--brand-primary-rgb))" }}>
-                    {m.year}
-                  </p>
-                  <p className="font-serif font-semibold text-[15px] mt-0.5 leading-snug" style={{ color: "var(--page-ink)" }}>
-                    {m.title}
-                  </p>
-                  {m.detail && (
-                    <p className="text-xs leading-relaxed mt-1.5 line-clamp-4" style={{ color: "var(--page-ink-soft)" }}>
-                      {m.detail}
-                    </p>
-                  )}
+              {/* Año */}
+              <div className="relative mb-4 md:mb-0">
+                <span
+                  className="font-condensed leading-none block"
+                  style={{ fontSize: "clamp(44px,7vw,64px)", color: "rgb(var(--brand-primary-rgb))" }}
+                >
+                  {m.year}
+                </span>
+                <span
+                  className="hidden md:block absolute -left-[55px] top-4 w-3 h-3 rounded-full -translate-x-1/2"
+                  style={{ background: "rgb(var(--brand-primary-rgb))" }}
+                  aria-hidden
+                />
+                {/* Riel corto — solo mobile, un tramo por capítulo */}
+                <span
+                  className="md:hidden absolute left-0 top-[1.15em] bottom-[-64px] w-0.5"
+                  style={{ background: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 25%, transparent)" }}
+                  aria-hidden
+                />
+              </div>
+
+              {/* Foto */}
+              {hasPhoto && (
+                <div className="relative w-full aspect-[4/5] rounded-2xl overflow-hidden mb-5 md:mb-0 max-w-sm md:max-w-none">
+                  <Image
+                    src={m.photo_url!}
+                    alt={m.title}
+                    fill
+                    sizes="(max-width: 768px) 90vw, 260px"
+                    className="object-cover"
+                  />
                 </div>
+              )}
+
+              {/* Texto */}
+              <div className={hasPhoto ? "" : "md:col-start-2 md:col-span-2"}>
+                <TypewriterHeading
+                  text={m.title}
+                  as="h3"
+                  className="font-condensed leading-[0.98] mb-3"
+                  style={{ fontSize: "clamp(28px,4vw,44px)", color: "var(--page-ink)" }}
+                />
+                {m.category && (
+                  <span
+                    className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-full mb-3"
+                    style={{
+                      color: "rgb(var(--brand-primary-rgb))",
+                      border: "1px solid color-mix(in srgb, rgb(var(--brand-primary-rgb)) 35%, transparent)",
+                    }}
+                  >
+                    <Icon size={12} aria-hidden />
+                    {CATEGORY_LABELS[m.category] ?? m.category}
+                  </span>
+                )}
+                {m.detail && (
+                  <p className="leading-relaxed" style={{ color: "var(--page-ink-soft)", fontSize: "16px" }}>
+                    <EmphasisText text={m.detail} />
+                  </p>
+                )}
               </div>
             </motion.div>
-          ))}
-        </div>
+          );
+        })}
       </div>
 
       {/* Cierre: "la historia continúa contigo" */}
@@ -133,7 +142,7 @@ export function StoryTimeline({ milestones }: { milestones: BioMilestone[] }) {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-40px" }}
         transition={{ duration: 0.4 }}
-        className="mt-8 flex items-center gap-3 flex-wrap"
+        className="mt-16 md:mt-20 flex items-center gap-3 flex-wrap"
       >
         <p className="font-serif font-semibold text-base" style={{ color: "var(--page-ink)" }}>
           La historia continúa contigo.

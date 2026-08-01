@@ -28,6 +28,7 @@ const Footer              = dynamic(() => import("@/components/ui/Footer").then(
 const ChatFAB             = dynamic(() => import("@/components/ui/ChatFAB").then(m => ({ default: m.ChatFAB })));
 const StickyCampaignBar   = dynamic(() => import("@/components/ui/StickyCampaignBar").then(m => ({ default: m.StickyCampaignBar })));
 const MobileBottomNav     = dynamic(() => import("@/components/ui/MobileBottomNav").then(m => ({ default: m.MobileBottomNav })));
+const ScrollToTopFab      = dynamic(() => import("@/components/ui/ScrollToTopFab").then(m => ({ default: m.ScrollToTopFab })));
 
 import type {
   HomeSettings, HeroSettings,
@@ -95,6 +96,12 @@ export default function DynamicHome({
   // 4 tarjetas ya están cubiertas por ParticipateCTA + pestañas de HomeTabs).
   return (
     <main className="landing-main">
+      {/* Franja superior fija — acento del rediseño "documental", por
+          encima del Navbar (que es sticky, no fixed, así que no compite). */}
+      <div
+        className="fixed top-0 inset-x-0 h-[3px] z-[60] pointer-events-none"
+        style={{ background: "rgb(var(--brand-primary-rgb))" }}
+      />
       <LiveStreamBanner />
       <Navbar />
       {on(settings, "show_hero") && <Hero initialHero={initialHero ?? null} />}
@@ -134,6 +141,7 @@ export default function DynamicHome({
       <ChatFAB />
       <StickyCampaignBar />
       <MobileBottomNav />
+      <ScrollToTopFab />
     </main>
   );
 }

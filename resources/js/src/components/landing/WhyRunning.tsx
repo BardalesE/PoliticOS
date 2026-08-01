@@ -2,6 +2,7 @@
 import { motion } from "framer-motion";
 import { Quote } from "lucide-react";
 import { useCandidate } from "@/context/CandidateContext";
+import { EmphasisText } from "@/lib/textEmphasis";
 
 /**
  * "¿Por qué quiero postular?" — carta abierta del candidato usando
@@ -57,7 +58,7 @@ export function WhyRunning() {
                 className="text-[16px] sm:text-[17px] leading-relaxed mb-5 last:mb-0"
                 style={{ color: "var(--page-ink)", fontFamily: "var(--font-serif-body, inherit)" }}
               >
-                {p}
+                <EmphasisText text={p} />
               </p>
             ))}
             <p className="mt-6 font-serif font-semibold text-lg" style={{ color: "rgb(var(--brand-primary-rgb))" }}>

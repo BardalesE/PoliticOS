@@ -272,6 +272,13 @@
 .anim-ring-2 { animation: ringPulse  5.5s ease-in-out infinite 1.2s; }
 .anim-ring-3 { animation: ringPulse  7s ease-in-out infinite 2.4s; }
 
+/* ─── Cursor de TypewriterHeading ──────────────────────────────────────── */
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+.anim-cursor-blink { animation: cursorBlink 0.8s step-end infinite; }
+
 /* ─── Marquee infinito ────────────────────────────────────────────────── */
 @keyframes marqueeLeft {
   from { transform: translateX(0); }

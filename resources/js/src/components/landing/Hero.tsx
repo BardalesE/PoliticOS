@@ -7,27 +7,10 @@ import { TenantLink } from "@/components/ui/TenantLink";
 import { ChevronDown, LocateFixed, Search } from "lucide-react";
 import { resolveTenantSlug, withTenant, type HeroSettings } from "@/lib/api";
 import { useCandidate } from "@/context/CandidateContext";
+import { EmphasisText } from "@/lib/textEmphasis";
 
 interface HeroProps {
   initialHero?: HeroSettings | null;
-}
-
-
-function renderTitleWithEmphasis(title: string, onDark: boolean) {
-  return title.split(/(\*[^*]+\*|\n)/).map((part, i) => {
-    if (part === "\n") return <br key={i} />;
-    if (part.startsWith("*") && part.endsWith("*"))
-      return (
-        <span
-          key={i}
-          className="relative inline-block"
-          style={{ color: onDark ? "rgb(var(--brand-primary-rgb))" : "rgb(var(--brand-primary-rgb))" }}
-        >
-          {part.slice(1, -1)}
-        </span>
-      );
-    return <span key={i}>{part}</span>;
-  });
 }
 
 export function Hero({ initialHero }: HeroProps) {
@@ -171,14 +154,17 @@ export function Hero({ initialHero }: HeroProps) {
             </span>
           </motion.div>
 
-          {/* Título */}
+          {/* Título — tipografía condensada, uso acotado al Hero (ver plan
+              del rediseño "documental": Anton solo aquí + año de
+              StoryTimeline + píldora flotante, no reemplaza Fraunces en el
+              resto del sitio) */}
           <motion.h1
             variants={item}
-            className={`font-serif font-semibold leading-[1.05] tracking-tight mb-6
-              text-4xl sm:text-5xl md:text-6xl lg:text-7xl
+            className={`font-condensed font-normal leading-[0.95] tracking-tight mb-6
+              text-5xl sm:text-6xl md:text-7xl lg:text-8xl
               ${onDark ? "text-white" : "text-ink-900"}`}
           >
-            {renderTitleWithEmphasis(d.title, onDark)}
+            <EmphasisText text={d.title} />
           </motion.h1>
 
           {/* Línea decorativa */}
@@ -196,7 +182,7 @@ export function Hero({ initialHero }: HeroProps) {
                 onDark ? "text-white/75" : "text-ink-600"
               }`}
             >
-              {d.subtitle}
+              <EmphasisText text={d.subtitle} />
             </motion.p>
           )}
 

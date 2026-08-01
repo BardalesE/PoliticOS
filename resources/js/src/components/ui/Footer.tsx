@@ -34,7 +34,7 @@ export function Footer() {
   return (
     <footer
       className="pb-16 md:pb-0"
-      style={{ background: "var(--page-ink, #0f1a12)", color: "#d9d4c9" }}
+      style={{ background: "rgb(var(--brand-dark-rgb))", color: "#d9d4c9" }}
     >
       {/* pb-16 en mobile: reserva el espacio de MobileBottomNav (fixed,
           h-16 + safe-bottom), que si no taparía el último tramo del footer. */}
