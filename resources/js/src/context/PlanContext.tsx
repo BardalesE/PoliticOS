@@ -62,11 +62,23 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
 
   function isEnabled(feature: string): boolean {
     if (ALWAYS_ENABLED.has(feature)) return true;
-    if (!plan) return true; // loading → show everything optimistically
+    // Mientras carga: optimista (evita parpadeo de "bloqueado" antes de saber
+    // el plan real). Los consumidores directos (Sidebar, PlanGate) ya
+    // comprueban `isLoading` por su cuenta antes de decidir si bloquear.
+    if (isLoading) return true;
+    // Auditoría de calidad (Fase 16): antes, si el fetch del plan fallaba,
+    // `plan` se quedaba en null para siempre y esto devolvía `true` — un
+    // tenant starter veía TODO desbloqueado si el fetch de /admin/plan
+    // fallaba (red, 500, etc.), sin importar cuánto tiempo pasara. Ahora,
+    // una vez terminó de cargar, sin plan resuelto = fail-closed.
+    if (!plan) return false;
     const val = (plan.features as Record<string, unknown>)[feature];
     if (typeof val === "boolean") return val;
     if (typeof val === "object" && val !== null) return !!(val as Record<string, unknown>).enabled;
-    return true;
+    // Feature key desconocida (no viene en plan.features) — antes esto
+    // devolvía `true` (fail-open); ahora fail-closed: una key que no está
+    // declarada explícitamente en el plan no debería asumirse habilitada.
+    return false;
   }
 
   return (

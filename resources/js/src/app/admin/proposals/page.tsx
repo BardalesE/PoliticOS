@@ -1,4 +1,5 @@
 "use client";
+import { PlanGate } from "@/components/admin/PlanGate";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pencil, Trash2, Loader2, FileText, MapPin, Upload, X, Image as ImageIcon, FileUp } from "lucide-react";
 import { FilePreviewModal } from "@/components/admin/FilePreviewModal";
@@ -130,7 +131,7 @@ function DropZone({ label, accept, hint, icon, currentUrl, file, onFile, onClear
 
 // ── Page ────────────────────────────────────────────────────────────────────
 
-export default function ProposalsPage() {
+function ProposalsPageInner() {
   const { token } = useAuth();
   const { topics } = useCandidate();
   const [items, setItems]           = useState<Proposal[]>([]);
@@ -399,5 +400,13 @@ export default function ProposalsPage() {
         title={preview?.title}
       />
     </div>
+  );
+}
+
+export default function ProposalsPage() {
+  return (
+    <PlanGate feature="proposals">
+      <ProposalsPageInner />
+    </PlanGate>
   );
 }

@@ -28,6 +28,15 @@ class CheckPlanFeature
     public function handle(Request $request, Closure $next): Response
     {
         $tenant = app('tenant');
+        // Auditoría de calidad (Fase 16): se evaluó hacer esto fail-closed,
+        // pero se revirtió tras probarlo contra el navegador real —
+        // ResolveTenant.php:26-28 deja `tenant` en null A PROPÓSITO en modo
+        // single-tenant (sin X-Tenant/subdominio/?tenant=/APP_TENANT_SLUG):
+        // "Single-tenant: usa la DB por defecto". En ese modo no existe fila
+        // de Tenant contra la cual chequear un plan, así que fail-open aquí
+        // es el comportamiento correcto, no una brecha. La resolución de
+        // tenant multi-tenant real SÍ falla de forma segura (404 explícito
+        // en ResolveTenant.php:33) antes de llegar siquiera a este middleware.
         if (!$tenant) return $next($request);
 
         foreach (self::ROUTE_FEATURES as $path => $feature) {

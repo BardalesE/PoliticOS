@@ -1,4 +1,5 @@
 ﻿"use client";
+import { PlanGate } from "@/components/admin/PlanGate";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Trash2, Loader2, Pencil, CalendarOff, CalendarDays, Star, Timer } from "lucide-react";
 import { adminApi, type CampaignEvent } from "@/lib/api";
@@ -21,7 +22,7 @@ const EMPTY_FORM = {
   is_active: true, is_featured: false, sort_order: 0,
 };
 
-export default function EventsPage() {
+function EventsPageInner() {
   const { token } = useAuth();
   const imgRef = useRef<HTMLInputElement>(null);
 
@@ -315,5 +316,13 @@ export default function EventsPage() {
         onCancel={() => setDeleteTarget(null)}
       />
     </div>
+  );
+}
+
+export default function EventsPage() {
+  return (
+    <PlanGate feature="events">
+      <EventsPageInner />
+    </PlanGate>
   );
 }

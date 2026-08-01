@@ -1,4 +1,5 @@
 "use client";
+import { PlanGate } from "@/components/admin/PlanGate";
 
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -38,7 +39,7 @@ const statusLabels: Record<string, { label: string; cls: string }> = {
 };
 
 
-export default function LivestreamPage() {
+function LivestreamPageInner() {
   const { token } = useAuth();
 
   const [streams, setStreams]           = useState<LiveStream[]>([]);
@@ -397,5 +398,13 @@ function StreamRow({
         </button>
       </div>
     </div>
+  );
+}
+
+export default function LivestreamPage() {
+  return (
+    <PlanGate feature="livestream">
+      <LivestreamPageInner />
+    </PlanGate>
   );
 }

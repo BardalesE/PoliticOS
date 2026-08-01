@@ -1,4 +1,5 @@
 "use client";
+import { PlanGate } from "@/components/admin/PlanGate";
 import { useCallback, useEffect, useState } from "react";
 import {
   FileText, Trash2, Loader2,
@@ -17,7 +18,7 @@ function fmtSize(bytes: number | null): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export default function KnowledgePage() {
+function KnowledgePageInner() {
   const { token } = useAuth();
   const [docs, setDocs]         = useState<KnowledgeDocument[]>([]);
   const [preview, setPreview]   = useState<{ url: string; title: string } | null>(null);
@@ -200,5 +201,13 @@ export default function KnowledgePage() {
         title={preview?.title}
       />
     </div>
+  );
+}
+
+export default function KnowledgePage() {
+  return (
+    <PlanGate feature="knowledge">
+      <KnowledgePageInner />
+    </PlanGate>
   );
 }

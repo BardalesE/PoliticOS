@@ -1,4 +1,5 @@
 ﻿"use client";
+import { PlanGate } from "@/components/admin/PlanGate";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Trash2, Loader2, Upload, Pencil, VideoOff, PlayCircle, X } from "lucide-react";
 import { adminApi, type CampaignVideo } from "@/lib/api";
@@ -66,7 +67,7 @@ function formatSize(bytes: number | null) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export default function CampaignVideosPage() {
+function CampaignVideosPageInner() {
   const { token } = useAuth();
   const videoRef = useRef<HTMLInputElement>(null);
   const thumbRef = useRef<HTMLInputElement>(null);
@@ -433,5 +434,13 @@ export default function CampaignVideosPage() {
         title={preview?.title}
       />
     </div>
+  );
+}
+
+export default function CampaignVideosPage() {
+  return (
+    <PlanGate feature="media">
+      <CampaignVideosPageInner />
+    </PlanGate>
   );
 }

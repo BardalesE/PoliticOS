@@ -1,4 +1,5 @@
 "use client";
+import { PlanGate } from "@/components/admin/PlanGate";
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -30,7 +31,7 @@ interface AttackResponse {
 
 const CATEGORIES = ["personal","partido","pasado","propuesta","rival","otro"];
 
-export default function AttackResponsesPage() {
+function AttackResponsesPageInner() {
   const { token } = useAuth();
   const [items, setItems] = useState<AttackResponse[]>([]);
   const [editing, setEditing] = useState<Partial<AttackResponse> | null>(null);
@@ -198,5 +199,13 @@ export default function AttackResponsesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AttackResponsesPage() {
+  return (
+    <PlanGate feature="attack_responses">
+      <AttackResponsesPageInner />
+    </PlanGate>
   );
 }

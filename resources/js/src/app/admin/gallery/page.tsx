@@ -1,4 +1,5 @@
 "use client";
+import { PlanGate } from "@/components/admin/PlanGate";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Trash2, Loader2, Upload, Pencil, ImageOff, X, Maximize2 } from "lucide-react";
 import { adminApi, type CampaignPhoto } from "@/lib/api";
@@ -12,7 +13,7 @@ import { Pagination } from "@/components/admin/Pagination";
 
 const CATEGORIES = ["general", "campaña", "eventos", "propuestas", "distritos", "equipo"];
 
-export default function GalleryPage() {
+function GalleryPageInner() {
   const { token } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -349,5 +350,13 @@ export default function GalleryPage() {
         title={photoPreview?.title}
       />
     </div>
+  );
+}
+
+export default function GalleryPage() {
+  return (
+    <PlanGate feature="media">
+      <GalleryPageInner />
+    </PlanGate>
   );
 }

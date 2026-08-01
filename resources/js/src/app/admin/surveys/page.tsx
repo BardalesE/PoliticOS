@@ -1,4 +1,5 @@
 "use client";
+import { PlanGate } from "@/components/admin/PlanGate";
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
@@ -11,7 +12,7 @@ import {
   ClipboardList, Loader2, Smartphone, BookOpen,
 } from "lucide-react";
 
-export default function SurveysDashboardPage() {
+function SurveysDashboardPageInner() {
   const { token } = useAuth();
 
   const [data, setData]         = useState<SurveyDashboard | null>(null);
@@ -180,5 +181,13 @@ export default function SurveysDashboardPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function SurveysDashboardPage() {
+  return (
+    <PlanGate feature="surveys">
+      <SurveysDashboardPageInner />
+    </PlanGate>
   );
 }

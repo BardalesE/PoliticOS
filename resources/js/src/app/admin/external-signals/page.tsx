@@ -1,4 +1,5 @@
 "use client";
+import { PlanGate } from "@/components/admin/PlanGate";
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -30,7 +31,7 @@ interface Signal {
 
 const SOURCES = ["all","twitter","news","youtube_comment","tiktok","facebook","poll","gov_pdf","blog","manual"];
 
-export default function ExternalSignalsPage() {
+function ExternalSignalsPageInner() {
   const { token } = useAuth();
   const [items, setItems] = useState<Signal[]>([]);
   const [filterSource, setFilterSource] = useState("all");
@@ -128,5 +129,13 @@ export default function ExternalSignalsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ExternalSignalsPage() {
+  return (
+    <PlanGate feature="external_signals">
+      <ExternalSignalsPageInner />
+    </PlanGate>
   );
 }
