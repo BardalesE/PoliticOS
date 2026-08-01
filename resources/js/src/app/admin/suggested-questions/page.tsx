@@ -171,7 +171,7 @@ export default function SuggestedQuestionsPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <FormField
             as="textarea"
-            label="Pregunta *"
+            label="Pregunta"
             value={form.question}
             onChange={(e) => setForm((f) => ({ ...f, question: e.target.value }))}
             required
