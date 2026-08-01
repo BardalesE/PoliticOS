@@ -543,6 +543,8 @@ export const homeApi = {
   events:       () => request<CampaignEvent[]>("/events"),
   featuredEvent:() => request<CampaignEvent | null>("/events/featured"),
   teamMembers:  () => request<TeamMember[]>("/team-members"),
+  achievements: () => request<Achievement[]>("/achievements"),
+  testimonials: () => request<Testimonial[]>("/testimonials"),
   settings:     () => request<HomeSettings>("/home-settings"),
 };
 
@@ -617,6 +619,44 @@ export type CandidateProfile = {
   facebook_url: string | null;
   instagram_url: string | null;
   whatsapp_number: string | null;
+  // Rediseño narrativo del sitio público
+  bio_timeline?: BioMilestone[] | null;
+  why_running?: string | null;
+  differentiator?: string | null;
+  testimonial_video_url?: string | null;
+};
+
+export type BioMilestone = {
+  year: string;
+  title: string;
+  detail?: string | null;
+  photo_url?: string | null;
+  category?: string | null;
+};
+
+export type Achievement = {
+  id: number;
+  title: string;
+  description: string | null;
+  metric_label: string | null;
+  metric_value: string | null;
+  photo_before_url: string | null;
+  photo_after_url: string | null;
+  district: string | null;
+  status: "completado" | "en_curso";
+  sort_order: number;
+  is_active: boolean;
+};
+
+export type Testimonial = {
+  id: number;
+  name: string;
+  role: string | null;
+  photo_url: string | null;
+  quote: string;
+  district: string | null;
+  sort_order: number;
+  is_active: boolean;
 };
 
 export type TopicItem = {
@@ -778,6 +818,28 @@ export const adminApiExtended = {
       request<SuggestedQuestion>(`/admin/suggested-questions/${id}`, { method: "PUT", body: JSON.stringify(data) }, token),
     delete: (token: string, id: number) =>
       request<{ deleted: boolean }>(`/admin/suggested-questions/${id}`, { method: "DELETE" }, token),
+  },
+
+  achievements: {
+    list: (token: string, page = 1) =>
+      request<Paginated<Achievement>>(`/admin/achievements?page=${page}`, {}, token),
+    upload: (token: string, formData: FormData) =>
+      upload<Achievement>("/admin/achievements", formData, token),
+    update: (token: string, id: number, formData: FormData) =>
+      upload<Achievement>(`/admin/achievements/${id}`, formData, token, "PUT"),
+    delete: (token: string, id: number) =>
+      request<{ deleted: boolean }>(`/admin/achievements/${id}`, { method: "DELETE" }, token),
+  },
+
+  testimonials: {
+    list: (token: string, page = 1) =>
+      request<Paginated<Testimonial>>(`/admin/testimonials?page=${page}`, {}, token),
+    upload: (token: string, formData: FormData) =>
+      upload<Testimonial>("/admin/testimonials", formData, token),
+    update: (token: string, id: number, formData: FormData) =>
+      upload<Testimonial>(`/admin/testimonials/${id}`, formData, token, "PUT"),
+    delete: (token: string, id: number) =>
+      request<{ deleted: boolean }>(`/admin/testimonials/${id}`, { method: "DELETE" }, token),
   },
 };
 

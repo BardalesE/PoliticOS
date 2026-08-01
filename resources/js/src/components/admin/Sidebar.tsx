@@ -11,7 +11,7 @@ import {
   LayoutDashboard, MessageSquare, FileText, Video, HelpCircle, Users,
   Brain, Shield, Radio, Settings, LogOut, Image as ImageIcon,
   MapPin, BookOpen, AlertCircle, Tag, FileQuestion, UserCircle, Calendar,
-  Lock, UserCheck, Rocket, ClipboardList,
+  Lock, UserCheck, Rocket, ClipboardList, Award, Quote,
 } from "lucide-react";
 
 type NavItem = {
@@ -50,6 +50,8 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/faqs",               label: "FAQs",                  icon: HelpCircle },
       { href: "/admin/topics",             label: "Temas",                 icon: Tag },
       { href: "/admin/suggested-questions",label: "Preguntas sugeridas",   icon: FileQuestion },
+      { href: "/admin/achievements",       label: "Obras destacadas",      icon: Award,       badge: "NEW" },
+      { href: "/admin/testimonials",       label: "Testimonios",          icon: Quote,       badge: "NEW" },
     ],
   },
   {

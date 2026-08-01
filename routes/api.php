@@ -12,6 +12,8 @@ use App\Http\Controllers\CampaignVideoController;
 use App\Http\Controllers\HeroSettingController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\TeamMemberController;
+use App\Http\Controllers\AchievementController;
+use App\Http\Controllers\TestimonialController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\KnowledgeDocumentController;
 use App\Http\Controllers\CandidateProfileController;
@@ -108,6 +110,11 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
 
     // ─── Equipo (público) ────────────────────────────────────────────
     Route::get('/team-members', [TeamMemberController::class, 'index']);
+
+    // ─── Obras destacadas / Testimonios (público) ────────────────────
+    // Rediseño narrativo del sitio público.
+    Route::get('/achievements', [AchievementController::class, 'index']);
+    Route::get('/testimonials', [TestimonialController::class, 'index']);
 
     // ─── Configuración home (público) ────────────────────────────────
     Route::get('/home-settings', [SettingController::class, 'publicIndex']);
@@ -253,6 +260,18 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
         Route::post  ('/team-members',      [TeamMemberController::class, 'store']);
         Route::put   ('/team-members/{id}', [TeamMemberController::class, 'update']);
         Route::delete('/team-members/{id}', [TeamMemberController::class, 'destroy']);
+
+        // Obras destacadas
+        Route::get   ('/achievements',      [AchievementController::class, 'adminIndex']);
+        Route::post  ('/achievements',      [AchievementController::class, 'store']);
+        Route::put   ('/achievements/{id}', [AchievementController::class, 'update']);
+        Route::delete('/achievements/{id}', [AchievementController::class, 'destroy']);
+
+        // Testimonios
+        Route::get   ('/testimonials',      [TestimonialController::class, 'adminIndex']);
+        Route::post  ('/testimonials',      [TestimonialController::class, 'store']);
+        Route::put   ('/testimonials/{id}', [TestimonialController::class, 'update']);
+        Route::delete('/testimonials/{id}', [TestimonialController::class, 'destroy']);
 
         // Configuración home
         Route::get('/settings', [SettingController::class, 'adminIndex']);
