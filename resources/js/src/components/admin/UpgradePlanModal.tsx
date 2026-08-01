@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { Lock, X, ArrowUpRight, Check } from "lucide-react";
 
@@ -66,6 +68,15 @@ export default function UpgradePlanModal({ feature, currentPlan, onClose }: Prop
   const planInfo     = PLAN_PERKS[requiredPlan];
   const featureLabel = FEATURE_LABELS[feature] ?? feature;
 
+  // El Sidebar (aside con position: sticky) abre este modal como hijo suyo —
+  // sticky SIEMPRE crea su propio stacking context (con o sin z-index
+  // explícito), así que el z-50 de acá quedaba atrapado compitiendo solo
+  // DENTRO del aside, y el <main> del dashboard (hermano, después en el DOM)
+  // pintaba por encima del blur. Portal a document.body: escapa cualquier
+  // stacking context de un ancestro, sin importar desde dónde se abra.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   function handleContact() {
     window.open(
       `mailto:soporte@politicos.pe?subject=Actualizar plan a ${planInfo.label}&body=Hola, quiero actualizar mi plan de ${currentPlan} a ${planInfo.label} para acceder a ${featureLabel}.`,
@@ -73,7 +84,9 @@ export default function UpgradePlanModal({ feature, currentPlan, onClose }: Prop
     );
   }
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0 }} animate={{ opacity: 1 }}
@@ -141,6 +154,7 @@ export default function UpgradePlanModal({ feature, currentPlan, onClose }: Prop
           </button>
         </div>
       </motion.div>
-    </div>
+    </div>,
+    document.body
   );
 }
