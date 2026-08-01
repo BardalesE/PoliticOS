@@ -15,7 +15,12 @@ async function get<T>(
   revalidate = 30,
 ): Promise<T | null> {
   try {
-    const res = await fetch(`${API_URL}${path}`, {
+    // El tenant va también en la URL (no solo en el header X-Tenant): el
+    // Data Cache de Next.js usa la URL como cache key y no considera headers
+    // custom, así que dos tenants pidiendo el mismo `path` con headers
+    // distintos podían compartir la respuesta cacheada de uno al otro.
+    const url = tenant ? `${API_URL}${path}?tenant=${encodeURIComponent(tenant)}` : `${API_URL}${path}`;
+    const res = await fetch(url, {
       headers: tenant ? { "X-Tenant": tenant } : {},
       next: { revalidate, tags: tenant ? [`tenant-${tenant}`] : [] },
     });

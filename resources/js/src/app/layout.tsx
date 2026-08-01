@@ -31,7 +31,13 @@ async function resolveTenantSlugServer(): Promise<string> {
 async function fetchCandidate(): Promise<CandidatePublicData | null> {
   try {
     const slug = await resolveTenantSlugServer();
-    const res = await fetch(`${API_URL}/candidate`, {
+    // El slug va también en la URL (no solo en el header X-Tenant): el Data
+    // Cache de Next.js usa la URL como cache key y NO considera headers
+    // custom, así que dos tenants pidiendo la misma ruta con headers
+    // distintos podían compartir la respuesta cacheada de uno al otro
+    // (flash del rojo por defecto u otro tenant, ver informe de QA).
+    const url = slug ? `${API_URL}/candidate?tenant=${encodeURIComponent(slug)}` : `${API_URL}/candidate`;
+    const res = await fetch(url, {
       headers: slug ? { "X-Tenant": slug } : {},
       next: { revalidate: 60, tags: slug ? [`candidate-${slug}`] : [] },
     });
@@ -94,12 +100,19 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  maximumScale: 5,
-  themeColor: "#D91023",
-};
+export async function generateViewport(): Promise<Viewport> {
+  // Next.js deduplica este fetch con generateMetadata() y RootLayout — una
+  // sola llamada real por render. Antes themeColor era fijo "#D91023"
+  // (rojo de PoliticOS): la barra de dirección/pestañas del navegador móvil
+  // salía roja sin importar el candidato.
+  const data = await fetchCandidate();
+  return {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 5,
+    themeColor: data?.profile?.color_primary ?? "#D91023",
+  };
+}
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Next.js deduplicates this fetch with generateMetadata — one request per render

@@ -10,6 +10,7 @@ import AIBadge from "@/components/chat/AIBadge";
 import { LiveAlert } from "@/components/live/LiveAlert";
 import { useCandidate } from "@/context/CandidateContext";
 import { resolveTenantSlug, normalizeApiBase } from "@/lib/api";
+import { tenantStorageKey } from "@/lib/utils";
 import { TenantLink } from "@/components/ui/TenantLink";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -527,15 +528,15 @@ export default function ChatPage() {
     if (welcomeBack !== null) return; // no sobreescribir mientras se muestra la pantalla de bienvenida
     const saveable = messages.filter((m) => !m.pending && m.content.length > 0);
     if (saveable.length === 0) return;
-    localStorage.setItem(LS_HISTORY, JSON.stringify(saveable));
-    localStorage.setItem(LS_SAVED_AT, Date.now().toString());
+    localStorage.setItem(tenantStorageKey(LS_HISTORY), JSON.stringify(saveable));
+    localStorage.setItem(tenantStorageKey(LS_SAVED_AT), Date.now().toString());
   }, [messages, welcomeBack]);
 
   // ── Init ────────────────────────────────────────────────────────────────────
   useEffect(() => {
     const hasConsent = ConsentModal.hasConsent();
     setConsent(hasConsent);
-    const stored = localStorage.getItem(LS_SESSION);
+    const stored = localStorage.getItem(tenantStorageKey(LS_SESSION));
     if (stored) setSessionId(stored);
 
     if (hasConsent) {
@@ -554,22 +555,22 @@ export default function ChatPage() {
     requestGeoLocation(); // pedir GPS siempre que el usuario tenga consentimiento
     let savedMessages: ChatMessage[] = [];
     try {
-      const raw = localStorage.getItem(LS_HISTORY);
+      const raw = localStorage.getItem(tenantStorageKey(LS_HISTORY));
       if (raw) savedMessages = JSON.parse(raw);
     } catch {}
 
     if (savedMessages.length > 0) {
       // Hay historial → mostrar pantalla de bienvenida de regreso
-      const savedName   = localStorage.getItem(LS_CITIZEN_NAME) || "";
-      const savedPoints = localStorage.getItem(LS_CITIZEN_POINTS);
-      const savedAt     = parseInt(localStorage.getItem(LS_SAVED_AT) || "0");
+      const savedName   = localStorage.getItem(tenantStorageKey(LS_CITIZEN_NAME)) || "";
+      const savedPoints = localStorage.getItem(tenantStorageKey(LS_CITIZEN_POINTS));
+      const savedAt     = parseInt(localStorage.getItem(tenantStorageKey(LS_SAVED_AT)) || "0");
       setWelcomeBack({
         name:   savedName,
         points: savedPoints ? parseInt(savedPoints) : null,
         savedAt,
       });
     } else {
-      const regDone = localStorage.getItem(LS_REG_DONE);
+      const regDone = localStorage.getItem(tenantStorageKey(LS_REG_DONE));
       if (regDone) {
         setChatInitialized(true);
         setRegPhase("done");
@@ -615,6 +616,7 @@ export default function ChatPage() {
     const tenant = resolveTenantSlug();
     fetch(`${API}/chat/location`, {
       method:  "POST",
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
         ...(tenant ? { "X-Tenant": tenant } : {}),
@@ -697,7 +699,7 @@ export default function ChatPage() {
   function handleContinue() {
     let saved: ChatMessage[] = [];
     try {
-      const raw = localStorage.getItem(LS_HISTORY);
+      const raw = localStorage.getItem(tenantStorageKey(LS_HISTORY));
       if (raw) saved = JSON.parse(raw);
     } catch {}
 
@@ -729,10 +731,10 @@ export default function ChatPage() {
   // ── Mejora 2: nuevo chat desde cero ──────────────────────────────────────────
 
   function handleNewChat() {
-    localStorage.removeItem(LS_HISTORY);
-    localStorage.removeItem(LS_SAVED_AT);
-    localStorage.removeItem(LS_SESSION);
-    localStorage.removeItem(LS_REG_DONE);
+    localStorage.removeItem(tenantStorageKey(LS_HISTORY));
+    localStorage.removeItem(tenantStorageKey(LS_SAVED_AT));
+    localStorage.removeItem(tenantStorageKey(LS_SESSION));
+    localStorage.removeItem(tenantStorageKey(LS_REG_DONE));
     setSessionId(null);
     setWelcomeBack(null);
     setRegPhase(null);
@@ -799,6 +801,7 @@ export default function ChatPage() {
           const tenant = resolveTenantSlug();
           const r = await fetch(`${API}/citizen/register`, {
             method: "POST",
+            credentials: "include",
             headers: {
               "Content-Type": "application/json",
               ...(tenant ? { "X-Tenant": tenant } : {}),
@@ -824,8 +827,8 @@ export default function ChatPage() {
             const pts  = result.points ?? 50;
             const code = result.referral_code ?? "";
             // Guardar datos del ciudadano para la pantalla de bienvenida de regreso
-            localStorage.setItem(LS_CITIZEN_NAME,   regData.name);
-            localStorage.setItem(LS_CITIZEN_POINTS, pts.toString());
+            localStorage.setItem(tenantStorageKey(LS_CITIZEN_NAME),   regData.name);
+            localStorage.setItem(tenantStorageKey(LS_CITIZEN_POINTS), pts.toString());
             addBotMsg(
               `🎉 ¡Listo, ${regData.name.split(" ")[0]}! Quedaste registrado/a y ganaste **${pts} puntos** de participación.\n\nTu código de referido es **${code}** — compártelo y gana 100 puntos más por cada vecino que se registre.`,
               [
@@ -833,7 +836,7 @@ export default function ChatPage() {
                 { label: "🗺️ Mi distrito",     value: "¿Qué propuestas hay para mi zona?" },
               ]
             );
-            localStorage.setItem(LS_REG_DONE, "done");
+            localStorage.setItem(tenantStorageKey(LS_REG_DONE), "done");
             setChatInitialized(true);
             setRegPhase("done");
           }
@@ -853,7 +856,7 @@ export default function ChatPage() {
     addBotMsg(
       `No hay problema. ¿De qué zona eres y qué problema ves en tu comunidad que más te preocupa? Cuéntame y te explico qué propone ${shortName} para resolverlo. 👇`
     );
-    localStorage.setItem(LS_REG_DONE, "skipped");
+    localStorage.setItem(tenantStorageKey(LS_REG_DONE), "skipped");
     setChatInitialized(true);
     setRegPhase("done");
   }
@@ -875,6 +878,7 @@ export default function ChatPage() {
       const tenant = resolveTenantSlug();
       const r = await fetch(`${API}/chat/stream`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           ...(tenant ? { "X-Tenant": tenant } : {}),
@@ -908,7 +912,7 @@ export default function ChatPage() {
             if (payload.done) {
               if (payload.sessionId) {
                 setSessionId(payload.sessionId);
-                localStorage.setItem(LS_SESSION, payload.sessionId);
+                localStorage.setItem(tenantStorageKey(LS_SESSION), payload.sessionId);
               }
               if (payload.media?.length) {
                 setMessages((m) =>
@@ -943,6 +947,7 @@ export default function ChatPage() {
       const tenant = resolveTenantSlug();
       const r = await fetch(`${API}/chat`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           ...(tenant ? { "X-Tenant": tenant } : {}),
@@ -953,7 +958,7 @@ export default function ChatPage() {
       const data = await r.json();
       if (data.sessionId) {
         setSessionId(data.sessionId);
-        localStorage.setItem(LS_SESSION, data.sessionId);
+        localStorage.setItem(tenantStorageKey(LS_SESSION), data.sessionId);
       }
       setMessages((m) =>
         m.map((x) =>
