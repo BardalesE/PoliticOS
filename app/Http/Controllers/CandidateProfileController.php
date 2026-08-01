@@ -113,13 +113,28 @@ class CandidateProfileController extends Controller
             'whatsapp_number' => ['nullable', 'string', 'max:20'],
         ]);
 
-        // NOT NULL columns with DB defaults: replace null (from ConvertEmptyStringsToNull) with defaults
-        $data['list_number']   = $data['list_number']   ?? '1';
-        $data['color_primary'] = $data['color_primary'] ?? '#DC2626';
-        $data['color_dark']    = $data['color_dark']    ?? '#7F1D1D';
-        $data['color_accent']  = $data['color_accent']  ?? '#C9A84C';
-
         $profile = CandidateProfile::firstOrNew(['is_active' => true]);
+
+        // Columnas NOT NULL sin default en la BD: solo hay que rellenarlas si
+        // la fila es nueva (INSERT) o si el request mandó explícitamente un
+        // valor vacío (ConvertEmptyStringsToNull lo vuelve null). Si la fila
+        // YA EXISTE y el campo simplemente no vino en este request, no se debe
+        // tocar — antes esto pisaba el color de marca ya guardado del tenant
+        // con el rojo por defecto en CUALQUIER update parcial (ej. subir solo
+        // el logo), sin que el admin tocara nada de colores.
+        foreach ([
+            'list_number'   => '1',
+            'color_primary' => '#DC2626',
+            'color_dark'    => '#7F1D1D',
+            'color_accent'  => '#C9A84C',
+        ] as $field => $default) {
+            if (array_key_exists($field, $data) && $data[$field] === null) {
+                $data[$field] = $default;
+            } elseif (!$profile->exists && !array_key_exists($field, $data)) {
+                $data[$field] = $default;
+            }
+        }
+
         $profile->is_active = true;
         $profile->fill($data)->save();
 
