@@ -37,7 +37,13 @@ const csp = [
   "img-src 'self' data: blob: https: http:",
   "media-src 'self' blob:",
   `connect-src 'self' ${apiOrigin} https://api.anthropic.com`,
-  "frame-ancestors 'none'",
+  // Auditoría de calidad (Fase 17): 'none' bloqueaba también el auto-embed del
+  // wizard de onboarding (Paso 3 "Probar el chat" mete /chat en un <iframe>
+  // del propio origen) — CSP frame-ancestors no distingue "mismo origen" de
+  // "cualquier origen" salvo que se liste explícitamente. 'self' preserva la
+  // protección real (ningún sitio externo puede embeber esta app) y permite
+  // que la app se embeba a sí misma.
+  "frame-ancestors 'self'",
   "base-uri 'self'",
   "form-action 'self'",
 ].join("; ");

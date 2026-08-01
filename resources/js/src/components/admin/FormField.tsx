@@ -1,4 +1,5 @@
 "use client";
+import { useId } from "react";
 import { cn } from "@/lib/utils";
 
 type BaseProps = {
@@ -26,16 +27,26 @@ const inputClass = cn(
 
 export function FormField(props: FormFieldProps) {
   const { label, error, required, className, as, ...rest } = props;
+  // Auditoría de calidad (Fase 17): el <label> no tenía htmlFor/id — sin
+  // asociación programática con su campo, ni un lector de pantalla ni
+  // getByLabel() de Playwright pueden vincular la etiqueta al input. Este
+  // componente lo usan ~15 páginas del admin, así que el fix acá cubre
+  // todas de una vez. useId() en vez de un id fijo: FormField puede
+  // renderizarse muchas veces en la misma página (una fila por propuesta,
+  // por FAQ, etc.), un id fijo colisionaría.
+  const autoId = useId();
+  const fieldId = (rest as { id?: string }).id ?? autoId;
 
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
-      <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+      <label htmlFor={fieldId} className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
         {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
+        {required && <span className="text-red-500 ml-0.5"> *</span>}
       </label>
 
       {(!as || as === "input") && (
         <input
+          id={fieldId}
           {...(rest as React.InputHTMLAttributes<HTMLInputElement>)}
           className={cn(inputClass, error && "border-red-400 focus:border-red-500")}
         />
@@ -43,6 +54,7 @@ export function FormField(props: FormFieldProps) {
 
       {as === "textarea" && (
         <textarea
+          id={fieldId}
           {...(rest as React.TextareaHTMLAttributes<HTMLTextAreaElement>)}
           rows={(props as TextareaProps).rows ?? 4}
           className={cn(inputClass, "resize-none", error && "border-red-400 focus:border-red-500")}
@@ -51,6 +63,7 @@ export function FormField(props: FormFieldProps) {
 
       {as === "select" && (
         <select
+          id={fieldId}
           {...(rest as React.SelectHTMLAttributes<HTMLSelectElement>)}
           className={cn(inputClass, "cursor-pointer", error && "border-red-400 focus:border-red-500")}
         >

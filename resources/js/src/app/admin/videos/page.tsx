@@ -341,7 +341,7 @@ export default function VideosPage() {
 
       <Modal open={modalOpen} onClose={closeModal} title={editing ? "Editar video" : "Nuevo video"} size="lg">
         <form onSubmit={handleSave} className="space-y-4">
-          <FormField label="Título *" required value={form.title} onChange={set("title")} placeholder="Propuesta de agua potable..." />
+          <FormField label="Título" required value={form.title} onChange={set("title")} placeholder="Propuesta de agua potable..." />
 
           {/* Video file upload zone */}
           <div>

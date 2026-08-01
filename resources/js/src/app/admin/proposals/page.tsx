@@ -327,13 +327,13 @@ export default function ProposalsPage() {
       <Modal open={modalOpen} onClose={closeModal} title={editing ? "Editar propuesta" : "Nueva propuesta"} size="xl">
         <form onSubmit={handleSave} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <FormField label="Título *" required value={form.title} onChange={set("title")}
+            <FormField label="Título" required value={form.title} onChange={set("title")}
               placeholder="Mejoramiento del sistema de agua..." className="col-span-2" />
-            <FormField as="textarea" label="Descripción *" required value={form.description}
+            <FormField as="textarea" label="Descripción" required value={form.description}
               onChange={set("description")} rows={3} placeholder="Descripción detallada..."
               className="col-span-2" />
             <FormField label="Distrito" value={form.district} onChange={set("district")} placeholder="San Miguel de Pallaques" />
-            <FormField as="select" label="Tema *" required value={form.topic} onChange={set("topic")}
+            <FormField as="select" label="Tema" required value={form.topic} onChange={set("topic")}
               options={topics.length > 0
                 ? topics.map((t) => ({ value: t.name, label: `${t.emoji} ${t.label}` }))
                 : ["agua","agricultura","vias","salud","educacion","seguridad","empleo","turismo"].map((t) => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1) }))
