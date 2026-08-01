@@ -31,6 +31,7 @@ class CandidateProfileController extends Controller
             $profileData['logo_url']       = CacheBust::url($profile->logo_url, $profile->updated_at);
             $profileData['hero_photo_url'] = CacheBust::url($profile->hero_photo_url, $profile->updated_at);
             $profileData['hero_video_url'] = CacheBust::url($profile->hero_video_url, $profile->updated_at);
+            $profileData['testimonial_video_url'] = CacheBust::url($profile->testimonial_video_url, $profile->updated_at);
         }
 
         $questions = SuggestedQuestion::where('is_active', true)
@@ -111,6 +112,16 @@ class CandidateProfileController extends Controller
             'facebook_url'   => ['nullable', 'string', 'max:500'],
             'instagram_url'  => ['nullable', 'string', 'max:500'],
             'whatsapp_number' => ['nullable', 'string', 'max:20'],
+            // Rediseño narrativo del sitio público
+            'bio_timeline'           => ['nullable', 'array'],
+            'bio_timeline.*.year'    => ['required_with:bio_timeline', 'string', 'max:10'],
+            'bio_timeline.*.title'   => ['required_with:bio_timeline', 'string', 'max:200'],
+            'bio_timeline.*.detail'  => ['nullable', 'string'],
+            'bio_timeline.*.photo_url' => ['nullable', 'string', 'max:500'],
+            'bio_timeline.*.category'  => ['nullable', 'string', 'max:50'],
+            'why_running'            => ['nullable', 'string'],
+            'differentiator'         => ['nullable', 'string', 'max:300'],
+            'testimonial_video_url'  => ['nullable', 'string', 'max:500'],
         ]);
 
         $profile = CandidateProfile::firstOrNew(['is_active' => true]);
@@ -179,6 +190,10 @@ class CandidateProfileController extends Controller
             'facebook_url'   => ['nullable', 'string', 'max:500'],
             'instagram_url'  => ['nullable', 'string', 'max:500'],
             'whatsapp_number' => ['nullable', 'string', 'max:20'],
+            'bio_timeline'           => ['nullable', 'array'],
+            'why_running'            => ['nullable', 'string'],
+            'differentiator'         => ['nullable', 'string', 'max:300'],
+            'testimonial_video_url'  => ['nullable', 'string', 'max:500'],
         ]);
 
         $data['list_number']   = $data['list_number']   ?? '1';
