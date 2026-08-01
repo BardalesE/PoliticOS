@@ -195,6 +195,9 @@ class LiveStreamController extends Controller
             'chunk_count'     => 0,
             'current_viewers' => 0,
             'peak_viewers'    => 0,
+            'recording_path'  => null,
+            'merge_status'    => 'none',
+            'merge_cursor'    => 0,
         ]);
 
         return response()->json($stream);
@@ -213,11 +216,18 @@ class LiveStreamController extends Controller
             'ended_at'        => now(),
             'current_viewers' => 0,
             'recording_path'  => null,
+            'merge_status'    => 'pending',
+            'merge_cursor'    => 0,
         ]);
 
+        // Con QUEUE_CONNECTION=sync (producción, ver render.yaml) esto corre
+        // de inmediato en este mismo request — MergeStreamChunksJob::processBatch()
+        // está acotado en tiempo (ver comentario en la clase), así que streams
+        // cortos terminan aquí mismo; streams largos quedan en 'processing' y
+        // el comando livestreams:continue-merges (cron cada 5 min) los retoma.
         MergeStreamChunksJob::dispatch($stream->id);
 
-        return response()->json($stream);
+        return response()->json($stream->fresh());
     }
 
     /**
@@ -348,10 +358,11 @@ class LiveStreamController extends Controller
      *
      * - If recording.webm already exists (merged): serve it with response()->file()
      *   which supports Range requests → the browser can seek anywhere in a hours-long video.
-     * - If merge is still in progress (stream just ended): return 202 so the frontend
-     *   knows to retry in a moment.
-     * - If chunks exist but recording.webm doesn't: trigger the merge synchronously
-     *   (only happens on first request; all subsequent ones hit the cached file).
+     * - If merge is still in progress: return 202 with progress so the frontend
+     *   knows to retry — for streams largos el merge avanza por tandas (ver
+     *   MergeStreamChunksJob), así que cada poll de este endpoint también
+     *   empuja una tanda más, además del cron externo cada 5 min.
+     * - If chunks exist but recording.webm doesn't: dispara una tanda del merge.
      */
     public function recording(string $key)
     {
@@ -376,10 +387,17 @@ class LiveStreamController extends Controller
             abort(404, 'Sin grabación disponible.');
         }
 
-        // El Job de merge se lanzó al detener el stream.
-        // Si el archivo aún no existe, el merge está en progreso.
+        if ($stream->merge_status === 'failed') {
+            return response()->json(['status' => 'failed'], 500);
+        }
+
         MergeStreamChunksJob::dispatchIf(!$disk->exists($outRel), $stream->id);
 
-        return response()->json(['status' => 'processing'], 202);
+        return response()->json([
+            'status'   => 'processing',
+            'progress' => $stream->chunk_count > 0
+                ? (int) round($stream->fresh()->merge_cursor / $stream->chunk_count * 100)
+                : 0,
+        ], 202);
     }
 }

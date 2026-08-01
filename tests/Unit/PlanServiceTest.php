@@ -20,6 +20,13 @@ class PlanServiceTest extends TestCase
 {
     use DatabaseTransactions;
 
+    // Tenant vive en la conexión 'central', no en la 'mysql' por defecto —
+    // DatabaseTransactions solo envuelve la conexión por defecto salvo que
+    // se indique explícitamente. Sin esto, cada corrida dejaba filas de
+    // Tenant reales y permanentes en la BD de test (ver el mismo fix en
+    // CheckPlanFeatureTest, encontrado auditando LiveStreamContinueMergesCommandTest).
+    protected $connectionsToTransact = ['mysql', 'central'];
+
     private function tenant(array $overrides = []): Tenant
     {
         return Tenant::create(array_merge([

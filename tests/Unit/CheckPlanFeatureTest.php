@@ -21,6 +21,15 @@ class CheckPlanFeatureTest extends TestCase
 {
     use DatabaseTransactions;
 
+    // Tenant vive en la conexión 'central' (Tenant::$connection), no en la
+    // 'mysql' por defecto — DatabaseTransactions solo envuelve la conexión
+    // por defecto salvo que se le indique explícitamente. Sin esto, cada
+    // corrida de este test dejaba una fila de Tenant real y permanente en
+    // la BD de test (encontrado auditando LiveStreamContinueMergesCommandTest:
+    // TenantContext::forEachTenant() las recogía todas como "tenants activos"
+    // y las iteraba de más en cualquier otro test que la usara).
+    protected $connectionsToTransact = ['mysql', 'central'];
+
     private function tenant(string $plan, array $customFeatures = []): Tenant
     {
         return Tenant::create([

@@ -14,7 +14,9 @@ FROM php:8.2-fpm-bookworm
 
 # ── Paquetes del sistema ─────────────────────────────────────────────────────
 # nginx + supervisor (proceso único de Render), gettext-base (envsubst para
-# templar $PORT), y libs de las extensiones PHP.
+# templar $PORT), libs de las extensiones PHP, y ffmpeg (MergeStreamChunksJob:
+# remux -c copy de los chunks de "En vivo" en un solo WebM con cues correctos;
+# sin esto cae al fallback de concatenación binaria en PHP, más lento).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         nginx \
         supervisor \
@@ -22,6 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         unzip \
         git \
         curl \
+        ffmpeg \
         libpng-dev \
         libjpeg62-turbo-dev \
         libfreetype6-dev \

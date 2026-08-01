@@ -30,6 +30,8 @@ interface LiveStream {
   chunk_count: number;
   scheduled_at?: string;
   created_at: string;
+  merge_status?: "none" | "pending" | "processing" | "done" | "failed";
+  merge_cursor?: number;
 }
 
 const statusLabels: Record<string, { label: string; cls: string }> = {
@@ -344,6 +346,19 @@ function StreamRow({
           )}
           {s.chunk_count > 0 && (
             <span>{s.chunk_count} segmentos</span>
+          )}
+          {(s.merge_status === "pending" || s.merge_status === "processing") && (
+            <span className="flex items-center gap-1 text-amber-600">
+              <Loader2 size={11} className="animate-spin" />
+              Preparando grabación
+              {s.chunk_count > 0 && ` · ${Math.round(((s.merge_cursor ?? 0) / s.chunk_count) * 100)}%`}
+            </span>
+          )}
+          {s.merge_status === "failed" && (
+            <span className="flex items-center gap-1 text-red-600">
+              <AlertCircle size={11} />
+              Error al procesar grabación
+            </span>
           )}
         </div>
       </div>

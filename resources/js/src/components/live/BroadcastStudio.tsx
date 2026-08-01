@@ -43,6 +43,7 @@ export function BroadcastStudio({ streamKey, streamId, token, apiUrl, onStatusCh
   const [elapsed, setElapsed]         = useState(0);
   const [viewerHistory, setViewerHistory] = useState<{ time: string; count: number }[]>([]);
   const [viewerList, setViewerList]   = useState<ViewerRecord[]>([]);
+  const [failedChunks, setFailedChunks] = useState(0);
 
   // ── Format elapsed time ───────────────────────────────────────────────
   useEffect(() => {
@@ -91,28 +92,50 @@ export function BroadcastStudio({ streamKey, streamId, token, apiUrl, onStatusCh
     return () => clearInterval(id);
   }, [status, base, streamKey, streamId, token]);
 
-  // ── Upload a chunk ────────────────────────────────────────────────────
+  // ── Upload a chunk (con reintentos) ────────────────────────────────────
+  // Streams de horas suben miles de chunks — antes un fallo de red (un solo
+  // chunk, una vez) se tragaba en silencio y quedaba perdido para siempre,
+  // dejando un hueco en la grabación final. Reintenta con backoff acotado
+  // antes de darse por vencido.
+  const MAX_CHUNK_RETRIES = 3;
+
+  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+  const uploadChunkOnce = useCallback(async (blob: Blob, seq: number): Promise<boolean> => {
+    const fd = new FormData();
+    fd.append("chunk", blob, `chunk_${seq}.webm`);
+    fd.append("seq", String(seq));
+    const res = await fetch(`${base}/admin/livestreams/${streamKey}/chunk`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        ...tenantHeaders(),
+      },
+      body: fd,
+    });
+    return res.ok;
+  }, [base, streamKey, token]);
+
   const uploadChunk = useCallback((blob: Blob, seq: number) => {
     uploadQueue.current = uploadQueue.current.then(async () => {
-      try {
-        const fd = new FormData();
-        fd.append("chunk", blob, `chunk_${seq}.webm`);
-        fd.append("seq", String(seq));
-        await fetch(`${base}/admin/livestreams/${streamKey}/chunk`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-            ...tenantHeaders(),
-          },
-          body: fd,
-        });
-        setChunkCount(seq + 1);
-      } catch {
-        // Non-fatal: chunk may be lost but stream continues
+      for (let attempt = 1; attempt <= MAX_CHUNK_RETRIES; attempt++) {
+        try {
+          const ok = await uploadChunkOnce(blob, seq);
+          if (ok) {
+            setChunkCount(seq + 1);
+            return;
+          }
+        } catch {
+          // network error — reintentar
+        }
+        if (attempt < MAX_CHUNK_RETRIES) await sleep(attempt * 1000);
       }
+      // Se agotaron los reintentos: este chunk se pierde (deja un hueco en
+      // la grabación final), pero el stream sigue — no bloquea la cola.
+      setFailedChunks(f => f + 1);
     });
-  }, [base, streamKey, token]);
+  }, [uploadChunkOnce]);
 
   // ── Start broadcasting ────────────────────────────────────────────────
   const startBroadcast = async () => {
@@ -141,6 +164,7 @@ export function BroadcastStudio({ streamKey, streamId, token, apiUrl, onStatusCh
 
       seqRef.current = 0;
       setChunkCount(0);
+      setFailedChunks(0);
 
       // Pick best supported mime
       const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
@@ -210,6 +234,32 @@ export function BroadcastStudio({ streamKey, streamId, token, apiUrl, onStatusCh
     };
   }, []);
 
+  // ── Avisar al backend si se cierra la pestaña/laptop a medio directo ──
+  // Antes, cerrar la pestaña durante una transmisión dejaba el stream 'live'
+  // para siempre en la BD (nadie llamaba a /stop) — los espectadores seguían
+  // viendo "en vivo" sin nuevos chunks, y el merge de la grabación nunca se
+  // disparaba. `fetch(..., { keepalive: true })` (no sendBeacon: sendBeacon
+  // no permite mandar el header Authorization que /stop necesita) sobrevive
+  // al cierre de la pestaña para un POST sin body grande como este.
+  useEffect(() => {
+    if (status !== "live") return;
+
+    const notifyStop = () => {
+      fetch(`${base}/admin/livestreams/${streamId}/stop`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json", ...tenantHeaders() },
+        keepalive: true,
+      }).catch(() => {});
+    };
+
+    window.addEventListener("pagehide", notifyStop);
+    window.addEventListener("beforeunload", notifyStop);
+    return () => {
+      window.removeEventListener("pagehide", notifyStop);
+      window.removeEventListener("beforeunload", notifyStop);
+    };
+  }, [status, base, streamId, token]);
+
   return (
     <div className="grid lg:grid-cols-3 gap-4">
       {/* ── Left: camera preview + controls ─────────────────────────── */}
@@ -235,6 +285,13 @@ export function BroadcastStudio({ streamKey, streamId, token, apiUrl, onStatusCh
           {status === "live" && (
             <div className="absolute bottom-3 right-3 text-zinc-500 text-xs">
               {chunkCount} seg.
+            </div>
+          )}
+
+          {status === "live" && failedChunks > 0 && (
+            <div className="absolute bottom-3 left-3 flex items-center gap-1.5 bg-amber-900/80 text-amber-300 text-xs font-medium px-2.5 py-1 rounded-full">
+              <AlertCircle size={12} />
+              {failedChunks} segmento{failedChunks > 1 ? "s" : ""} perdido{failedChunks > 1 ? "s" : ""}
             </div>
           )}
         </div>
