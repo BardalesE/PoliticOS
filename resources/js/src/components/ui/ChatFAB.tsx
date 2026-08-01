@@ -37,13 +37,17 @@ export function ChatFAB() {
   const baseClass = `text-white shadow-lg transition-all duration-200 active:scale-95
     ${chatBtn.color ? "" : "bg-chat-500 hover:bg-chat-600 ring-4 ring-chat-500/25"}`;
 
+  // Oculto en mobile: MobileBottomNav (montada en la misma home) ya trae su
+  // propio botón de Chat en la barra inferior — mostrar ambos chocaría en la
+  // misma esquina. En desktop, donde MobileBottomNav no se renderiza, sigue
+  // igual que siempre.
   if (isCircle) {
     return (
       <motion.div
         initial={{ opacity: 0, y: 100 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4, duration: 0.25 }}
-        className={`fixed z-50 ${posClass}`}
+        className={`hidden md:block fixed z-50 ${posClass}`}
       >
         <TenantLink href="/chat" aria-label={label} style={colorStyle}
           className={`${sz.circle} rounded-full flex items-center justify-center ${baseClass}`}>
@@ -58,7 +62,7 @@ export function ChatFAB() {
       initial={{ opacity: 0, y: 100 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.4, duration: 0.25 }}
-      className={`fixed z-50 ${posClass}`}
+      className={`hidden md:block fixed z-50 ${posClass}`}
     >
       <TenantLink href="/chat" aria-label={label} style={colorStyle}
         className={`flex items-center gap-3 rounded-full ${sz.pill} ${baseClass}`}>

@@ -5,11 +5,13 @@ import { motion } from "framer-motion";
 import { useCandidate } from "@/context/CandidateContext";
 import { TenantLink } from "@/components/ui/TenantLink";
 
-// Fase 7: la home es de pestañas — las secciones se abren con ?seccion=
-// (deep-link real), no con anclas que quedarían ocultas tras las pestañas.
+// HomeTabs (la sección "Explora todo" al final de la home) abre sus pestañas
+// vía ?seccion= (deep-link real), no anclas — por eso estos links de footer
+// usan query params y no "#" para las secciones que viven ahí adentro.
 // "Servicios" (#servicios / AssistantPreview) se retiró por redundante y
-// "Tu voz" desapareció como link: la opinión ahora es un modal dentro de la
-// home (botón en DosVias), no una URL enlazable; su equivalente es el chat.
+// "Tu voz" desapareció como link: la opinión ahora es el formulario de
+// ParticipateCTA en el scroll narrativo, no una URL enlazable aparte; su
+// equivalente rápido sigue siendo el chat.
 const contentLinks = [
   { href: "/propuestas",           label: "Propuestas" },
   { href: "/distritos",            label: "Caseríos" },
@@ -30,7 +32,12 @@ export function Footer() {
   const shortName = profile.name.split(" ")[0];
 
   return (
-    <footer style={{ background: "var(--page-ink, #0f1a12)", color: "#d9d4c9" }}>
+    <footer
+      className="pb-16 md:pb-0"
+      style={{ background: "var(--page-ink, #0f1a12)", color: "#d9d4c9" }}
+    >
+      {/* pb-16 en mobile: reserva el espacio de MobileBottomNav (fixed,
+          h-16 + safe-bottom), que si no taparía el último tramo del footer. */}
 
       {/* Franja tricolor */}
       <div className="flex h-[5px]">

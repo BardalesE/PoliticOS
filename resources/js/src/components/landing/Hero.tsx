@@ -68,9 +68,9 @@ export function Hero({ initialHero }: HeroProps) {
     title:      initialHero?.title           ?? profile.tagline ?? "Un *compromiso* real\ncon nuestra gente.",
     subtitle:   initialHero?.subtitle        ?? (profile.title ? `${profile.title} · ${profile.location}` : profile.location),
     badge_text: initialHero?.badge_text      ?? (profile.party ? `${profile.party}${profile.list_number ? ` · Lista N°${profile.list_number}` : ""}` : "Campaña Electoral"),
-    btn1_label: initialHero?.btn1_label      ?? "Conocer propuestas",
-    btn1_url:   initialHero?.btn1_url        ?? "/propuestas",
-    btn2_label: initialHero?.btn2_label      ?? "Sobre el candidato",
+    btn1_label: initialHero?.btn1_label      ?? "Sé parte del cambio",
+    btn1_url:   initialHero?.btn1_url        ?? "#participa",
+    btn2_label: initialHero?.btn2_label      ?? "Conoce mi historia",
     btn2_url:   initialHero?.btn2_url        ?? "#bio",
     btn3_label: initialHero?.btn3_label      ?? null,
     btn3_url:   initialHero?.btn3_url        ?? null,
@@ -101,6 +101,26 @@ export function Hero({ initialHero }: HeroProps) {
       }`}
       style={!onDark ? { borderBottom: "1px solid var(--page-line)" } : undefined}
     >
+      {/* ── Fondo decorativo: sin video/imagen configurado, se anima con los
+           mismos orbs CSS-only ya usados en /admin/login (compositor thread,
+           sin JS) en vez de dejar un blanco plano ── */}
+      {!hasBackground && (
+        <>
+          <div
+            className="absolute -top-40 left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full anim-orb-1 pointer-events-none"
+            style={{ background: "radial-gradient(circle, rgb(var(--brand-primary-rgb) / 0.14), transparent 65%)" }}
+          />
+          <div
+            className="absolute -bottom-56 -left-32 w-[560px] h-[560px] rounded-full anim-orb-2 pointer-events-none"
+            style={{ background: "radial-gradient(circle, rgb(var(--brand-dark-rgb) / 0.12), transparent 70%)" }}
+          />
+          <div
+            className="absolute -bottom-24 -right-24 w-[460px] h-[460px] rounded-full anim-orb-3 pointer-events-none"
+            style={{ background: "radial-gradient(circle, var(--brand-accent, #C9A84C), transparent 70%)", opacity: 0.1 }}
+          />
+        </>
+      )}
+
       {/* ── Fondo: video o imagen ── */}
       {hasBackground && (
         <>
