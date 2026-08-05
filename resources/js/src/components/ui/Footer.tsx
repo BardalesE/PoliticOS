@@ -45,9 +45,11 @@ export function Footer() {
         <div className="flex-1" style={{ background: "rgb(var(--brand-primary-rgb))" }} />
       </div>
 
-      {/* Grid principal */}
+      {/* Grid principal — 2 columnas ya desde mobile (Contenido/Participa lado
+          a lado) en vez de las 4 secciones apiladas de antes, que se sentían
+          muy densas en celular; Marca y Elecciones ocupan el ancho completo. */}
       <div className="max-w-5xl mx-auto px-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-9 py-16">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-8 sm:gap-9 py-10 sm:py-16">
 
           {/* Columna 1: Marca */}
           <motion.div
@@ -55,7 +57,7 @@ export function Footer() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-60px" }}
             transition={{ duration: 0.45 }}
-            className="lg:col-span-1"
+            className="col-span-2 lg:col-span-1"
           >
             {/* Badge + meta */}
             <div className="flex items-center gap-3 mb-4">
@@ -168,6 +170,7 @@ export function Footer() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-60px" }}
             transition={{ duration: 0.45, delay: 0.19 }}
+            className="col-span-2 lg:col-span-1"
           >
             <h4
               className="text-[11.5px] font-bold uppercase tracking-[.16em] mb-4"

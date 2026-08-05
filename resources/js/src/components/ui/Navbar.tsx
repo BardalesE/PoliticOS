@@ -73,7 +73,7 @@ export function Navbar() {
             <div className="flex items-center justify-between h-16 sm:h-[68px]">
 
               {/* Logo */}
-              <TenantLink href="/" className="flex items-center gap-3 shrink-0 group">
+              <TenantLink href="/" className="flex items-center gap-3 min-w-0 group">
                 <div
                   className="relative w-11 h-11 rounded-xl overflow-hidden border-2 border-brand-100 shadow-sm
                               group-hover:border-brand-400 group-hover:shadow-md transition-all duration-200 shrink-0"
@@ -92,11 +92,15 @@ export function Navbar() {
                     </div>
                   )}
                 </div>
-                <div className="hidden sm:block leading-tight">
-                  <p className="text-[11px] font-extrabold uppercase tracking-[1.5px] text-brand-700">
+                {/* Antes escondido bajo `sm:` (hidden sm:block) — con la franja
+                    superior retirada, dejaba el header mobile con solo el logo
+                    y el hamburguesa, sin texto. Ahora siempre visible, con
+                    truncate + min-w-0 en el padre para no empujar el botón. */}
+                <div className="leading-tight min-w-0">
+                  <p className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-[1.5px] text-brand-700 truncate">
                     {profile.party || "Campaña Electoral"}
                   </p>
-                  <p className="text-xs font-semibold text-ink-500">
+                  <p className="text-[11px] sm:text-xs font-semibold text-ink-500 truncate">
                     {shortName} · {profile.title}
                   </p>
                 </div>
