@@ -42,7 +42,7 @@ export default function HeroSettingsPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragOver, setDragOver]       = useState(false);
   const [previewFile, setPreviewFile] = useState<string | null>(null);
-  const [videoMode, setVideoMode]     = useState<"url" | "upload">("url");
+  const [showUrlField, setShowUrlField] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Image (fallback) upload state
@@ -200,34 +200,7 @@ export default function HeroSettingsPage() {
 
         {/* ── Video de fondo ── */}
         <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Video de fondo</p>
-            {/* Mode toggle */}
-            <div className="flex rounded-lg border border-white/[0.1] overflow-hidden text-xs">
-              <button
-                type="button"
-                onClick={() => setVideoMode("upload")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${
-                  videoMode === "upload"
-                    ? "bg-brand-500 text-white"
-                    : "text-gray-400 hover:text-gray-700"
-                }`}
-              >
-                <Upload size={11} /> Subir archivo
-              </button>
-              <button
-                type="button"
-                onClick={() => setVideoMode("url")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${
-                  videoMode === "url"
-                    ? "bg-brand-500 text-white"
-                    : "text-gray-400 hover:text-gray-700"
-                }`}
-              >
-                <Link2 size={11} /> URL directa
-              </button>
-            </div>
-          </div>
+          <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Video de fondo</p>
 
           {/* Current video preview */}
           {currentVideo && (
@@ -249,149 +222,165 @@ export default function HeroSettingsPage() {
             </div>
           )}
 
-          {/* Upload mode */}
-          {videoMode === "upload" && (
-            <div>
-              <div
-                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={onDrop}
-                onClick={() => fileInputRef.current?.click()}
-                className={`relative border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-200 ${
-                  dragOver
-                    ? "border-brand-500 bg-brand-500/10"
-                    : "border-white/20 hover:border-brand-500/50 hover:bg-gray-50"
-                }`}
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="video/mp4,video/webm,video/mov,video/ogg,video/quicktime"
-                  onChange={onFileChange}
-                  className="sr-only"
-                />
-
-                {uploadState === "uploading" ? (
-                  <div className="flex flex-col items-center gap-3">
-                    <Loader2 size={28} className="animate-spin text-brand-400" />
-                    <p className="text-sm font-medium text-gray-900">Subiendo video...</p>
-                    <div className="w-full max-w-xs bg-white/10 rounded-full h-2">
-                      <div
-                        className="bg-brand-500 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${uploadProgress}%` }}
-                      />
-                    </div>
-                    <p className="text-xs text-gray-400">{uploadProgress}%</p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="h-14 w-14 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center">
-                      <Video size={24} className="text-brand-400" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900 mb-1">
-                        Arrastra tu video aquí
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        o haz clic para seleccionar · MP4, WebM, MOV · máx. 500 MB
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {uploadError && (
-                <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
-                  <AlertCircle size={13} />
-                  {uploadError}
-                </div>
-              )}
-
-              {uploadState === "done" && (
-                <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/20 text-xs text-green-400">
-                  <CheckCircle size={13} />
-                  Video subido. URL actualizada automáticamente — guarda para confirmar.
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* URL mode */}
-          {videoMode === "url" && (
-            <div className="space-y-4">
-              <FormField
-                label="URL del video de fondo"
-                value={form.video_url ?? ""}
-                onChange={(e) => { set("video_url", e.target.value); setPreviewFile(null); }}
-                placeholder="/hero.mp4  o  https://example.com/video.mp4"
+          {/* Subir archivo — modo primario, siempre visible */}
+          <div>
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={onDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`relative border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-200 ${
+                dragOver
+                  ? "border-brand-500 bg-brand-500/10"
+                  : "border-white/20 hover:border-brand-500/50 hover:bg-gray-50"
+              }`}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="video/mp4,video/webm,video/mov,video/ogg,video/quicktime"
+                onChange={onFileChange}
+                className="sr-only"
               />
 
-              {/* Image fallback — drag & drop */}
-              <div>
-                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
-                  Imagen de fondo (fallback si no hay video)
-                </p>
-                <div
-                  onDragOver={(e) => { e.preventDefault(); setImgDragOver(true); }}
-                  onDragLeave={() => setImgDragOver(false)}
-                  onDrop={(e) => { e.preventDefault(); setImgDragOver(false); const f = e.dataTransfer.files[0]; if (f) uploadImage(f); }}
-                  onClick={() => !form.image_url && imgInputRef.current?.click()}
-                  className={cn(
-                    "relative rounded-xl border-2 overflow-hidden transition-all duration-200",
-                    form.image_url
-                      ? "border-gray-200 cursor-default"
-                      : imgDragOver
-                      ? "border-brand-500 bg-brand-50 cursor-pointer"
-                      : "border-dashed border-gray-200 hover:border-brand-400 hover:bg-gray-50 cursor-pointer"
-                  )}
+              {uploadState === "uploading" ? (
+                <div className="flex flex-col items-center gap-3">
+                  <Loader2 size={28} className="animate-spin text-brand-400" />
+                  <p className="text-sm font-medium text-gray-900">Subiendo video...</p>
+                  <div className="w-full max-w-xs bg-white/10 rounded-full h-2">
+                    <div
+                      className="bg-brand-500 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400">{uploadProgress}%</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-3">
+                  <div className="h-14 w-14 rounded-2xl bg-brand-500/10 border border-brand-500/20 flex items-center justify-center">
+                    <Video size={24} className="text-brand-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 mb-1">
+                      Arrastra tu video aquí
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      o haz clic para seleccionar · MP4, WebM, MOV · máx. 500 MB
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {uploadError && (
+              <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
+                <AlertCircle size={13} />
+                {uploadError}
+              </div>
+            )}
+
+            {uploadState === "done" && (
+              <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-green-500/10 border border-green-500/20 text-xs text-green-400">
+                <CheckCircle size={13} />
+                Video subido. URL actualizada automáticamente — guarda para confirmar.
+              </div>
+            )}
+          </div>
+
+          {/* URL directa — opción secundaria, colapsada por defecto */}
+          <div>
+            {!showUrlField ? (
+              <button
+                type="button"
+                onClick={() => setShowUrlField(true)}
+                className="flex items-center gap-1.5 text-xs font-medium text-gray-400 hover:text-brand-500 transition-colors"
+              >
+                <Link2 size={12} />
+                ¿Prefieres pegar un enlace en vez de subir el archivo?
+              </button>
+            ) : (
+              <div className="space-y-1.5">
+                <FormField
+                  label="URL del video de fondo"
+                  value={form.video_url ?? ""}
+                  onChange={(e) => { set("video_url", e.target.value); setPreviewFile(null); }}
+                  placeholder="/hero.mp4  o  https://example.com/video.mp4"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowUrlField(false)}
+                  className="text-xs text-gray-400 hover:text-gray-600"
                 >
-                  <input
-                    ref={imgInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif"
-                    className="sr-only"
-                    onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f); e.target.value = ""; }}
-                  />
-                  {form.image_url ? (
-                    <div className="relative group aspect-video">
-                      <img src={form.image_url} alt="" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
-                        <button type="button" onClick={(e) => { e.stopPropagation(); imgInputRef.current?.click(); }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/90 text-gray-900 text-xs font-medium">
-                          <Upload size={12} /> Cambiar imagen
-                        </button>
-                        <button type="button" onClick={(e) => { e.stopPropagation(); set("image_url", ""); }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/90 text-white text-xs font-medium">
-                          <X size={12} /> Quitar
-                        </button>
-                      </div>
-                    </div>
+                  Ocultar
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Imagen de fondo (fallback) — siempre visible, independiente del modo de video elegido arriba */}
+          <div>
+            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
+              Imagen de fondo (fallback si no hay video)
+            </p>
+            <div
+              onDragOver={(e) => { e.preventDefault(); setImgDragOver(true); }}
+              onDragLeave={() => setImgDragOver(false)}
+              onDrop={(e) => { e.preventDefault(); setImgDragOver(false); const f = e.dataTransfer.files[0]; if (f) uploadImage(f); }}
+              onClick={() => !form.image_url && imgInputRef.current?.click()}
+              className={cn(
+                "relative rounded-xl border-2 overflow-hidden transition-all duration-200",
+                form.image_url
+                  ? "border-gray-200 cursor-default"
+                  : imgDragOver
+                  ? "border-brand-500 bg-brand-50 cursor-pointer"
+                  : "border-dashed border-gray-200 hover:border-brand-400 hover:bg-gray-50 cursor-pointer"
+              )}
+            >
+              <input
+                ref={imgInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="sr-only"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadImage(f); e.target.value = ""; }}
+              />
+              {form.image_url ? (
+                <div className="relative group aspect-video">
+                  <img src={form.image_url} alt="" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                    <button type="button" onClick={(e) => { e.stopPropagation(); imgInputRef.current?.click(); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/90 text-gray-900 text-xs font-medium">
+                      <Upload size={12} /> Cambiar imagen
+                    </button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); set("image_url", ""); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/90 text-white text-xs font-medium">
+                      <X size={12} /> Quitar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-2 py-8">
+                  {imgUploading ? (
+                    <Loader2 size={22} className="animate-spin text-brand-400" />
                   ) : (
-                    <div className="flex flex-col items-center justify-center gap-2 py-8">
-                      {imgUploading ? (
-                        <Loader2 size={22} className="animate-spin text-brand-400" />
-                      ) : (
-                        <>
-                          <div className="h-10 w-10 rounded-xl bg-brand-50 border border-brand-100 flex items-center justify-center">
-                            <Image size={18} className="text-brand-500" />
-                          </div>
-                          <p className="text-xs text-gray-500">
-                            Arrastra aquí o <span className="text-brand-500 font-medium">haz clic</span> para subir
-                          </p>
-                          <p className="text-[10px] text-gray-400">JPG, PNG, WebP · máx. 10 MB</p>
-                        </>
-                      )}
-                    </div>
+                    <>
+                      <div className="h-10 w-10 rounded-xl bg-brand-50 border border-brand-100 flex items-center justify-center">
+                        <Image size={18} className="text-brand-500" />
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Arrastra aquí o <span className="text-brand-500 font-medium">haz clic</span> para subir
+                      </p>
+                      <p className="text-[10px] text-gray-400">JPG, PNG, WebP · máx. 10 MB</p>
+                    </>
                   )}
                 </div>
-                {imgError && (
-                  <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
-                    <AlertCircle size={11} /> {imgError}
-                  </p>
-                )}
-              </div>
+              )}
             </div>
-          )}
+            {imgError && (
+              <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
+                <AlertCircle size={11} /> {imgError}
+              </p>
+            )}
+          </div>
 
           {/* Overlay opacity — always visible */}
           <div>
