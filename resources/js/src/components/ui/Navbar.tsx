@@ -1,6 +1,6 @@
 "use client";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Shield, ChevronRight } from "lucide-react";
+import { Menu, X, ChevronRight } from "lucide-react";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
@@ -16,7 +16,7 @@ const NAV_DEFS = [
   { href: "/galeria",    label: "Galería" },
   { href: "/videos",     label: "Videos" },
   { href: "/en-vivo",    label: "En vivo", live: true },
-  { href: "/distritos",  label: "Lugares Visitados" },
+  { href: "/distritos",  label: "Mi Comunidad" },
   { href: "/chat",       label: "Chat IA" },
 ];
 
@@ -59,28 +59,6 @@ export function Navbar() {
   return (
     <>
       <header className="sticky top-0 z-50 w-full">
-
-        {/* Top bar — azul institucional */}
-        <div className="bg-brand-700">
-          <div className="mx-auto max-w-7xl px-5 py-2 flex items-center justify-between gap-3">
-            <span className="text-[11px] font-semibold text-white/80 hidden sm:block">
-              {profile.party || "Campaña Electoral"} · {profile.location}
-            </span>
-            <span className="text-[11px] font-semibold text-white/80 sm:hidden">
-              Lista N°{profile.list_number} · {profile.location}
-            </span>
-            <TenantLink
-              href="/?seccion=documentos"
-              className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white
-                         text-[10px] sm:text-[11px] font-bold uppercase px-3 py-1.5 rounded-full
-                         transition-colors shrink-0 border border-white/20"
-            >
-              <Shield size={10} />
-              <span className="hidden sm:inline">Portal de Transparencia</span>
-              <span className="sm:hidden">Transparencia</span>
-            </TenantLink>
-          </div>
-        </div>
 
         {/* Header principal */}
         <div
