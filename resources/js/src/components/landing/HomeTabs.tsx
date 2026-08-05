@@ -11,13 +11,14 @@ import type {
 import { Proposals }        from "@/components/landing/Proposals";
 import { EventsSection }    from "@/components/landing/EventsSection";
 import { MediaSection }     from "@/components/landing/MediaSection";
-import { Districts }        from "@/components/landing/Districts";
 import { TeamSection }      from "@/components/landing/TeamSection";
 import { DocumentsSection } from "@/components/landing/DocumentsSection";
 
 const API = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
 
-// Las 7 pestañas de la home (orden validado en el mockup rigo_home_7tabs).
+// Las 6 pestañas de la home (antes 7 — "Lugares Visitados" se retiró: ya no
+// duplica /distritos, que ahora es el único destino directo, ver spec
+// docs/superpowers/specs/2026-08-05-mobile-y-medios-admin-design.md).
 // `flag` es el toggle de home-settings que puede apagar la pestaña por tenant;
 // "En Vivo" no tiene flag (igual que LiveStreamBanner, siempre disponible).
 const TABS = [
@@ -25,7 +26,6 @@ const TABS = [
   { slug: "eventos",    label: "Eventos y Cronómetro",  flag: "show_events" },
   { slug: "en-vivo",    label: "En Vivo",               flag: null },
   { slug: "galeria",    label: "Galería",               flag: "show_multimedia" },
-  { slug: "lugares",    label: "Lugares Visitados",     flag: "show_districts" },
   { slug: "equipo",     label: "Equipo",                flag: "show_team" },
   { slug: "documentos", label: "Base del Conocimiento", flag: "show_documents" },
 ] as const;
@@ -214,7 +214,6 @@ function HomeTabsInner(props: HomeTabsProps) {
       {active === "galeria" && (
         <MediaSection initialPhotos={props.initialGallery} initialVideos={props.initialVideos} />
       )}
-      {active === "lugares" && <Districts />}
       {active === "equipo" && <TeamSection initialMembers={props.initialTeam} />}
       {active === "documentos" && <DocumentsSection />}
     </div>
