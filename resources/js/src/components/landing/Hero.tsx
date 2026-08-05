@@ -36,12 +36,12 @@ export function Hero({ initialHero }: HeroProps) {
 
   // "Mi zona": mismo mecanismo GPS del navegador que ya usa el chat (browser_lat/lng).
   // TODO: mapear lat/lng → distrito cuando la API exponga ese lookup; mientras
-  // tanto abre la pestaña "Lugares Visitados" (Fase 7: la sección ya no es un
-  // ancla scrolleable, vive detrás de la pestaña ?seccion=lugares).
+  // tanto abre /distritos directo (la sección dejó de vivir detrás de una
+  // pestaña del home — un solo destino directo, más preciso en mobile).
   const handleMyZone = () => {
     if (typeof navigator === "undefined" || !navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
-      () => goTenant("/?seccion=lugares"),
+      () => goTenant("/distritos"),
       () => {} // silencioso si deniega, igual que en el chat
     );
   };
