@@ -14,7 +14,7 @@ import { TenantLink } from "@/components/ui/TenantLink";
 // equivalente rápido sigue siendo el chat.
 const contentLinks = [
   { href: "/propuestas",           label: "Propuestas" },
-  { href: "/distritos",            label: "Caseríos" },
+  { href: "/distritos",            label: "Mi Comunidad" },
   { href: "/galeria",              label: "Galería" },
   { href: "/videos",               label: "Videos" },
   { href: "/?seccion=documentos",  label: "Documentos" },
@@ -22,7 +22,6 @@ const contentLinks = [
 
 const participaLinks = [
   { href: "/?seccion=eventos",  label: "Agenda" },
-  { href: "/?seccion=lugares",  label: "Lugares Visitados" },
   { href: "/en-vivo",           label: "En vivo" },
   { href: "/chat",              label: "Chatbot IA" },
 ];
