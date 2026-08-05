@@ -64,13 +64,27 @@
     @apply bg-white text-gray-900 antialiased;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
-    /* Compensa el navbar sticky al hacer scroll a secciones */
-    scroll-padding-top: 100px;
+    /* Compensa el navbar sticky al hacer scroll a secciones — el header mide
+       h-16 (64px) en mobile y h-[68px] desde `sm:` (ver Navbar.tsx), ya sin
+       la franja de "Portal de Transparencia" que se retiró. */
+    scroll-padding-top: 76px;
+  }
+
+  @media (min-width: 640px) {
+    html, body {
+      scroll-padding-top: 84px;
+    }
   }
 
   /* Toda sección con id respeta el offset del navbar sticky */
   section[id], div[id] {
-    scroll-margin-top: 100px;
+    scroll-margin-top: 76px;
+  }
+
+  @media (min-width: 640px) {
+    section[id], div[id] {
+      scroll-margin-top: 84px;
+    }
   }
 
   ::selection { @apply bg-brand-500/20 text-brand-700; }
