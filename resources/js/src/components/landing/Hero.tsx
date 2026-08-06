@@ -7,27 +7,10 @@ import { TenantLink } from "@/components/ui/TenantLink";
 import { ChevronDown, LocateFixed, Search } from "lucide-react";
 import { resolveTenantSlug, withTenant, type HeroSettings } from "@/lib/api";
 import { useCandidate } from "@/context/CandidateContext";
+import { EmphasisText } from "@/lib/textEmphasis";
 
 interface HeroProps {
   initialHero?: HeroSettings | null;
-}
-
-
-function renderTitleWithEmphasis(title: string, onDark: boolean) {
-  return title.split(/(\*[^*]+\*|\n)/).map((part, i) => {
-    if (part === "\n") return <br key={i} />;
-    if (part.startsWith("*") && part.endsWith("*"))
-      return (
-        <span
-          key={i}
-          className="relative inline-block"
-          style={{ color: onDark ? "rgb(var(--brand-primary-rgb))" : "rgb(var(--brand-primary-rgb))" }}
-        >
-          {part.slice(1, -1)}
-        </span>
-      );
-    return <span key={i}>{part}</span>;
-  });
 }
 
 export function Hero({ initialHero }: HeroProps) {
@@ -53,12 +36,12 @@ export function Hero({ initialHero }: HeroProps) {
 
   // "Mi zona": mismo mecanismo GPS del navegador que ya usa el chat (browser_lat/lng).
   // TODO: mapear lat/lng → distrito cuando la API exponga ese lookup; mientras
-  // tanto abre la pestaña "Lugares Visitados" (Fase 7: la sección ya no es un
-  // ancla scrolleable, vive detrás de la pestaña ?seccion=lugares).
+  // tanto abre /distritos directo (la sección dejó de vivir detrás de una
+  // pestaña del home — un solo destino directo, más preciso en mobile).
   const handleMyZone = () => {
     if (typeof navigator === "undefined" || !navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
-      () => goTenant("/?seccion=lugares"),
+      () => goTenant("/distritos"),
       () => {} // silencioso si deniega, igual que en el chat
     );
   };
@@ -67,10 +50,10 @@ export function Hero({ initialHero }: HeroProps) {
   const d = {
     title:      initialHero?.title           ?? profile.tagline ?? "Un *compromiso* real\ncon nuestra gente.",
     subtitle:   initialHero?.subtitle        ?? (profile.title ? `${profile.title} · ${profile.location}` : profile.location),
-    badge_text: initialHero?.badge_text      ?? (profile.party ? `${profile.party}${profile.list_number ? ` · Lista N°${profile.list_number}` : ""}` : "Campaña Electoral"),
-    btn1_label: initialHero?.btn1_label      ?? "Conocer propuestas",
-    btn1_url:   initialHero?.btn1_url        ?? "/propuestas",
-    btn2_label: initialHero?.btn2_label      ?? "Sobre el candidato",
+    badge_text: initialHero?.badge_text      ?? (profile.party || "Campaña Electoral"),
+    btn1_label: initialHero?.btn1_label      ?? "Sé parte del cambio",
+    btn1_url:   initialHero?.btn1_url        ?? "#participa",
+    btn2_label: initialHero?.btn2_label      ?? "Conoce mi historia",
     btn2_url:   initialHero?.btn2_url        ?? "#bio",
     btn3_label: initialHero?.btn3_label      ?? null,
     btn3_url:   initialHero?.btn3_url        ?? null,
@@ -101,6 +84,26 @@ export function Hero({ initialHero }: HeroProps) {
       }`}
       style={!onDark ? { borderBottom: "1px solid var(--page-line)" } : undefined}
     >
+      {/* ── Fondo decorativo: sin video/imagen configurado, se anima con los
+           mismos orbs CSS-only ya usados en /admin/login (compositor thread,
+           sin JS) en vez de dejar un blanco plano ── */}
+      {!hasBackground && (
+        <>
+          <div
+            className="absolute -top-40 left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full anim-orb-1 pointer-events-none"
+            style={{ background: "radial-gradient(circle, rgb(var(--brand-primary-rgb) / 0.14), transparent 65%)" }}
+          />
+          <div
+            className="absolute -bottom-56 -left-32 w-[560px] h-[560px] rounded-full anim-orb-2 pointer-events-none"
+            style={{ background: "radial-gradient(circle, rgb(var(--brand-dark-rgb) / 0.12), transparent 70%)" }}
+          />
+          <div
+            className="absolute -bottom-24 -right-24 w-[460px] h-[460px] rounded-full anim-orb-3 pointer-events-none"
+            style={{ background: "radial-gradient(circle, var(--brand-accent, #C9A84C), transparent 70%)", opacity: 0.1 }}
+          />
+        </>
+      )}
+
       {/* ── Fondo: video o imagen ── */}
       {hasBackground && (
         <>
@@ -151,14 +154,17 @@ export function Hero({ initialHero }: HeroProps) {
             </span>
           </motion.div>
 
-          {/* Título */}
+          {/* Título — tipografía condensada, uso acotado al Hero (ver plan
+              del rediseño "documental": Anton solo aquí + año de
+              StoryTimeline + píldora flotante, no reemplaza Fraunces en el
+              resto del sitio) */}
           <motion.h1
             variants={item}
-            className={`font-serif font-semibold leading-[1.05] tracking-tight mb-6
-              text-4xl sm:text-5xl md:text-6xl lg:text-7xl
+            className={`font-condensed font-normal leading-[0.95] tracking-tight mb-6
+              text-5xl sm:text-6xl md:text-7xl lg:text-8xl
               ${onDark ? "text-white" : "text-ink-900"}`}
           >
-            {renderTitleWithEmphasis(d.title, onDark)}
+            <EmphasisText text={d.title} />
           </motion.h1>
 
           {/* Línea decorativa */}
@@ -176,7 +182,7 @@ export function Hero({ initialHero }: HeroProps) {
                 onDark ? "text-white/75" : "text-ink-600"
               }`}
             >
-              {d.subtitle}
+              <EmphasisText text={d.subtitle} />
             </motion.p>
           )}
 

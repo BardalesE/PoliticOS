@@ -11,7 +11,7 @@ import {
   LayoutDashboard, MessageSquare, FileText, Video, HelpCircle, Users,
   Brain, Shield, Radio, Settings, LogOut, Image as ImageIcon,
   MapPin, BookOpen, AlertCircle, Tag, FileQuestion, UserCircle, Calendar,
-  Lock, UserCheck, Rocket, ClipboardList,
+  Lock, UserCheck, Rocket, ClipboardList, Award, Quote,
 } from "lucide-react";
 
 type NavItem = {
@@ -50,6 +50,8 @@ const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/faqs",               label: "FAQs",                  icon: HelpCircle },
       { href: "/admin/topics",             label: "Temas",                 icon: Tag },
       { href: "/admin/suggested-questions",label: "Preguntas sugeridas",   icon: FileQuestion },
+      { href: "/admin/achievements",       label: "Obras destacadas",      icon: Award,       badge: "NEW" },
+      { href: "/admin/testimonials",       label: "Testimonios",          icon: Quote,       badge: "NEW" },
     ],
   },
   {
@@ -88,10 +90,10 @@ const NAV_GROUPS: NavGroup[] = [
 ];
 
 const PLAN_BADGE_STYLES: Record<string, string> = {
-  starter: "bg-zinc-800 text-zinc-400",
-  pro:     "bg-blue-900/40 text-blue-400",
-  elite:   "bg-amber-900/30 text-amber-400",
-  custom:  "bg-purple-900/30 text-purple-400",
+  starter: "bg-gray-100 text-gray-500",
+  pro:     "bg-blue-50 text-blue-700",
+  elite:   "bg-amber-50 text-amber-700",
+  custom:  "bg-purple-50 text-purple-700",
 };
 
 export default function Sidebar({ onClose }: { onClose?: () => void } = {}) {
@@ -106,7 +108,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void } = {}) {
   const firstName        = hasRealCandidate ? profile.name.split(" ")[0] : null;
 
   return (
-    <aside className="w-60 bg-zinc-50 border-r border-zinc-200 h-screen sticky top-0 overflow-y-auto flex flex-col p-3">
+    <aside className="w-60 bg-gray-50 border-r border-gray-200 h-screen sticky top-0 overflow-y-auto flex flex-col p-3">
       {/* Brand header */}
       <div className="mb-4 px-2 py-3">
         <div className="flex items-center gap-2 mb-1">
@@ -117,16 +119,16 @@ export default function Sidebar({ onClose }: { onClose?: () => void } = {}) {
               <span className="text-xs font-bold text-white leading-none">{firstName?.[0] ?? "P"}</span>
             </div>
           )}
-          <h2 className="font-bold text-zinc-900">PoliticOS</h2>
+          <h2 className="font-serif font-bold text-gray-900">PoliticOS</h2>
         </div>
-        <p className="text-xs text-zinc-500">Panel de {firstName ?? "campaña"}</p>
+        <p className="text-xs text-gray-500">Panel de {firstName ?? "campaña"}</p>
       </div>
 
       {/* Nav */}
       <nav className="space-y-4 flex-1">
         {NAV_GROUPS.map((group) => (
           <div key={group.label}>
-            <p className="text-[10px] uppercase tracking-wider text-zinc-400 font-semibold px-2 mb-1">
+            <p className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold px-2 mb-1">
               {group.label}
             </p>
             <ul className="space-y-0.5">
@@ -140,12 +142,12 @@ export default function Sidebar({ onClose }: { onClose?: () => void } = {}) {
                     <li key={item.href}>
                       <button
                         onClick={() => setUpgradeModal({ feature: item.feature! })}
-                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm text-zinc-400
-                                   hover:bg-zinc-100 transition cursor-pointer"
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm text-gray-400
+                                   hover:bg-gray-100 transition cursor-pointer"
                       >
                         <Icon className="w-4 h-4 shrink-0 opacity-40" />
                         <span className="flex-1 text-left truncate opacity-60">{item.label}</span>
-                        <Lock className="w-3 h-3 text-zinc-400 shrink-0" />
+                        <Lock className="w-3 h-3 text-gray-400 shrink-0" />
                       </button>
                     </li>
                   );
@@ -156,14 +158,14 @@ export default function Sidebar({ onClose }: { onClose?: () => void } = {}) {
                     <Link
                       href={item.href}
                       className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition ${
-                        active ? "bg-zinc-900 text-white" : "text-zinc-700 hover:bg-zinc-200"
+                        active ? "bg-brand-500 text-white" : "text-gray-700 hover:bg-gray-200"
                       }`}
                     >
                       <Icon className="w-4 h-4 shrink-0" />
                       <span className="flex-1 truncate">{item.label}</span>
                       {item.badge && (
                         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                          active ? "bg-white text-zinc-900" : item.badge === "LIVE" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"
+                          active ? "bg-white text-brand-700" : item.badge === "LIVE" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"
                         }`}>
                           {item.badge}
                         </span>
@@ -185,13 +187,13 @@ export default function Sidebar({ onClose }: { onClose?: () => void } = {}) {
               Plan {plan.label}
             </span>
             {plan.plan === "starter" && (
-              <span className="text-[9px] text-zinc-600 ml-auto">Actualizar →</span>
+              <span className="text-[9px] text-gray-500 ml-auto">Actualizar →</span>
             )}
           </div>
         )}
         <button
           onClick={logout}
-          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm text-zinc-700 hover:bg-red-50 hover:text-red-700 transition"
+          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm text-gray-700 hover:bg-red-50 hover:text-red-700 transition"
         >
           <LogOut className="w-4 h-4" />
           Cerrar sesión

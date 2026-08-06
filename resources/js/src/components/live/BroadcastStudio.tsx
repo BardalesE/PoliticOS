@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, CameraOff, Mic, MicOff, Radio, Square, AlertCircle, Loader2, Users, Monitor, Smartphone, Tablet } from "lucide-react";
+import { normalizeApiBase, tenantHeaders } from "@/lib/api";
 
 interface BroadcastStudioProps {
   streamKey: string;
@@ -24,7 +25,7 @@ interface ViewerRecord {
 }
 
 export function BroadcastStudio({ streamKey, streamId, token, apiUrl, onStatusChange }: BroadcastStudioProps) {
-  const base = apiUrl ?? (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
+  const base = normalizeApiBase(apiUrl ?? (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"));
 
   const videoRef    = useRef<HTMLVideoElement>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
@@ -42,6 +43,7 @@ export function BroadcastStudio({ streamKey, streamId, token, apiUrl, onStatusCh
   const [elapsed, setElapsed]         = useState(0);
   const [viewerHistory, setViewerHistory] = useState<{ time: string; count: number }[]>([]);
   const [viewerList, setViewerList]   = useState<ViewerRecord[]>([]);
+  const [failedChunks, setFailedChunks] = useState(0);
 
   // ── Format elapsed time ───────────────────────────────────────────────
   useEffect(() => {
@@ -64,7 +66,9 @@ export function BroadcastStudio({ streamKey, streamId, token, apiUrl, onStatusCh
     const poll = async () => {
       try {
         // Info (viewer count)
-        const r1 = await fetch(`${base}/livestreams/${streamKey}/info`);
+        const r1 = await fetch(`${base}/livestreams/${streamKey}/info`, {
+          headers: { Accept: "application/json", ...tenantHeaders() },
+        });
         if (r1.ok) {
           const d = await r1.json();
           const v = d.current_viewers ?? 0;
@@ -75,7 +79,7 @@ export function BroadcastStudio({ streamKey, streamId, token, apiUrl, onStatusCh
         }
         // Viewer list (admin only)
         const r2 = await fetch(`${base}/admin/livestreams/${streamId}/viewers`, {
-          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json", ...tenantHeaders() },
         });
         if (r2.ok) {
           const d2 = await r2.json();
@@ -88,27 +92,50 @@ export function BroadcastStudio({ streamKey, streamId, token, apiUrl, onStatusCh
     return () => clearInterval(id);
   }, [status, base, streamKey, streamId, token]);
 
-  // ── Upload a chunk ────────────────────────────────────────────────────
+  // ── Upload a chunk (con reintentos) ────────────────────────────────────
+  // Streams de horas suben miles de chunks — antes un fallo de red (un solo
+  // chunk, una vez) se tragaba en silencio y quedaba perdido para siempre,
+  // dejando un hueco en la grabación final. Reintenta con backoff acotado
+  // antes de darse por vencido.
+  const MAX_CHUNK_RETRIES = 3;
+
+  const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+  const uploadChunkOnce = useCallback(async (blob: Blob, seq: number): Promise<boolean> => {
+    const fd = new FormData();
+    fd.append("chunk", blob, `chunk_${seq}.webm`);
+    fd.append("seq", String(seq));
+    const res = await fetch(`${base}/admin/livestreams/${streamKey}/chunk`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        ...tenantHeaders(),
+      },
+      body: fd,
+    });
+    return res.ok;
+  }, [base, streamKey, token]);
+
   const uploadChunk = useCallback((blob: Blob, seq: number) => {
     uploadQueue.current = uploadQueue.current.then(async () => {
-      try {
-        const fd = new FormData();
-        fd.append("chunk", blob, `chunk_${seq}.webm`);
-        fd.append("seq", String(seq));
-        await fetch(`${base}/admin/livestreams/${streamKey}/chunk`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json",
-          },
-          body: fd,
-        });
-        setChunkCount(seq + 1);
-      } catch {
-        // Non-fatal: chunk may be lost but stream continues
+      for (let attempt = 1; attempt <= MAX_CHUNK_RETRIES; attempt++) {
+        try {
+          const ok = await uploadChunkOnce(blob, seq);
+          if (ok) {
+            setChunkCount(seq + 1);
+            return;
+          }
+        } catch {
+          // network error — reintentar
+        }
+        if (attempt < MAX_CHUNK_RETRIES) await sleep(attempt * 1000);
       }
+      // Se agotaron los reintentos: este chunk se pierde (deja un hueco en
+      // la grabación final), pero el stream sigue — no bloquea la cola.
+      setFailedChunks(f => f + 1);
     });
-  }, [base, streamKey, token]);
+  }, [uploadChunkOnce]);
 
   // ── Start broadcasting ────────────────────────────────────────────────
   const startBroadcast = async () => {
@@ -128,12 +155,16 @@ export function BroadcastStudio({ streamKey, streamId, token, apiUrl, onStatusCh
       // Notify backend
       const res = await fetch(`${base}/admin/livestreams/${streamId}/start`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json", ...tenantHeaders() },
       });
-      if (!res.ok) throw new Error("Error al iniciar en el servidor.");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.message || "Error al iniciar en el servidor.");
+      }
 
       seqRef.current = 0;
       setChunkCount(0);
+      setFailedChunks(0);
 
       // Pick best supported mime
       const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")
@@ -174,7 +205,7 @@ export function BroadcastStudio({ streamKey, streamId, token, apiUrl, onStatusCh
     try {
       await fetch(`${base}/admin/livestreams/${streamId}/stop`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json", ...tenantHeaders() },
       });
     } catch {}
 
@@ -203,6 +234,32 @@ export function BroadcastStudio({ streamKey, streamId, token, apiUrl, onStatusCh
     };
   }, []);
 
+  // ── Avisar al backend si se cierra la pestaña/laptop a medio directo ──
+  // Antes, cerrar la pestaña durante una transmisión dejaba el stream 'live'
+  // para siempre en la BD (nadie llamaba a /stop) — los espectadores seguían
+  // viendo "en vivo" sin nuevos chunks, y el merge de la grabación nunca se
+  // disparaba. `fetch(..., { keepalive: true })` (no sendBeacon: sendBeacon
+  // no permite mandar el header Authorization que /stop necesita) sobrevive
+  // al cierre de la pestaña para un POST sin body grande como este.
+  useEffect(() => {
+    if (status !== "live") return;
+
+    const notifyStop = () => {
+      fetch(`${base}/admin/livestreams/${streamId}/stop`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json", ...tenantHeaders() },
+        keepalive: true,
+      }).catch(() => {});
+    };
+
+    window.addEventListener("pagehide", notifyStop);
+    window.addEventListener("beforeunload", notifyStop);
+    return () => {
+      window.removeEventListener("pagehide", notifyStop);
+      window.removeEventListener("beforeunload", notifyStop);
+    };
+  }, [status, base, streamId, token]);
+
   return (
     <div className="grid lg:grid-cols-3 gap-4">
       {/* ── Left: camera preview + controls ─────────────────────────── */}
@@ -228,6 +285,13 @@ export function BroadcastStudio({ streamKey, streamId, token, apiUrl, onStatusCh
           {status === "live" && (
             <div className="absolute bottom-3 right-3 text-zinc-500 text-xs">
               {chunkCount} seg.
+            </div>
+          )}
+
+          {status === "live" && failedChunks > 0 && (
+            <div className="absolute bottom-3 left-3 flex items-center gap-1.5 bg-amber-900/80 text-amber-300 text-xs font-medium px-2.5 py-1 rounded-full">
+              <AlertCircle size={12} />
+              {failedChunks} segmento{failedChunks > 1 ? "s" : ""} perdido{failedChunks > 1 ? "s" : ""}
             </div>
           )}
         </div>

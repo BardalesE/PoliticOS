@@ -12,7 +12,7 @@ class EnsureSuperAdmin
     {
         $key = config('superadmin.key');
 
-        if (!$key || $request->header('X-Super-Admin-Key') !== $key) {
+        if (!$key || !hash_equals($key, (string) $request->header('X-Super-Admin-Key'))) {
             return response()->json(['message' => 'Acceso denegado.'], 403);
         }
 

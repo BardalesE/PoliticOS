@@ -1,7 +1,9 @@
 "use client";
+import { PlanGate } from "@/components/admin/PlanGate";
 
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
+import { useCandidate } from "@/context/CandidateContext";
 import { request } from "@/lib/api";
 import type { Map as LeafletMap } from "leaflet";
 import {
@@ -9,11 +11,20 @@ import {
   LineChart, Line, PieChart, Pie, Cell, CartesianGrid,
 } from "recharts";
 import { motion } from "framer-motion";
+import {
+  Activity, Zap, AlertCircle, AlertTriangle, MapPin, Map as MapIcon,
+  Heart, Users2, Shield, Building2,
+} from "lucide-react";
+import { Card } from "@/components/admin/Card";
+import { StatCard } from "@/components/admin/StatCard";
+import { EmptyState } from "@/components/admin/EmptyState";
 
 const adminGet = (token: string, path: string) =>
   request<any>(`/admin${path}`, {}, token);
 
-const COLORS = ["#DC2626","#F59E0B","#10B981","#3B82F6","#8B5CF6","#EC4899","#6366F1","#14B8A6"];
+// Paleta categórica unificada del panel (ver charts/TopicsChart.tsx) — el
+// primer color lo pone el tenant, orden fijo validado, no rotar.
+const STATIC_COLORS = ["#2563EB", "#16A34A", "#F59E0B", "#7C3AED", "#0891B2", "#DB2777", "#E85D04"];
 
 interface Pulse {
   sentiment: { today: number; week: number; delta: number };
@@ -76,8 +87,29 @@ interface GeoBreakdown { level: string; rows: GeoBreakdownRow[]; }
 
 type Tab = "pulse" | "attacks" | "segments" | "districts" | "geo" | "map";
 
-export default function IntelligencePage() {
+const TAB_LABELS: Record<Tab, string> = {
+  pulse: "Pulso Ciudadano",
+  attacks: "Ataques",
+  segments: "Segmentación",
+  districts: "Por Distrito",
+  geo: "Geografía",
+  map: "Mapa",
+};
+
+const TAB_ICONS: Record<Tab, React.ElementType> = {
+  pulse: Heart,
+  attacks: Shield,
+  segments: Users2,
+  districts: Building2,
+  geo: MapPin,
+  map: MapIcon,
+};
+
+function IntelligencePageInner() {
   const { token } = useAuth();
+  const { profile } = useCandidate();
+  const brandColor = profile.color_primary || "#DC2626";
+  const COLORS = [brandColor, ...STATIC_COLORS];
   const [tab, setTab] = useState<Tab>("pulse");
   const [pulse, setPulse] = useState<Pulse | null>(null);
   const [attacks, setAttacks] = useState<AttackFeed | null>(null);
@@ -127,52 +159,55 @@ export default function IntelligencePage() {
     } catch {}
   };
 
-  if (loading) return <div className="p-6 text-zinc-500">Cargando inteligencia...</div>;
+  if (loading) return <div className="p-6 text-gray-500">Cargando inteligencia...</div>;
 
   return (
-    <div className="p-4 sm:p-6">
-      <header className="mb-5">
-        <h1 className="text-2xl font-bold text-zinc-900">Inteligencia Electoral</h1>
-        <p className="text-sm text-zinc-500">Pulso ciudadano · ataques · segmentación · alertas</p>
+    <div className="p-4 md:p-6 lg:p-8">
+      <header className="mb-6">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-brand-500 mb-1">Plataforma de inteligencia</p>
+        <h1 className="font-serif text-2xl md:text-3xl font-bold text-gray-900">Inteligencia Electoral</h1>
+        <p className="text-xs text-gray-400 mt-1">Pulso ciudadano · ataques · segmentación · alertas</p>
       </header>
 
       {/* Banda de métricas en vivo */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <StatCard label="Conversaciones activas" value={realtime?.active_sessions ?? 0} pulse />
-        <StatCard label="Mensajes/min" value={realtime?.messages_per_min ?? 0} />
         <StatCard
-          label="Alertas pendientes"
-          value={realtime?.unacknowledged_alerts ?? 0}
-          color={(realtime?.unacknowledged_alerts ?? 0) > 0 ? "amber" : "default"}
+          icon={Activity} label="Conversaciones activas" value={realtime?.active_sessions ?? 0}
+          accent={brandColor} bg={`${brandColor}12`} pulse
+        />
+        <StatCard icon={Zap} label="Mensajes/min" value={realtime?.messages_per_min ?? 0} accent="#2563EB" bg="#EFF6FF" />
+        <StatCard
+          icon={AlertCircle} label="Alertas pendientes" value={realtime?.unacknowledged_alerts ?? 0}
+          accent={(realtime?.unacknowledged_alerts ?? 0) > 0 ? "#D97706" : "#94A3B8"}
+          bg={(realtime?.unacknowledged_alerts ?? 0) > 0 ? "#FFFBEB" : "#F8FAFC"}
         />
         <StatCard
-          label="Críticas"
-          value={realtime?.critical_alerts ?? 0}
-          color={(realtime?.critical_alerts ?? 0) > 0 ? "red" : "default"}
+          icon={AlertTriangle} label="Críticas" value={realtime?.critical_alerts ?? 0}
+          accent={(realtime?.critical_alerts ?? 0) > 0 ? "#DC2626" : "#94A3B8"}
+          bg={(realtime?.critical_alerts ?? 0) > 0 ? "#FEF2F2" : "#F8FAFC"}
         />
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-5 border-b border-zinc-200 overflow-x-auto">
-        {(["pulse","attacks","segments","districts","geo","map"] as Tab[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium whitespace-nowrap transition ${
-              tab === t ? "text-zinc-900 border-b-2 border-zinc-900" : "text-zinc-500 hover:text-zinc-700"
-            }`}
-          >
-            {t === "pulse" ? "Pulso Ciudadano"
-              : t === "attacks" ? "Ataques"
-              : t === "segments" ? "Segmentación"
-              : t === "districts" ? "Por Distrito"
-              : t === "geo" ? "📍 Geografía"
-              : "🗺️ Mapa"}
-          </button>
-        ))}
+      <div className="flex gap-1 mb-6 border-b border-gray-200 overflow-x-auto">
+        {(["pulse","attacks","segments","districts","geo","map"] as Tab[]).map((t) => {
+          const Icon = TAB_ICONS[t];
+          return (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium whitespace-nowrap transition border-b-2 ${
+                tab === t ? "text-brand-600 border-brand-500" : "text-gray-500 border-transparent hover:text-gray-700"
+              }`}
+            >
+              <Icon size={14} />
+              {TAB_LABELS[t]}
+            </button>
+          );
+        })}
       </div>
 
-      {tab === "pulse"     && (pulse     ? <PulseTab     data={pulse}     /> : <EmptyTab label="Pulso ciudadano" />)}
+      {tab === "pulse"     && (pulse     ? <PulseTab     data={pulse} colors={COLORS} /> : <EmptyTab label="Pulso ciudadano" />)}
       {tab === "attacks"   && (attacks   ? <AttacksTab   data={attacks}   /> : <EmptyTab label="Ataques"         />)}
       {tab === "segments"  && (segments  ? <SegmentsTab  data={segments}  /> : <EmptyTab label="Segmentación"    />)}
       {tab === "districts" && (districts ? <DistrictsTab data={districts} /> : <EmptyTab label="Análisis por distrito" />)}
@@ -182,80 +217,75 @@ export default function IntelligencePage() {
   );
 }
 
-function StatCard({ label, value, pulse: pulseDot, color = "default" }: { label: string; value: number; pulse?: boolean; color?: "default" | "amber" | "red" }) {
-  const colors = {
-    default: "text-zinc-900",
-    amber: "text-amber-600",
-    red: "text-red-600",
-  };
-  return (
-    <div className="bg-white border border-zinc-200 rounded-xl p-3">
-      <div className="flex items-center justify-between mb-1">
-        <p className="text-xs text-zinc-500">{label}</p>
-        {pulseDot && <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />}
-      </div>
-      <p className={`text-2xl font-bold ${colors[color]}`}>{value}</p>
-    </div>
-  );
-}
-
-function PulseTab({ data }: { data: Pulse }) {
-  const sentClass = data.sentiment.delta > 0 ? "text-emerald-600" : data.sentiment.delta < 0 ? "text-red-600" : "text-zinc-500";
+function PulseTab({ data, colors }: { data: Pulse; colors: string[] }) {
+  const sentClass = data.sentiment.delta > 0 ? "text-emerald-600" : data.sentiment.delta < 0 ? "text-red-600" : "text-gray-500";
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <Card title="Sentimiento Ciudadano">
         <div className="flex items-center gap-6">
           <div>
-            <p className="text-xs text-zinc-500">Hoy</p>
-            <p className="text-3xl font-bold text-zinc-900">{data.sentiment.today.toFixed(2)}</p>
+            <p className="text-xs text-gray-500">Hoy</p>
+            <p className="text-3xl font-bold text-gray-900">{data.sentiment.today.toFixed(2)}</p>
           </div>
           <div>
-            <p className="text-xs text-zinc-500">Semana</p>
-            <p className="text-2xl font-bold text-zinc-700">{data.sentiment.week.toFixed(2)}</p>
+            <p className="text-xs text-gray-500">Semana</p>
+            <p className="text-2xl font-bold text-gray-700">{data.sentiment.week.toFixed(2)}</p>
           </div>
           <div>
-            <p className="text-xs text-zinc-500">Δ vs ayer</p>
+            <p className="text-xs text-gray-500">Δ vs ayer</p>
             <p className={`text-2xl font-bold ${sentClass}`}>
               {data.sentiment.delta > 0 ? "+" : ""}
               {data.sentiment.delta.toFixed(2)}
             </p>
           </div>
         </div>
-        <p className="text-xs text-zinc-500 mt-2">Escala: -1 (muy negativo) → +1 (muy positivo)</p>
+        <p className="text-xs text-gray-500 mt-2">Escala: -1 (muy negativo) → +1 (muy positivo)</p>
       </Card>
 
       <Card title="Emociones detectadas">
-        <ResponsiveContainer width="100%" height={200}>
-          <PieChart>
-            <Pie data={data.emotions} dataKey="count" nameKey="emotion" cx="50%" cy="50%" outerRadius={70} label>
-              {data.emotions.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-            </Pie>
-            <Tooltip />
-          </PieChart>
-        </ResponsiveContainer>
+        {data.emotions.length === 0 ? (
+          <EmptyState title="Sin emociones detectadas" message="Se acumulan a medida que los ciudadanos conversan con el asistente." />
+        ) : (
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie data={data.emotions} dataKey="count" nameKey="emotion" cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={2} strokeWidth={0}>
+                {data.emotions.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
+              </Pie>
+              <Tooltip content={<ChartTooltip suffix=" menciones" />} />
+            </PieChart>
+          </ResponsiveContainer>
+        )}
       </Card>
 
       <Card title="Top regiones (conversaciones)">
-        <ResponsiveContainer width="100%" height={250}>
-          <BarChart data={data.by_region.slice(0, 8)} layout="vertical">
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis type="number" />
-            <YAxis type="category" dataKey="geo_region" width={100} />
-            <Tooltip />
-            <Bar dataKey="sessions" fill="#3B82F6" />
-          </BarChart>
-        </ResponsiveContainer>
+        {data.by_region.length === 0 ? (
+          <EmptyState
+            icon={MapPin}
+            title="Aún no hay suficientes datos"
+            message="Se acumulan con el uso — aparecen cuando ciudadanos conversan desde IPs geolocalizables."
+          />
+        ) : (
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={data.by_region.slice(0, 8)} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <YAxis type="category" dataKey="geo_region" width={100} tick={{ fontSize: 11, fill: "#374151" }} axisLine={false} tickLine={false} />
+              <Tooltip content={<ChartTooltip suffix=" sesiones" />} cursor={{ fill: "rgba(0,0,0,0.04)" }} />
+              <Bar dataKey="sessions" fill={colors[0]} radius={[0, 6, 6, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </Card>
 
       <Card title="Intención de voto declarada">
         {data.voter_intentions.length === 0 ? (
-          <p className="text-sm text-zinc-500">Aún sin datos declarados.</p>
+          <EmptyState title="Sin datos declarados" message="Aparece cuando el asistente infiere una intención de voto durante la conversación." />
         ) : (
           <div className="space-y-2">
             {data.voter_intentions.map((v) => (
               <div key={v.field_value} className="flex items-center justify-between">
-                <span className="text-sm text-zinc-700">{v.field_value}</span>
-                <span className="text-sm font-bold text-zinc-900">{v.count}</span>
+                <span className="text-sm text-gray-700 capitalize">{v.field_value}</span>
+                <span className="text-sm font-bold text-gray-900">{v.count}</span>
               </div>
             ))}
           </div>
@@ -263,16 +293,44 @@ function PulseTab({ data }: { data: Pulse }) {
       </Card>
 
       <Card title="Segmentos detectados" className="lg:col-span-2">
-        <ResponsiveContainer width="100%" height={200}>
-          <BarChart data={data.segments}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="inferred_segment" />
-            <YAxis />
-            <Tooltip />
-            <Bar dataKey="count" fill="#10B981" />
-          </BarChart>
-        </ResponsiveContainer>
+        {data.segments.length === 0 ? (
+          <EmptyState
+            icon={Users2}
+            title="Aún no hay suficientes datos"
+            message="Los segmentos se detectan cuando los ciudadanos mencionan su ocupación o rol en la conversación — se acumulan con el uso."
+          />
+        ) : (
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={data.segments} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
+              <XAxis dataKey="inferred_segment" tick={{ fontSize: 11, fill: "#374151" }} axisLine={false} tickLine={false} tickFormatter={(v) => String(v).charAt(0).toUpperCase() + String(v).slice(1)} />
+              <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip content={<ChartTooltip suffix=" ciudadanos" />} cursor={{ fill: "rgba(0,0,0,0.04)" }} />
+              <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+                {data.segments.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        )}
       </Card>
+    </div>
+  );
+}
+
+type ChartTooltipRow = { geo_region?: string; inferred_segment?: string; district?: string };
+
+// Tipo mínimo propio (no el TooltipContentProps oficial de Recharts, ver
+// nota en ConversationsChart.tsx).
+type TooltipRenderProps = { active?: boolean; label?: string; payload?: { value: number; name?: string; payload: ChartTooltipRow }[] };
+
+function ChartTooltip({ active, payload, label, suffix = "" }: TooltipRenderProps & { suffix?: string }) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload ?? {};
+  const name = row.geo_region ?? row.inferred_segment ?? row.district ?? payload[0]?.name ?? label;
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 shadow-xl">
+      {name && <p className="text-xs text-gray-400 capitalize mb-0.5">{name}</p>}
+      <p className="text-sm font-bold text-gray-900">{payload[0].value}{suffix}</p>
     </div>
   );
 }
@@ -281,23 +339,27 @@ function AttacksTab({ data }: { data: AttackFeed }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <Card title="Velocidad de ataques (24h)" className="lg:col-span-2">
-        <ResponsiveContainer width="100%" height={200}>
-          <LineChart data={data.velocity_24h}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="hour" />
-            <YAxis />
-            <Tooltip />
-            <Line type="monotone" dataKey="count" stroke="#DC2626" strokeWidth={2} />
-          </LineChart>
-        </ResponsiveContainer>
-        <p className="text-xs text-zinc-500 mt-2">Total semana: {data.total_week} ataques</p>
+        {data.velocity_24h.length === 0 ? (
+          <EmptyState icon={Shield} title="Sin actividad hostil detectada" message="Se acumula cuando el pipeline de señales externas detecta menciones negativas." />
+        ) : (
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={data.velocity_24h} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" vertical={false} />
+              <XAxis dataKey="hour" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip content={<ChartTooltip suffix=" ataques" />} cursor={{ stroke: "rgba(220,38,38,0.2)" }} />
+              <Line type="monotone" dataKey="count" stroke="#DC2626" strokeWidth={2} dot={false} activeDot={{ r: 5, fill: "#DC2626", stroke: "#fff", strokeWidth: 2 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+        <p className="text-xs text-gray-500 mt-2">Total semana: {data.total_week} ataques</p>
       </Card>
 
       <Card title="Categorías más atacadas">
         <div className="space-y-2">
           {data.top_categories.map((c) => (
             <div key={c.attack_category} className="flex items-center justify-between">
-              <span className="text-sm text-zinc-700 capitalize">{c.attack_category}</span>
+              <span className="text-sm text-gray-700 capitalize">{c.attack_category}</span>
               <span className="text-sm font-bold text-red-600">{c.count}</span>
             </div>
           ))}
@@ -305,11 +367,11 @@ function AttacksTab({ data }: { data: AttackFeed }) {
       </Card>
 
       <Card title="Feed de ataques recientes" className="lg:col-span-3">
-        <div className="divide-y divide-zinc-100 max-h-96 overflow-y-auto">
+        <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
           {data.feed.map((a, i) => (
             <div key={i} className="py-3">
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs font-medium px-2 py-0.5 bg-zinc-100 rounded-full">
+                <span className="text-xs font-medium px-2 py-0.5 bg-gray-100 rounded-full">
                   {a.source}
                 </span>
                 {a.category && (
@@ -317,11 +379,11 @@ function AttacksTab({ data }: { data: AttackFeed }) {
                     {a.category}
                   </span>
                 )}
-                <span className="text-xs text-zinc-400">
+                <span className="text-xs text-gray-400">
                   {new Date(a.date).toLocaleString("es-PE")}
                 </span>
               </div>
-              <p className="text-sm text-zinc-700">{a.content}</p>
+              <p className="text-sm text-gray-700">{a.content}</p>
               {a.url && (
                 <a
                   href={a.url}
@@ -354,15 +416,15 @@ function SegmentsTab({ data }: { data: Segments }) {
 
       <Card title="Preocupaciones por segmento" className="lg:col-span-2">
         {Object.keys(data.concerns_by_segment).length === 0 ? (
-          <p className="text-sm text-zinc-500">Sin datos suficientes aún. Necesitas más conversaciones con segmentos detectados.</p>
+          <EmptyState icon={Users2} title="Sin datos suficientes aún" message="Necesitas más conversaciones con segmentos detectados." />
         ) : (
           <div className="space-y-4">
             {Object.entries(data.concerns_by_segment).map(([seg, concerns]) => (
               <div key={seg}>
-                <p className="text-sm font-bold text-zinc-700 mb-1 capitalize">{seg}</p>
+                <p className="text-sm font-bold text-gray-700 mb-1 capitalize">{seg}</p>
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(concerns).map(([c, count]) => (
-                    <span key={c} className="text-xs bg-zinc-100 text-zinc-700 px-2 py-1 rounded-full">
+                    <span key={c} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
                       {c} <strong>({count})</strong>
                     </span>
                   ))}
@@ -378,22 +440,22 @@ function SegmentsTab({ data }: { data: Segments }) {
 
 function DistrictsTab({ data }: { data: Districts }) {
   const sentColor = (s: number) =>
-    s > 0.2 ? "text-emerald-600" : s < -0.2 ? "text-red-600" : "text-zinc-500";
+    s > 0.2 ? "text-emerald-600" : s < -0.2 ? "text-red-600" : "text-gray-500";
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {/* Menciones por distrito */}
       <Card title="Menciones por distrito (7 días)" className="lg:col-span-2">
         {data.by_district.length === 0 ? (
-          <p className="text-sm text-zinc-500">Sin datos aún. Los distritos aparecen cuando los ciudadanos los mencionan en el chat.</p>
+          <EmptyState icon={Building2} title="Sin datos aún" message="Los distritos aparecen cuando los ciudadanos los mencionan en el chat." />
         ) : (
           <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={data.by_district.slice(0, 12)} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" />
-              <YAxis type="category" dataKey="district" width={120} tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(val) => [val, "Menciones"]} />
-              <Bar dataKey="mentions" fill="#3B82F6" radius={[0, 4, 4, 0]} />
+            <BarChart data={data.by_district.slice(0, 12)} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.05)" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <YAxis type="category" dataKey="district" width={120} tick={{ fontSize: 11, fill: "#374151" }} axisLine={false} tickLine={false} />
+              <Tooltip content={<ChartTooltip suffix=" menciones" />} cursor={{ fill: "rgba(0,0,0,0.04)" }} />
+              <Bar dataKey="mentions" fill="#2563EB" radius={[0, 6, 6, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}
@@ -404,10 +466,10 @@ function DistrictsTab({ data }: { data: Districts }) {
         <Card title="Sentimiento promedio por distrito">
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {data.by_district.map((d) => (
-              <div key={d.district} className="flex items-center justify-between py-1 border-b border-zinc-100 last:border-0">
-                <span className="text-sm text-zinc-700">{d.district}</span>
+              <div key={d.district} className="flex items-center justify-between py-1 border-b border-gray-100 last:border-0">
+                <span className="text-sm text-gray-700">{d.district}</span>
                 <div className="flex items-center gap-2">
-                  <div className="w-20 h-2 bg-zinc-100 rounded-full overflow-hidden">
+                  <div className="w-20 h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full ${d.avg_sentiment > 0 ? "bg-emerald-400" : "bg-red-400"}`}
                       style={{ width: `${Math.min(100, Math.abs(d.avg_sentiment) * 100)}%`, marginLeft: d.avg_sentiment < 0 ? "auto" : undefined }}
@@ -426,15 +488,15 @@ function DistrictsTab({ data }: { data: Districts }) {
       {/* Problemas por distrito */}
       <Card title="Problemas reportados por distrito">
         {Object.keys(data.problems_by_district).length === 0 ? (
-          <p className="text-sm text-zinc-500">Sin problemas detectados aún.</p>
+          <p className="text-sm text-gray-500">Sin problemas detectados aún.</p>
         ) : (
           <div className="space-y-4 max-h-72 overflow-y-auto">
             {Object.entries(data.problems_by_district).map(([district, problems]) => (
               <div key={district}>
-                <p className="text-xs font-bold text-zinc-600 mb-1">{district}</p>
+                <p className="text-xs font-bold text-gray-600 mb-1">{district}</p>
                 <div className="space-y-1">
                   {(problems as string[]).slice(0, 3).map((p, i) => (
-                    <p key={i} className="text-xs text-zinc-600 bg-red-50 border border-red-100 rounded-lg px-3 py-1.5">
+                    <p key={i} className="text-xs text-gray-600 bg-red-50 border border-red-100 rounded-lg px-3 py-1.5">
                       {p}
                     </p>
                   ))}
@@ -448,16 +510,16 @@ function DistrictsTab({ data }: { data: Districts }) {
       {/* Propuestas ciudadanas */}
       <Card title="Propuestas de los ciudadanos" className="lg:col-span-2">
         {data.citizen_proposals.length === 0 ? (
-          <p className="text-sm text-zinc-500">Aún no hay propuestas ciudadanas detectadas. Aparecen cuando los ciudadanos sugieren ideas en el chat.</p>
+          <p className="text-sm text-gray-500">Aún no hay propuestas ciudadanas detectadas. Aparecen cuando los ciudadanos sugieren ideas en el chat.</p>
         ) : (
-          <div className="divide-y divide-zinc-100 max-h-80 overflow-y-auto">
+          <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
             {data.citizen_proposals.slice(0, 20).map((p, i) => (
               <div key={i} className="py-2.5 flex items-start gap-3">
                 <span className="text-xs font-medium px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full shrink-0 mt-0.5">
                   {p.district ?? "General"}
                 </span>
-                <p className="text-sm text-zinc-700 flex-1">{p.text}</p>
-                <span className="text-xs text-zinc-400 shrink-0">
+                <p className="text-sm text-gray-700 flex-1">{p.text}</p>
+                <span className="text-xs text-gray-400 shrink-0">
                   {new Date(p.date).toLocaleDateString("es-PE")}
                 </span>
               </div>
@@ -495,9 +557,9 @@ function GeoTab({ data, token }: { data: GeoBreakdown | null; token: string }) {
   }, {});
 
   const sentimentColor = (v: number | null) => {
-    if (v === null) return "text-zinc-400";
+    if (v === null) return "text-gray-400";
     if (v >= 0.3) return "text-emerald-600";
-    if (v >= 0)   return "text-zinc-600";
+    if (v >= 0)   return "text-gray-600";
     return "text-red-500";
   };
 
@@ -511,24 +573,25 @@ function GeoTab({ data, token }: { data: GeoBreakdown | null; token: string }) {
             onClick={() => load(lv)}
             className={`px-3 py-1.5 text-sm rounded-lg border transition ${
               level === lv
-                ? "bg-zinc-900 text-white border-zinc-900"
-                : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-400"
+                ? "bg-brand-500 text-white border-brand-500"
+                : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
             }`}
           >
             {lv === "province" ? "Por Provincia" : "Por Distrito"}
           </button>
         ))}
-        <span className="text-xs text-zinc-400 self-center ml-2">Últimos 30 días</span>
+        <span className="text-xs text-gray-400 self-center ml-2">Últimos 30 días</span>
       </div>
 
-      {loading && <p className="text-sm text-zinc-500">Cargando...</p>}
+      {loading && <p className="text-sm text-gray-500">Cargando...</p>}
 
       {!loading && rows.length === 0 && (
-        <div className="bg-white border border-zinc-200 rounded-xl p-8 text-center text-zinc-400">
-          <p className="text-2xl mb-2">📍</p>
-          <p className="text-sm">Sin datos geográficos aún.</p>
-          <p className="text-xs mt-1">Los datos aparecerán cuando usuarios ingresen al chat desde IPs de Perú.</p>
-        </div>
+        <EmptyState
+          icon={MapPin}
+          title="Sin datos geográficos aún"
+          message="Los datos aparecerán cuando usuarios ingresen al chat desde IPs de Perú."
+          className="bg-white border border-gray-200 rounded-xl py-12"
+        />
       )}
 
       {!loading && rows.length > 0 && (
@@ -538,14 +601,16 @@ function GeoTab({ data, token }: { data: GeoBreakdown | null; token: string }) {
             .map(([dept, dRows]) => {
               const totalSessions = dRows.reduce((s, r) => s + r.sessions, 0);
               return (
-                <div key={dept} className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
+                <div key={dept} className="bg-white border border-gray-200 rounded-xl overflow-hidden">
                   {/* Cabecera del departamento */}
-                  <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-50 border-b border-zinc-200">
-                    <span className="text-sm font-bold text-zinc-800">🏛 {dept}</span>
-                    <span className="text-xs text-zinc-500">{totalSessions} sesiones</span>
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-200">
+                    <span className="flex items-center gap-1.5 text-sm font-bold text-gray-800">
+                      <Building2 size={13} className="text-gray-400" /> {dept}
+                    </span>
+                    <span className="text-xs text-gray-500">{totalSessions} sesiones</span>
                   </div>
                   {/* Filas de provincia/distrito */}
-                  <div className="divide-y divide-zinc-100">
+                  <div className="divide-y divide-gray-100">
                     {dRows
                       .sort((a, b) => b.sessions - a.sessions)
                       .map((r, i) => {
@@ -558,24 +623,24 @@ function GeoTab({ data, token }: { data: GeoBreakdown | null; token: string }) {
                         const sentiment = r.avg_sentiment;
                         return (
                           <div key={i} className="flex items-center gap-3 px-4 py-2">
-                            <span className="text-xs text-zinc-400 w-5 text-right">{i + 1}</span>
+                            <span className="text-xs text-gray-400 w-5 text-right">{i + 1}</span>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-zinc-800 truncate">{name}</p>
+                              <p className="text-sm font-medium text-gray-800 truncate">{name}</p>
                               {parent && (
-                                <p className="text-xs text-zinc-400">{parent}</p>
+                                <p className="text-xs text-gray-400">{parent}</p>
                               )}
                             </div>
                             <div className="flex items-center gap-4 text-right">
                               <div>
-                                <p className="text-xs text-zinc-400">Sesiones</p>
-                                <p className="text-sm font-bold text-zinc-900">{r.sessions}</p>
+                                <p className="text-xs text-gray-400">Sesiones</p>
+                                <p className="text-sm font-bold text-gray-900">{r.sessions}</p>
                               </div>
                               <div>
-                                <p className="text-xs text-zinc-400">Mensajes</p>
-                                <p className="text-sm font-bold text-zinc-700">{r.messages}</p>
+                                <p className="text-xs text-gray-400">Mensajes</p>
+                                <p className="text-sm font-bold text-gray-700">{r.messages}</p>
                               </div>
                               <div className="w-16">
-                                <p className="text-xs text-zinc-400">Sentimiento</p>
+                                <p className="text-xs text-gray-400">Sentimiento</p>
                                 <p className={`text-sm font-bold ${sentimentColor(sentiment)}`}>
                                   {sentiment !== null ? sentiment.toFixed(2) : "—"}
                                 </p>
@@ -596,24 +661,11 @@ function GeoTab({ data, token }: { data: GeoBreakdown | null; token: string }) {
 
 function FunnelStep({ label, value, pct }: { label: string; value: number; pct: number }) {
   return (
-    <div className="bg-white border border-zinc-200 rounded-xl p-3">
-      <p className="text-xs text-zinc-500">{label}</p>
-      <p className="text-2xl font-bold text-zinc-900">{value}</p>
-      <p className="text-xs text-zinc-400">{(pct * 100).toFixed(1)}%</p>
+    <div className="bg-white border border-gray-200 rounded-xl p-3">
+      <p className="text-xs text-gray-500">{label}</p>
+      <p className="text-2xl font-bold text-gray-900">{value}</p>
+      <p className="text-xs text-gray-400">{(pct * 100).toFixed(1)}%</p>
     </div>
-  );
-}
-
-function Card({ title, children, className = "" }: { title: string; children: React.ReactNode; className?: string }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`bg-white border border-zinc-200 rounded-xl p-4 ${className}`}
-    >
-      <h3 className="text-sm font-bold text-zinc-700 mb-3">{title}</h3>
-      {children}
-    </motion.div>
   );
 }
 
@@ -724,22 +776,22 @@ function MapTab({ data }: { data: MapData | null }) {
     <div className="space-y-4">
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white border border-zinc-200 rounded-xl p-3">
-          <p className="text-xs text-zinc-500">Ciudadanos con GPS</p>
-          <p className="text-2xl font-bold text-zinc-900">{citizens.length}</p>
+        <div className="bg-white border border-gray-200 rounded-xl p-3">
+          <p className="text-xs text-gray-500">Ciudadanos con GPS</p>
+          <p className="text-2xl font-bold text-gray-900">{citizens.length}</p>
         </div>
-        <div className="bg-white border border-zinc-200 rounded-xl p-3">
-          <p className="text-xs text-zinc-500">Sesiones anónimas GPS</p>
-          <p className="text-2xl font-bold text-zinc-900">{sessions.length}</p>
+        <div className="bg-white border border-gray-200 rounded-xl p-3">
+          <p className="text-xs text-gray-500">Sesiones anónimas GPS</p>
+          <p className="text-2xl font-bold text-gray-900">{sessions.length}</p>
         </div>
-        <div className="bg-white border border-zinc-200 rounded-xl p-3">
-          <p className="text-xs text-zinc-500">A favor</p>
+        <div className="bg-white border border-gray-200 rounded-xl p-3">
+          <p className="text-xs text-gray-500">A favor</p>
           <p className="text-2xl font-bold text-emerald-600">
             {citizens.filter((c) => c.voting_intention === "alta" || c.voting_intention === "media").length}
           </p>
         </div>
-        <div className="bg-white border border-zinc-200 rounded-xl p-3">
-          <p className="text-xs text-zinc-500">Opositores / Críticos</p>
+        <div className="bg-white border border-gray-200 rounded-xl p-3">
+          <p className="text-xs text-gray-500">Opositores / Críticos</p>
           <p className="text-2xl font-bold text-red-600">
             {citizens.filter((c) => c.voting_intention === "opositor" || c.voting_intention === "baja").length}
           </p>
@@ -750,22 +802,22 @@ function MapTab({ data }: { data: MapData | null }) {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white border border-zinc-200 rounded-xl overflow-hidden"
+        className="bg-white border border-gray-200 rounded-xl overflow-hidden"
       >
-        <div className="px-4 py-3 border-b border-zinc-100 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-zinc-700">Mapa de participación ciudadana</h3>
-          <span className="text-xs text-zinc-400">{(data?.total ?? 0)} puntos totales</span>
+        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-sm font-bold text-gray-700">Mapa de participación ciudadana</h3>
+          <span className="text-xs text-gray-400">{(data?.total ?? 0)} puntos totales</span>
         </div>
 
         {/* Legend */}
-        <div className="px-4 py-2 flex flex-wrap gap-3 border-b border-zinc-100 bg-zinc-50">
+        <div className="px-4 py-2 flex flex-wrap gap-3 border-b border-gray-100 bg-gray-50">
           {Object.entries(VOTE_COLORS).map(([k, c]) => (
-            <span key={k} className="flex items-center gap-1.5 text-xs text-zinc-600">
+            <span key={k} className="flex items-center gap-1.5 text-xs text-gray-600">
               <span style={{ backgroundColor: c }} className="w-3 h-3 rounded-full inline-block" />
               {intentionLabel(k)}
             </span>
           ))}
-          <span className="flex items-center gap-1.5 text-xs text-zinc-600">
+          <span className="flex items-center gap-1.5 text-xs text-gray-600">
             <span style={{ backgroundColor: "#94A3B8" }} className="w-3 h-3 rounded-full inline-block" />
             Anónimo
           </span>
@@ -780,7 +832,7 @@ function MapTab({ data }: { data: MapData | null }) {
 
         {/* Placeholder shown when there are no location points */}
         {(data === null || data.total === 0) && (
-          <div className="flex flex-col items-center justify-center h-80 text-zinc-400 bg-zinc-50">
+          <div className="flex flex-col items-center justify-center h-80 text-gray-400 bg-gray-50">
             <p className="text-sm">Sin datos de ubicación todavía.</p>
             <p className="text-xs mt-1">Aparecerán cuando ciudadanos compartan su ubicación en el chat.</p>
           </div>
@@ -792,15 +844,15 @@ function MapTab({ data }: { data: MapData | null }) {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white border border-zinc-200 rounded-xl overflow-hidden"
+          className="bg-white border border-gray-200 rounded-xl overflow-hidden"
         >
-          <div className="px-4 py-3 border-b border-zinc-100">
-            <h3 className="text-sm font-bold text-zinc-700">Últimos ciudadanos registrados con ubicación</h3>
+          <div className="px-4 py-3 border-b border-gray-100">
+            <h3 className="text-sm font-bold text-gray-700">Últimos ciudadanos registrados con ubicación</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-100 bg-zinc-50 text-xs text-zinc-500">
+                <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500">
                   <th className="text-left px-4 py-2 font-medium">Nombre</th>
                   <th className="text-left px-4 py-2 font-medium">Distrito declarado</th>
                   <th className="text-left px-4 py-2 font-medium">Ubicación GPS</th>
@@ -808,12 +860,12 @@ function MapTab({ data }: { data: MapData | null }) {
                   <th className="text-right px-4 py-2 font-medium">Puntos</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100">
+              <tbody className="divide-y divide-gray-100">
                 {citizens.slice(0, 20).map((c) => (
-                  <tr key={c.id} className="hover:bg-zinc-50 transition">
-                    <td className="px-4 py-2 font-medium text-zinc-800">{c.name ?? "—"}</td>
-                    <td className="px-4 py-2 text-zinc-600">{c.district ?? "—"}</td>
-                    <td className="px-4 py-2 text-zinc-500 text-xs">
+                  <tr key={c.id} className="hover:bg-gray-50 transition">
+                    <td className="px-4 py-2 font-medium text-gray-800">{c.name ?? "—"}</td>
+                    <td className="px-4 py-2 text-gray-600">{c.district ?? "—"}</td>
+                    <td className="px-4 py-2 text-gray-500 text-xs">
                       {c.location_department
                         ? `${c.district ?? ""}, ${c.location_department}`
                         : `${c.lat.toFixed(4)}, ${c.lng.toFixed(4)}`}
@@ -827,10 +879,10 @@ function MapTab({ data }: { data: MapData | null }) {
                           {intentionLabel(c.voting_intention)}
                         </span>
                       ) : (
-                        <span className="text-zinc-400 text-xs">—</span>
+                        <span className="text-gray-400 text-xs">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-2 text-right font-bold text-zinc-800">{c.points}</td>
+                    <td className="px-4 py-2 text-right font-bold text-gray-800">{c.points}</td>
                   </tr>
                 ))}
               </tbody>
@@ -844,9 +896,17 @@ function MapTab({ data }: { data: MapData | null }) {
 
 function EmptyTab({ label }: { label: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-zinc-400">
+    <div className="flex flex-col items-center justify-center py-20 text-gray-400">
       <p className="text-sm">Sin datos de {label} disponibles.</p>
       <p className="text-xs mt-1">Los datos aparecerán cuando haya más conversaciones.</p>
     </div>
+  );
+}
+
+export default function IntelligencePage() {
+  return (
+    <PlanGate feature="intelligence">
+      <IntelligencePageInner />
+    </PlanGate>
   );
 }

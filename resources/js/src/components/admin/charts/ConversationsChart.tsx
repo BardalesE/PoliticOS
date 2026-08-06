@@ -1,4 +1,5 @@
 "use client";
+import { useId } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine,
@@ -6,11 +7,28 @@ import {
 import { useCandidate } from "@/context/CandidateContext";
 
 type DataPoint = { date: string; count: number };
+
+// Tipo mínimo propio en vez del TooltipContentProps oficial de Recharts:
+// ese tipo exige TODAS sus props como requeridas al pasar <CustomTooltip .../>
+// como `content` (Recharts las inyecta en runtime vía cloneElement, pero
+// TS no lo sabe), lo cual obliga a fricciones que no valen la pena para un
+// componente de presentación puro sin operaciones inseguras sobre los datos.
+type TooltipRenderProps = { active?: boolean; payload?: { value: number }[]; label?: string };
 type Granularity = "hour" | "day" | "month";
+
+// "YYYY-MM-DD" (sin hora, granularidad day/month) el motor JS lo interpreta
+// como UTC medianoche (ECMA-262) — con el navegador en America/Lima (UTC-5)
+// eso cae al día anterior ("31 jul" se mostraba como "30 jul"). Forzamos
+// parseo local agregando la hora. Los strings de granularidad "hour" (traen
+// hora, sin sufijo de zona) ya se parsean como locales por defecto, quedan
+// intactos.
+function parseLocal(value: string): Date {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00`) : new Date(value);
+}
 
 function formatTick(value: string, granularity: Granularity): string {
   if (!value) return "";
-  const d = new Date(value);
+  const d = parseLocal(value);
   if (isNaN(d.getTime())) return value;
   if (granularity === "hour") {
     return d.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -24,7 +42,7 @@ function formatTick(value: string, granularity: Granularity): string {
 
 function formatTooltipDate(value: string, granularity: Granularity): string {
   if (!value) return "";
-  const d = new Date(value);
+  const d = parseLocal(value);
   if (isNaN(d.getTime())) return value;
   if (granularity === "hour") {
     return d.toLocaleString("es-PE", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", hour12: false });
@@ -35,7 +53,7 @@ function formatTooltipDate(value: string, granularity: Granularity): string {
   return d.toLocaleDateString("es-PE", { day: "numeric", month: "long" });
 }
 
-function CustomTooltip({ active, payload, label, granularity }: any) {
+function CustomTooltip({ active, payload, label, granularity }: TooltipRenderProps & { granularity: Granularity }) {
   if (!active || !payload?.length) return null;
   const dateStr = label ? formatTooltipDate(label, granularity as Granularity) : "";
   return (
@@ -51,6 +69,9 @@ type Props = { data: DataPoint[]; height?: number; granularity?: Granularity };
 export function ConversationsChart({ data, height = 280, granularity = "day" }: Props) {
   const { profile } = useCandidate();
   const color = profile.color_primary || "#DC2626";
+  // id único por instancia — evita colisión de <linearGradient> si el chart
+  // se renderiza más de una vez en la misma página.
+  const gradientId = `brandGradient-${useId()}`;
 
   const avg = data.length > 0
     ? Math.round(data.reduce((s, d) => s + d.count, 0) / data.length)
@@ -66,7 +87,7 @@ export function ConversationsChart({ data, height = 280, granularity = "day" }: 
     <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={data} margin={{ top: 8, right: 4, left: -24, bottom: 0 }}>
         <defs>
-          <linearGradient id="brandGradient" x1="0" y1="0" x2="0" y2="1">
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="5%"  stopColor={color} stopOpacity={0.2} />
             <stop offset="95%" stopColor={color} stopOpacity={0} />
           </linearGradient>
@@ -104,7 +125,7 @@ export function ConversationsChart({ data, height = 280, granularity = "day" }: 
           dataKey="count"
           stroke={color}
           strokeWidth={2}
-          fill="url(#brandGradient)"
+          fill={`url(#${gradientId})`}
           dot={false}
           activeDot={{ r: 5, fill: color, stroke: "#ffffff", strokeWidth: 2 }}
         />

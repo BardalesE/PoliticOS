@@ -9,12 +9,26 @@ import { Countdown }         from "@/components/landing/Countdown";
 import { LiveStreamBanner }  from "@/components/landing/LiveStreamBanner";
 
 // ── Bajo el fold — carga diferida (split de bundle) ──────────────────────────
-const DosVias         = dynamic(() => import("@/components/landing/DosVias").then(m => ({ default: m.DosVias })));
-const BioSection      = dynamic(() => import("@/components/landing/BioSection").then(m => ({ default: m.BioSection })));
-const HomeTabs        = dynamic(() => import("@/components/landing/HomeTabs").then(m => ({ default: m.HomeTabs })));
-const Connection      = dynamic(() => import("@/components/landing/Connection").then(m => ({ default: m.Connection })));
-const Footer          = dynamic(() => import("@/components/ui/Footer").then(m => ({ default: m.Footer })));
-const ChatFAB         = dynamic(() => import("@/components/ui/ChatFAB").then(m => ({ default: m.ChatFAB })));
+// Orden = orden narrativo real de la home (Fase D del rediseño): historia de
+// vida → resultados → motivación → objetivos → comunidad → prueba social →
+// participación, y solo al final la profundización por pestañas (HomeTabs).
+const BioSection          = dynamic(() => import("@/components/landing/BioSection").then(m => ({ default: m.BioSection })));
+const AchievementGrid     = dynamic(() => import("@/components/landing/AchievementGrid").then(m => ({ default: m.AchievementGrid })));
+const BeforeAfterGallery  = dynamic(() => import("@/components/landing/BeforeAfterGallery").then(m => ({ default: m.BeforeAfterGallery })));
+const WhyRunning          = dynamic(() => import("@/components/landing/WhyRunning").then(m => ({ default: m.WhyRunning })));
+const Differentiator      = dynamic(() => import("@/components/landing/Differentiator").then(m => ({ default: m.Differentiator })));
+const GoalCards           = dynamic(() => import("@/components/landing/GoalCards").then(m => ({ default: m.GoalCards })));
+const CommunityTimeline   = dynamic(() => import("@/components/landing/CommunityTimeline").then(m => ({ default: m.CommunityTimeline })));
+const TestimonialCarousel = dynamic(() => import("@/components/landing/TestimonialCarousel").then(m => ({ default: m.TestimonialCarousel })));
+const VideoMessage        = dynamic(() => import("@/components/landing/VideoMessage").then(m => ({ default: m.VideoMessage })));
+const ParticipateCTA      = dynamic(() => import("@/components/landing/ParticipateCTA").then(m => ({ default: m.ParticipateCTA })));
+const HomeTabs            = dynamic(() => import("@/components/landing/HomeTabs").then(m => ({ default: m.HomeTabs })));
+const Connection          = dynamic(() => import("@/components/landing/Connection").then(m => ({ default: m.Connection })));
+const Footer              = dynamic(() => import("@/components/ui/Footer").then(m => ({ default: m.Footer })));
+const ChatFAB             = dynamic(() => import("@/components/ui/ChatFAB").then(m => ({ default: m.ChatFAB })));
+const StickyCampaignBar   = dynamic(() => import("@/components/ui/StickyCampaignBar").then(m => ({ default: m.StickyCampaignBar })));
+const MobileBottomNav     = dynamic(() => import("@/components/ui/MobileBottomNav").then(m => ({ default: m.MobileBottomNav })));
+const ScrollToTopFab      = dynamic(() => import("@/components/ui/ScrollToTopFab").then(m => ({ default: m.ScrollToTopFab })));
 
 import type {
   HomeSettings, HeroSettings,
@@ -66,28 +80,53 @@ export default function DynamicHome({
 }: Props) {
   const settings = { ...DEFAULTS, ...(initialSettings ?? {}) };
 
-  // Fase 7 (mockup rigo_home_7tabs validado): la home dejó el scroll continuo.
-  // Arriba queda el bloque siempre visible (gancho + identidad + doble vía);
-  // las 7 secciones de contenido viven en HomeTabs, con la pestaña activa en
-  // la URL (?seccion=) para que los links internos puedan abrirlas.
+  // Fase D (rediseño narrativo): la home vuelve a ser scroll continuo, ahora
+  // contando una historia de vida real en vez de solo mostrar un portal
+  // institucional — Hero → ¿Quién soy?/Historia → Resultados → Obras →
+  // Motivación → Objetivos → Comunidad → Testimonios → Video → Participa, y
+  // solo AL FINAL el sistema de pestañas (HomeTabs) queda como "Explora todo"
+  // para quien quiera profundizar en el contenido completo (documentos,
+  // galería, equipo, etc.) — no se eliminó nada de lo que ya funcionaba.
   //
-  // AssistantPreview ("Servicios al ciudadano") YA NO se renderiza a propósito
-  // — no lo reactives sin saber que es redundante: sus 4 tarjetas están
-  // cubiertas por DosVias (chat + "dile qué necesita"), la pestaña "Base del
-  // Conocimiento" (transparencia + documentos) y "Lugares Visitados"
-  // (reclamos por caserío). El archivo se conserva por si se rediseña.
+  // DosVias/OpinionModal se eliminaron (ver commit): ParticipateCTA es un
+  // superset de su funcionalidad (chat + formulario WhatsApp + ConcernsWidget)
+  // y quedaron sin ningún otro consumidor tras este cambio.
   //
-  // OpinionSection tampoco se renderiza aquí: es un Modal (OpinionModal) que
-  // abre el botón "Dile qué necesita tu caserío" dentro de DosVias.
+  // AssistantPreview NUNCA se renderiza a propósito (ver nota histórica: sus
+  // 4 tarjetas ya están cubiertas por ParticipateCTA + pestañas de HomeTabs).
   return (
     <main className="landing-main">
+      {/* Franja superior fija — acento del rediseño "documental", por
+          encima del Navbar (que es sticky, no fixed, así que no compite). */}
+      <div
+        className="fixed top-0 inset-x-0 h-[3px] z-[60] pointer-events-none"
+        style={{ background: "rgb(var(--brand-primary-rgb))" }}
+      />
       <LiveStreamBanner />
       <Navbar />
-      {on(settings, "show_hero")       && <Hero initialHero={initialHero ?? null} />}
+      {on(settings, "show_hero") && <Hero initialHero={initialHero ?? null} />}
       <Countdown featured={initialFeatured} electionDateIso={settings.election_date_iso} />
-      {on(settings, "show_hero")       && <StatsBar proposalsCount={initialProposals.length} settings={settings} />}
-      {on(settings, "show_assistant") && on(settings, "show_opinion") && <DosVias />}
-      {on(settings, "show_bio")        && <BioSection />}
+      {on(settings, "show_hero") && <StatsBar proposalsCount={initialProposals.length} settings={settings} />}
+      {on(settings, "show_bio") && <BioSection />}
+      <AchievementGrid />
+      <BeforeAfterGallery />
+      <WhyRunning />
+      <Differentiator />
+      <GoalCards />
+      <CommunityTimeline />
+      <TestimonialCarousel />
+      <VideoMessage />
+      {on(settings, "show_assistant") && on(settings, "show_opinion") && <ParticipateCTA />}
+
+      {/* CTA hacia la profundización por pestañas */}
+      <div className="pt-4 pb-2 px-5 text-center">
+        <p className="text-[11px] font-bold uppercase tracking-[.2em]" style={{ color: "rgb(var(--brand-primary-rgb))" }}>
+          ¿Quieres ver todo?
+        </p>
+        <h3 className="font-serif font-semibold mt-1" style={{ fontSize: "clamp(20px,2.6vw,28px)", color: "var(--page-ink)" }}>
+          Explora propuestas, eventos, equipo y más.
+        </h3>
+      </div>
       <HomeTabs
         settings={settings}
         initialProposals={initialProposals}
@@ -100,6 +139,9 @@ export default function DynamicHome({
       {on(settings, "show_connection") && <Connection />}
       <Footer />
       <ChatFAB />
+      <StickyCampaignBar />
+      <MobileBottomNav />
+      <ScrollToTopFab />
     </main>
   );
 }

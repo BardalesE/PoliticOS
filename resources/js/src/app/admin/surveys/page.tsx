@@ -1,9 +1,10 @@
 "use client";
+import { PlanGate } from "@/components/admin/PlanGate";
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { surveysApi, resolveTenantSlug, type SurveyDashboard, type SurveyJourney } from "@/lib/api";
+import { surveysApi, resolveTenantSlug, normalizeApiBase, type SurveyDashboard, type SurveyJourney } from "@/lib/api";
 import { TopicsChart } from "@/components/admin/charts/TopicsChart";
 import { SurveySupportByPlaceChart } from "@/components/admin/charts/SurveySupportByPlaceChart";
 import {
@@ -11,7 +12,7 @@ import {
   ClipboardList, Loader2, Smartphone, BookOpen,
 } from "lucide-react";
 
-export default function SurveysDashboardPage() {
+function SurveysDashboardPageInner() {
   const { token } = useAuth();
 
   const [data, setData]         = useState<SurveyDashboard | null>(null);
@@ -42,7 +43,7 @@ export default function SurveysDashboardPage() {
   async function handleExport() {
     if (!token) return;
     setExporting(true);
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+    const API_URL = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
     const slug    = resolveTenantSlug();
     const params  = new URLSearchParams();
     if (journeyId) params.set("journey_id", String(journeyId));
@@ -91,7 +92,7 @@ export default function SurveysDashboardPage() {
         </div>
         <div className="flex items-center gap-2">
           <Link href="/encuestar"
-            className="flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-700 text-white text-sm font-semibold rounded-xl transition">
+            className="flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold rounded-xl transition-colors">
             <Smartphone size={15} /> Encuestar en campo
           </Link>
           <button onClick={load} className="p-2 rounded-xl text-gray-500 hover:bg-gray-100 transition">
@@ -180,5 +181,13 @@ export default function SurveysDashboardPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function SurveysDashboardPage() {
+  return (
+    <PlanGate feature="surveys">
+      <SurveysDashboardPageInner />
+    </PlanGate>
   );
 }

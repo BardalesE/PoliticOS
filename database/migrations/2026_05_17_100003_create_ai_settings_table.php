@@ -12,8 +12,13 @@ return new class extends Migration
             $table->id();
             $table->enum('provider', ['groq', 'claude', 'openai'])->default('groq');
             $table->string('model', 100)->default('llama-3.3-70b-versatile');
-            $table->unsignedSmallInteger('max_tokens')->default(600);
-            $table->decimal('temperature', 3, 2)->default(0.65);
+            // 1200 = mismo piso que CivicAIService::MIN_MAX_TOKENS. Antes era
+            // 600, que en modo campaña truncaba respuestas sin protección
+            // (el piso solo se aplicaba en modo PEPA). Unificado con
+            // AiSetting::current() y AiSettingSeederV2 — ver informe de QA.
+            $table->unsignedSmallInteger('max_tokens')->default(1200);
+            // temperature más baja = respuestas más deterministas/precisas.
+            $table->decimal('temperature', 3, 2)->default(0.4);
             $table->enum('fallback_provider', ['groq', 'claude', 'openai'])->nullable();
             $table->longText('system_prompt');
             $table->timestamps();

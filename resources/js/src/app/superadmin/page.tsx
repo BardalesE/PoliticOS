@@ -38,9 +38,9 @@ const emptyProvision: ProvisionForm = {
 };
 
 const PLANS = [
-  { value: "starter", label: "Starter",  color: "text-zinc-400", bg: "bg-zinc-800" },
-  { value: "pro",     label: "Pro",      color: "text-blue-400",  bg: "bg-blue-900/40" },
-  { value: "elite",   label: "Elite",    color: "text-amber-400", bg: "bg-amber-900/30" },
+  { value: "starter", label: "Starter",  color: "text-gray-400", bg: "bg-gray-100" },
+  { value: "pro",     label: "Pro",      color: "text-blue-600",  bg: "bg-blue-50" },
+  { value: "elite",   label: "Elite",    color: "text-amber-600", bg: "bg-amber-50" },
 ] as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -56,8 +56,8 @@ function planBadge(plan: string) {
 
 function statusDot(active: boolean) {
   return active
-    ? <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" title="Activo" />
-    : <span className="inline-block w-2 h-2 rounded-full bg-zinc-600" title="Inactivo" />;
+    ? <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" title="Activo" />
+    : <span className="inline-block w-2 h-2 rounded-full bg-gray-300" title="Inactivo" />;
 }
 
 // ─── Componentes UI menores ───────────────────────────────────────────────
@@ -72,8 +72,8 @@ function Input({
 }) {
   return (
     <div className={`flex flex-col gap-1 ${className}`}>
-      <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
-        {label}{required && <span className="text-red-400 ml-0.5">*</span>}
+      <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+        {label}{required && <span className="text-red-600 ml-0.5">*</span>}
       </label>
       <input
         type={type}
@@ -81,11 +81,11 @@ function Input({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         required={required}
-        className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100
-                   placeholder-zinc-600 focus:outline-none focus:border-emerald-500 focus:ring-1
-                   focus:ring-emerald-500/20 transition font-mono"
+        className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900
+                   placeholder-gray-400 focus:outline-none focus:border-trust-500 focus:ring-1
+                   focus:ring-trust-500/15 transition font-mono"
       />
-      {hint && <p className="text-[11px] text-zinc-600">{hint}</p>}
+      {hint && <p className="text-[11px] text-gray-400">{hint}</p>}
     </div>
   );
 }
@@ -99,12 +99,12 @@ function Select({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">{label}</label>
+      <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">{label}</label>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100
-                   focus:outline-none focus:border-emerald-500 transition cursor-pointer"
+        className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900
+                   focus:outline-none focus:border-trust-500 transition cursor-pointer"
       >
         {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
@@ -120,8 +120,8 @@ function CopyBtn({ text }: { text: string }) {
     setTimeout(() => setCopied(false), 1500);
   }
   return (
-    <button onClick={copy} className="text-zinc-500 hover:text-zinc-300 transition ml-1">
-      {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+    <button onClick={copy} className="text-gray-500 hover:text-gray-700 transition ml-1">
+      {copied ? <Check className="w-3 h-3 text-trust-700" /> : <Copy className="w-3 h-3" />}
     </button>
   );
 }
@@ -159,13 +159,13 @@ function CredentialField({
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">{label}</span>
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">{label}</span>
         {badge}
       </div>
-      <div className="flex items-center gap-2 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2.5">
-        <code className="flex-1 text-sm text-zinc-200 font-mono break-all min-w-0">
+      <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+        <code className="flex-1 text-sm text-gray-800 font-mono break-all min-w-0">
           {!value
-            ? <span className="text-zinc-600 italic text-xs">Sin datos registrados</span>
+            ? <span className="text-gray-400 italic text-xs">Sin datos registrados</span>
             : secret && !visible ? "••••••••••••••••"
             : value}
         </code>
@@ -176,7 +176,7 @@ function CredentialField({
               target="_blank"
               rel="noopener noreferrer"
               title="Abrir en nueva pestaña"
-              className="text-zinc-500 hover:text-emerald-400 transition p-1 rounded"
+              className="text-gray-500 hover:text-trust-700 transition p-1 rounded"
             >
               <ExternalLink className="w-3.5 h-3.5" />
             </a>
@@ -185,14 +185,14 @@ function CredentialField({
             <button
               onClick={visible ? hide : reveal}
               title={visible ? "Ocultar" : "Revelar 5 segundos"}
-              className="text-zinc-500 hover:text-zinc-300 transition p-1 rounded"
+              className="text-gray-500 hover:text-gray-700 transition p-1 rounded"
             >
               {visible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
             </button>
           )}
           {value && (
-            <button onClick={copy} className="text-zinc-500 hover:text-zinc-300 transition p-1 rounded">
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            <button onClick={copy} className="text-gray-500 hover:text-gray-700 transition p-1 rounded">
+              {copied ? <Check className="w-3.5 h-3.5 text-trust-700" /> : <Copy className="w-3.5 h-3.5" />}
             </button>
           )}
         </div>
@@ -251,10 +251,10 @@ function CredentialsModal({
 
   const passwordBadge = creds && (
     creds.password_changed
-      ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-400">
+      ? <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
           CAMBIADA {creds.password_changed_at ? formatTs(creds.password_changed_at) : ""}
         </span>
-      : <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-900/40 text-amber-400">
+      : <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">
           <ShieldAlert className="w-3 h-3" /> ORIGINAL
         </span>
   );
@@ -269,29 +269,29 @@ function CredentialsModal({
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="relative z-10 w-full max-w-md bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto"
+        className="relative z-10 w-full max-w-md bg-white border border-gray-300 rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto"
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 sticky top-0 bg-white z-10">
           <div className="flex items-center gap-2.5">
-            <KeyRound className="w-4 h-4 text-amber-400" />
+            <KeyRound className="w-4 h-4 text-amber-600" />
             <div>
-              <h2 className="font-bold text-zinc-100 text-sm">Credenciales de acceso</h2>
-              <p className="text-[11px] text-zinc-500 font-mono">{tenant.slug} · {tenant.name}</p>
+              <h2 className="font-bold text-gray-900 text-sm">Credenciales de acceso</h2>
+              <p className="text-[11px] text-gray-500 font-mono">{tenant.slug} · {tenant.name}</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 text-xl leading-none">×</button>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-xl leading-none">×</button>
         </div>
 
         <div className="px-6 py-5 space-y-4">
           {loading && (
             <div className="flex items-center justify-center py-10">
-              <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
+              <Loader2 className="w-5 h-5 animate-spin text-gray-500" />
             </div>
           )}
 
           {error && (
-            <div className="flex items-start gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5">
+            <div className="flex items-start gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2.5">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" /> {error}
             </div>
           )}
@@ -300,15 +300,15 @@ function CredentialsModal({
             <>
               {/* Banner post-reset */}
               {resetPass && (
-                <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3 space-y-1.5">
-                  <p className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                <div className="bg-trust-50 border border-trust-100 rounded-xl px-4 py-3 space-y-1.5">
+                  <p className="text-xs font-bold text-trust-700 flex items-center gap-1.5">
                     <CheckCircle2 className="w-3.5 h-3.5" /> Contraseña reseteada — guárdala ahora
                   </p>
                   <div className="flex items-center gap-2">
-                    <code className="flex-1 text-sm font-bold font-mono text-white">{resetPass}</code>
+                    <code className="flex-1 text-sm font-bold font-mono text-gray-900">{resetPass}</code>
                     <button
                       onClick={() => { navigator.clipboard.writeText(resetPass); }}
-                      className="text-zinc-500 hover:text-emerald-400 transition p-1"
+                      className="text-gray-500 hover:text-trust-700 transition p-1"
                     >
                       <Copy className="w-3.5 h-3.5" />
                     </button>
@@ -324,10 +324,10 @@ function CredentialsModal({
                   vez en el banner post-reset de arriba. */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Contraseña</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500">Contraseña</p>
                   {passwordBadge}
                 </div>
-                <p className="text-sm text-zinc-300 bg-zinc-950 rounded-lg px-3 py-2">
+                <p className="text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2">
                   {creds.has_password
                     ? "Contraseña configurada ✓ — visible solo al resetearla"
                     : "Sin contraseña registrada"}
@@ -335,7 +335,7 @@ function CredentialsModal({
               </div>
 
               {!creds.admin_email && (
-                <p className="text-xs text-zinc-500 bg-zinc-800/60 rounded-lg px-3 py-2">
+                <p className="text-xs text-gray-500 bg-gray-100/60 rounded-lg px-3 py-2">
                   Este tenant fue provisionado antes de este módulo. No hay credenciales registradas.
                   Usa "Resetear contraseña" si conoces el email del admin.
                 </p>
@@ -345,8 +345,8 @@ function CredentialsModal({
               <button
                 onClick={handleReset}
                 disabled={resetting || !creds.admin_email}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-zinc-700
-                           text-sm text-zinc-400 hover:text-amber-400 hover:border-amber-500/40 transition
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-300
+                           text-sm text-gray-400 hover:text-amber-600 hover:border-amber-200 transition
                            disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {resetting
@@ -357,14 +357,14 @@ function CredentialsModal({
               {/* Audit log */}
               {creds.credential_log.length > 0 && (
                 <div>
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 mb-2 flex items-center gap-1.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 mb-2 flex items-center gap-1.5">
                     <Clock className="w-3 h-3" /> Historial de acceso
                   </p>
                   <div className="space-y-1 max-h-40 overflow-y-auto">
                     {creds.credential_log.slice(0, 10).map((entry, i) => (
-                      <div key={i} className="flex items-center justify-between text-[11px] bg-zinc-950 rounded-lg px-3 py-1.5 gap-3">
-                        <span className="text-zinc-400 shrink-0">{actionLabel(entry.action)}</span>
-                        <div className="flex items-center gap-3 text-zinc-600 min-w-0 overflow-hidden">
+                      <div key={i} className="flex items-center justify-between text-[11px] bg-gray-50 rounded-lg px-3 py-1.5 gap-3">
+                        <span className="text-gray-400 shrink-0">{actionLabel(entry.action)}</span>
+                        <div className="flex items-center gap-3 text-gray-400 min-w-0 overflow-hidden">
                           <span className="font-mono shrink-0">{entry.ip}</span>
                           <span className="truncate">{formatTs(entry.timestamp)}</span>
                         </div>
@@ -391,25 +391,25 @@ function CredRow({ label, value, secret = false }: { label: string; value: strin
   const isUrl = value.startsWith("http://") || value.startsWith("https://");
   function copy() { navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 1500); }
   return (
-    <div className="flex items-center justify-between gap-3 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2.5">
-      <span className="text-[11px] text-zinc-500 font-semibold uppercase tracking-wider w-20 shrink-0">{label}</span>
-      <code className="flex-1 text-sm text-zinc-200 font-mono break-all">
+    <div className="flex items-center justify-between gap-3 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+      <span className="text-[11px] text-gray-500 font-semibold uppercase tracking-wider w-20 shrink-0">{label}</span>
+      <code className="flex-1 text-sm text-gray-800 font-mono break-all">
         {secret && !visible ? "••••••••••••" : value}
       </code>
       <div className="flex items-center gap-1 shrink-0">
         {isUrl && (
           <a href={value} target="_blank" rel="noopener noreferrer"
-             title="Abrir" className="text-zinc-500 hover:text-emerald-400 transition p-0.5">
+             title="Abrir" className="text-gray-500 hover:text-trust-700 transition p-0.5">
             <ExternalLink className="w-3.5 h-3.5" />
           </a>
         )}
         {secret && (
-          <button onClick={() => setVisible((v) => !v)} className="text-zinc-500 hover:text-zinc-300 transition text-xs px-1">
+          <button onClick={() => setVisible((v) => !v)} className="text-gray-500 hover:text-gray-700 transition text-xs px-1">
             {visible ? "ocultar" : "ver"}
           </button>
         )}
-        <button onClick={copy} className="text-zinc-500 hover:text-zinc-300 transition">
-          {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+        <button onClick={copy} className="text-gray-500 hover:text-gray-700 transition">
+          {copied ? <Check className="w-3.5 h-3.5 text-trust-700" /> : <Copy className="w-3.5 h-3.5" />}
         </button>
       </div>
     </div>
@@ -462,8 +462,8 @@ function ProvisionModal({
     try {
       const res = await superadminApi.tenants.provision(saKey, payload);
       setLog(res.output);
-      const adminUrl = `http://localhost:3000/admin/login?tenant=${form.slug}`;
-      const voterUrl = `http://localhost:3000?tenant=${form.slug}`;
+      const adminUrl = `${window.location.origin}/admin/login?tenant=${form.slug}`;
+      const voterUrl = `${window.location.origin}?tenant=${form.slug}`;
       setCreds({ email: form.admin_email, password: form.admin_password, slug: form.slug, adminUrl, voterUrl });
       setDoneTenant(res.tenant);
     } catch (err) {
@@ -503,27 +503,27 @@ function ProvisionModal({
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="relative z-10 w-full max-w-xl bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl
+        className="relative z-10 w-full max-w-xl bg-white border border-gray-300 rounded-2xl shadow-2xl
                    max-h-[90vh] overflow-y-auto"
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
-          <h2 className="font-bold text-zinc-100">Nuevo Candidato</h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 sticky top-0 bg-white z-10">
+          <h2 className="font-bold text-gray-900">Nuevo Candidato</h2>
           <button
             onClick={() => { if (!saving) { reset(); onClose(); } }}
-            className="text-zinc-500 hover:text-zinc-300 transition text-xl leading-none"
+            className="text-gray-500 hover:text-gray-700 transition text-xl leading-none"
           >×</button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-zinc-800 px-6">
+        <div className="flex border-b border-gray-200 px-6">
           {(["provision", "manual"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className={`py-3 px-1 mr-5 text-sm font-medium border-b-2 transition ${
                 tab === t
-                  ? "border-emerald-500 text-emerald-400"
-                  : "border-transparent text-zinc-500 hover:text-zinc-300"
+                  ? "border-trust-500 text-trust-700"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
               }`}
             >
               {t === "provision" ? "⚡ Provisionar (recomendado)" : "Manual (solo registro)"}
@@ -535,11 +535,11 @@ function ProvisionModal({
           {/* ── Pantalla de éxito con credenciales ── */}
           {creds ? (
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-emerald-400">
+              <div className="flex items-center gap-2 text-trust-700">
                 <CheckCircle2 className="w-5 h-5" />
                 <p className="font-semibold text-sm">Candidato provisionado correctamente</p>
               </div>
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-gray-500">
                 Guarda estas credenciales — la contraseña no se puede recuperar después.
               </p>
               <div className="space-y-2">
@@ -550,28 +550,28 @@ function ProvisionModal({
                 <CredRow label="Votantes" value={creds.voterUrl} />
               </div>
               {log && (
-                <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 max-h-32 overflow-y-auto">
-                  <pre className="text-[11px] text-zinc-500 font-mono whitespace-pre-wrap">{log}</pre>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 max-h-32 overflow-y-auto">
+                  <pre className="text-[11px] text-gray-500 font-mono whitespace-pre-wrap">{log}</pre>
                 </div>
               )}
               <div className="flex gap-2 pt-1">
                 <a
                   href={creds.adminUrl} target="_blank" rel="noopener noreferrer"
-                  className="flex-1 py-2.5 rounded-xl border border-zinc-700 text-sm text-zinc-300
-                             hover:text-zinc-100 hover:border-zinc-500 transition text-center"
+                  className="flex-1 py-2.5 rounded-xl border border-gray-300 text-sm text-gray-700
+                             hover:text-gray-900 hover:border-gray-400 transition text-center"
                 >
                   Abrir panel ↗
                 </a>
                 <a
                   href={creds.voterUrl} target="_blank" rel="noopener noreferrer"
-                  className="flex-1 py-2.5 rounded-xl border border-zinc-700 text-sm text-zinc-300
-                             hover:text-zinc-100 hover:border-zinc-500 transition text-center"
+                  className="flex-1 py-2.5 rounded-xl border border-gray-300 text-sm text-gray-700
+                             hover:text-gray-900 hover:border-gray-400 transition text-center"
                 >
                   Ver sitio ↗
                 </a>
                 <button
                   onClick={handleDone}
-                  className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400
+                  className="flex-1 py-2.5 rounded-xl bg-trust-700 hover:bg-trust-600
                              text-white text-sm font-semibold transition"
                 >
                   Listo
@@ -580,7 +580,7 @@ function ProvisionModal({
             </div>
           ) : tab === "provision" ? (
             <form onSubmit={handleProvision} className="space-y-4">
-              <p className="text-xs text-zinc-500 bg-zinc-800/60 rounded-lg px-3 py-2">
+              <p className="text-xs text-gray-500 bg-gray-100/60 rounded-lg px-3 py-2">
                 Crea la base de datos MySQL, ejecuta todas las migraciones, siembra datos iniciales
                 y registra el tenant — todo en un solo paso.
               </p>
@@ -627,14 +627,14 @@ function ProvisionModal({
               <button
                 type="button"
                 onClick={() => set("showAdvanced", !form.showAdvanced)}
-                className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition"
+                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 transition"
               >
                 {form.showAdvanced ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                 Configuración avanzada de MySQL
               </button>
 
               {form.showAdvanced && (
-                <div className="grid grid-cols-3 gap-3 p-3 bg-zinc-800/50 rounded-lg border border-zinc-700">
+                <div className="grid grid-cols-3 gap-3 p-3 bg-gray-100/50 rounded-lg border border-gray-300">
                   <Input
                     label="DB Host" value={form.db_host} onChange={(v) => set("db_host", v)}
                     placeholder="usa el del .env"
@@ -648,29 +648,29 @@ function ProvisionModal({
                     onChange={(v) => set("db_password", v)}
                     type="password" placeholder="(vacío = sin pass)"
                   />
-                  <p className="col-span-3 text-[11px] text-zinc-600">
+                  <p className="col-span-3 text-[11px] text-gray-400">
                     Por defecto usa las credenciales del .env del servidor
                   </p>
                 </div>
               )}
 
               {error && (
-                <div className="flex items-start gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                <div className="flex items-start gap-2 text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
                   <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                   {error}
                 </div>
               )}
 
               {log && (
-                <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 max-h-40 overflow-y-auto">
-                  <pre className="text-[11px] text-zinc-400 font-mono whitespace-pre-wrap">{log}</pre>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 max-h-40 overflow-y-auto">
+                  <pre className="text-[11px] text-gray-400 font-mono whitespace-pre-wrap">{log}</pre>
                 </div>
               )}
 
               <button
                 type="submit"
                 disabled={saving}
-                className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed
+                className="w-full bg-trust-700 hover:bg-trust-600 disabled:opacity-40 disabled:cursor-not-allowed
                            text-white font-semibold text-sm py-3 rounded-xl transition flex items-center justify-center gap-2"
               >
                 {saving ? (
@@ -720,7 +720,7 @@ function ManualCreateForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <p className="text-xs text-zinc-500 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2 text-amber-400">
+      <p className="text-xs bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 text-amber-700">
         Solo registra el tenant. La base de datos ya debe existir y estar migrada manualmente.
       </p>
       <div className="grid grid-cols-2 gap-3">
@@ -738,10 +738,10 @@ function ManualCreateForm({
         onChange={(v) => set("plan", v as "starter")}
         options={PLANS.map((p) => ({ value: p.value, label: p.label }))}
       />
-      {error && <p className="text-xs text-red-400 bg-red-500/10 rounded-lg px-3 py-2">{error}</p>}
+      {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
       <button
         type="submit" disabled={saving}
-        className="w-full bg-zinc-700 hover:bg-zinc-600 disabled:opacity-40 text-white font-semibold
+        className="w-full bg-trust-700 hover:bg-trust-800 disabled:opacity-40 text-white font-semibold
                    text-sm py-2.5 rounded-xl transition flex items-center justify-center gap-2"
       >
         {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
@@ -789,20 +789,20 @@ function EditModal({
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-        className="relative z-10 w-full max-w-sm bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl"
+        className="relative z-10 w-full max-w-sm bg-white border border-gray-300 rounded-2xl shadow-2xl"
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
-          <h2 className="font-bold text-zinc-100 text-sm">Editar — <span className="text-zinc-400 font-mono">{tenant.slug}</span></h2>
-          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 text-xl leading-none">×</button>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+          <h2 className="font-bold text-gray-900 text-sm">Editar — <span className="text-gray-400 font-mono">{tenant.slug}</span></h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-xl leading-none">×</button>
         </div>
         <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
           <div>
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 block mb-1">Nombre</label>
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 block mb-1">Nombre</label>
             <input
               value={form.name}
               onChange={(e) => set("name", e.target.value)}
-              className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100
-                         focus:outline-none focus:border-emerald-500 transition"
+              className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900
+                         focus:outline-none focus:border-trust-500 transition"
             />
           </div>
           <Select
@@ -814,21 +814,21 @@ function EditModal({
             <input
               type="checkbox" checked={form.is_active}
               onChange={(e) => set("is_active", e.target.checked)}
-              className="w-4 h-4 rounded accent-emerald-500"
+              className="w-4 h-4 rounded accent-trust-700"
             />
-            <span className="text-sm text-zinc-300">Tenant activo</span>
+            <span className="text-sm text-gray-700">Tenant activo</span>
           </label>
-          {error && <p className="text-xs text-red-400">{error}</p>}
+          {error && <p className="text-xs text-red-600">{error}</p>}
           <div className="flex gap-2 pt-1">
             <button
               type="button" onClick={onClose}
-              className="flex-1 py-2 rounded-lg border border-zinc-700 text-sm text-zinc-400 hover:text-zinc-200 transition"
+              className="flex-1 py-2 rounded-lg border border-gray-300 text-sm text-gray-400 hover:text-gray-800 transition"
             >
               Cancelar
             </button>
             <button
               type="submit" disabled={saving}
-              className="flex-1 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40
+              className="flex-1 py-2 rounded-lg bg-trust-700 hover:bg-trust-600 disabled:opacity-40
                          text-white text-sm font-semibold transition flex items-center justify-center gap-1.5"
             >
               {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
@@ -877,25 +877,25 @@ function TenantRow({
     });
   }
 
-  const adminUrl = `http://localhost:3000/admin/login?tenant=${tenant.slug}`;
-  const voterUrl = `http://localhost:3000?tenant=${tenant.slug}`;
+  const adminUrl = `${window.location.origin}/admin/login?tenant=${tenant.slug}`;
+  const voterUrl = `${window.location.origin}?tenant=${tenant.slug}`;
 
   return (
     <>
-      <tr className="border-b border-zinc-800 hover:bg-zinc-800/30 transition-colors">
+      <tr className="border-b border-gray-200 hover:bg-gray-100/30 transition-colors">
         <td className="px-4 py-3">
           <div className="flex items-center gap-2">
             {statusDot(tenant.is_active)}
-            <code className="text-sm font-mono text-zinc-200">{tenant.slug}</code>
+            <code className="text-sm font-mono text-gray-800">{tenant.slug}</code>
             <CopyBtn text={tenant.slug} />
           </div>
         </td>
-        <td className="px-4 py-3 text-sm text-zinc-300">{tenant.name}</td>
+        <td className="px-4 py-3 text-sm text-gray-700">{tenant.name}</td>
         <td className="px-4 py-3">{planBadge(tenant.plan)}</td>
         <td className="px-4 py-3">
-          <code className="text-[11px] text-zinc-500 font-mono">{tenant.db_name}</code>
+          <code className="text-[11px] text-gray-500 font-mono">{tenant.db_name}</code>
         </td>
-        <td className="px-4 py-3 text-xs text-zinc-500">
+        <td className="px-4 py-3 text-xs text-gray-500">
           {new Date(tenant.created_at).toLocaleDateString("es-PE")}
         </td>
         <td className="px-4 py-3">
@@ -903,28 +903,28 @@ function TenantRow({
             <button
               onClick={toggle}
               title="Ver stats"
-              className="p-1.5 rounded-lg text-zinc-500 hover:text-blue-400 hover:bg-zinc-800 transition"
+              className="p-1.5 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-gray-100 transition"
             >
               <BarChart2 className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={onCredentials}
               title="Ver credenciales"
-              className="p-1.5 rounded-lg text-zinc-500 hover:text-amber-400 hover:bg-zinc-800 transition"
+              className="p-1.5 rounded-lg text-gray-500 hover:text-amber-600 hover:bg-gray-100 transition"
             >
               <KeyRound className="w-3.5 h-3.5" />
             </button>
             <a
               href={adminUrl} target="_blank" rel="noopener noreferrer"
               title="Abrir panel admin"
-              className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition"
+              className="p-1.5 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition"
             >
               <ExternalLink className="w-3.5 h-3.5" />
             </a>
             <button
               onClick={onEdit}
               title="Editar"
-              className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition"
+              className="p-1.5 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition"
             >
               <Pencil className="w-3.5 h-3.5" />
             </button>
@@ -933,8 +933,8 @@ function TenantRow({
               title={tenant.is_active ? "Desactivar" : "Activar"}
               className={`p-1.5 rounded-lg transition ${
                 tenant.is_active
-                  ? "text-zinc-500 hover:text-amber-400 hover:bg-zinc-800"
-                  : "text-zinc-500 hover:text-emerald-400 hover:bg-zinc-800"
+                  ? "text-gray-500 hover:text-amber-600 hover:bg-gray-100"
+                  : "text-gray-500 hover:text-trust-700 hover:bg-gray-100"
               }`}
             >
               {tenant.is_active ? <XCircle className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
@@ -942,7 +942,7 @@ function TenantRow({
             <button
               onClick={onDelete}
               title="Eliminar"
-              className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-zinc-800 transition"
+              className="p-1.5 rounded-lg text-gray-500 hover:text-red-600 hover:bg-gray-100 transition"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -952,7 +952,7 @@ function TenantRow({
       <AnimatePresence>
         {expanded && (
           <tr>
-            <td colSpan={6} className="px-4 pb-3 bg-zinc-900/60">
+            <td colSpan={6} className="px-4 pb-3 bg-white/60">
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
@@ -961,13 +961,13 @@ function TenantRow({
               >
                 <div className="pt-2 pb-1">
                   {statsLoading && (
-                    <div className="flex items-center gap-2 text-xs text-zinc-500 py-2">
+                    <div className="flex items-center gap-2 text-xs text-gray-500 py-2">
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       Conectando a la DB del tenant...
                     </div>
                   )}
                   {statsError && (
-                    <p className="text-xs text-amber-400 py-2">
+                    <p className="text-xs text-amber-600 py-2">
                       No se pudo conectar a la DB del tenant. Verifica las credenciales.
                     </p>
                   )}
@@ -980,20 +980,20 @@ function TenantRow({
                   )}
                   <div className="mt-2 flex flex-col gap-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-zinc-600 w-16 shrink-0">Admin:</span>
-                      <code className="text-[11px] text-zinc-500 font-mono flex-1 truncate">{adminUrl}</code>
+                      <span className="text-[11px] text-gray-400 w-16 shrink-0">Admin:</span>
+                      <code className="text-[11px] text-gray-500 font-mono flex-1 truncate">{adminUrl}</code>
                       <CopyBtn text={adminUrl} />
                       <a href={adminUrl} target="_blank" rel="noopener noreferrer"
-                         className="text-zinc-600 hover:text-emerald-400 transition">
+                         className="text-gray-400 hover:text-trust-700 transition">
                         <ExternalLink className="w-3 h-3" />
                       </a>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-zinc-600 w-16 shrink-0">Votantes:</span>
-                      <code className="text-[11px] text-zinc-500 font-mono flex-1 truncate">{voterUrl}</code>
+                      <span className="text-[11px] text-gray-400 w-16 shrink-0">Votantes:</span>
+                      <code className="text-[11px] text-gray-500 font-mono flex-1 truncate">{voterUrl}</code>
                       <CopyBtn text={voterUrl} />
                       <a href={voterUrl} target="_blank" rel="noopener noreferrer"
-                         className="text-zinc-600 hover:text-emerald-400 transition">
+                         className="text-gray-400 hover:text-trust-700 transition">
                         <ExternalLink className="w-3 h-3" />
                       </a>
                     </div>
@@ -1012,10 +1012,10 @@ function StatChip({
   icon: Icon, label, value,
 }: { icon: React.ElementType; label: string; value: number }) {
   return (
-    <div className="flex items-center gap-1.5 bg-zinc-800 px-3 py-1.5 rounded-lg">
-      <Icon className="w-3.5 h-3.5 text-zinc-500" />
-      <span className="text-xs text-zinc-400">{label}:</span>
-      <span className="text-xs font-bold text-zinc-200">{value.toLocaleString()}</span>
+    <div className="flex items-center gap-1.5 bg-gray-100 px-3 py-1.5 rounded-lg">
+      <Icon className="w-3.5 h-3.5 text-gray-500" />
+      <span className="text-xs text-gray-400">{label}:</span>
+      <span className="text-xs font-bold text-gray-800">{value.toLocaleString()}</span>
     </div>
   );
 }
@@ -1056,59 +1056,59 @@ function TenantCard({
     });
   }
 
-  const adminUrl = `http://localhost:3000/admin/login?tenant=${tenant.slug}`;
-  const voterUrl = `http://localhost:3000?tenant=${tenant.slug}`;
+  const adminUrl = `${window.location.origin}/admin/login?tenant=${tenant.slug}`;
+  const voterUrl = `${window.location.origin}?tenant=${tenant.slug}`;
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4 space-y-3">
+    <div className="rounded-xl border border-gray-200 bg-white/40 p-4 space-y-3">
       {/* Encabezado: slug + plan */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             {statusDot(tenant.is_active)}
-            <code className="text-sm font-mono text-zinc-200 truncate">{tenant.slug}</code>
+            <code className="text-sm font-mono text-gray-800 truncate">{tenant.slug}</code>
             <CopyBtn text={tenant.slug} />
           </div>
-          <p className="text-sm text-zinc-300 mt-1 truncate">{tenant.name}</p>
+          <p className="text-sm text-gray-700 mt-1 truncate">{tenant.name}</p>
         </div>
         <div className="shrink-0">{planBadge(tenant.plan)}</div>
       </div>
 
       {/* Meta: base de datos + fecha */}
       <div className="flex items-center justify-between gap-3 text-[11px]">
-        <code className="text-zinc-500 font-mono truncate min-w-0">{tenant.db_name}</code>
-        <span className="text-zinc-500 shrink-0">
+        <code className="text-gray-500 font-mono truncate min-w-0">{tenant.db_name}</code>
+        <span className="text-gray-500 shrink-0">
           {new Date(tenant.created_at).toLocaleDateString("es-PE")}
         </span>
       </div>
 
       {/* Acciones */}
-      <div className="flex items-center gap-1 flex-wrap border-t border-zinc-800 pt-3">
+      <div className="flex items-center gap-1 flex-wrap border-t border-gray-200 pt-3">
         <button
           onClick={toggle}
           title="Ver stats"
-          className="p-1.5 rounded-lg text-zinc-500 hover:text-blue-400 hover:bg-zinc-800 transition"
+          className="p-1.5 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-gray-100 transition"
         >
           <BarChart2 className="w-4 h-4" />
         </button>
         <button
           onClick={onCredentials}
           title="Ver credenciales"
-          className="p-1.5 rounded-lg text-zinc-500 hover:text-amber-400 hover:bg-zinc-800 transition"
+          className="p-1.5 rounded-lg text-gray-500 hover:text-amber-600 hover:bg-gray-100 transition"
         >
           <KeyRound className="w-4 h-4" />
         </button>
         <a
           href={adminUrl} target="_blank" rel="noopener noreferrer"
           title="Abrir panel admin"
-          className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition"
+          className="p-1.5 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition"
         >
           <ExternalLink className="w-4 h-4" />
         </a>
         <button
           onClick={onEdit}
           title="Editar"
-          className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition"
+          className="p-1.5 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition"
         >
           <Pencil className="w-4 h-4" />
         </button>
@@ -1117,8 +1117,8 @@ function TenantCard({
           title={tenant.is_active ? "Desactivar" : "Activar"}
           className={`p-1.5 rounded-lg transition ${
             tenant.is_active
-              ? "text-zinc-500 hover:text-amber-400 hover:bg-zinc-800"
-              : "text-zinc-500 hover:text-emerald-400 hover:bg-zinc-800"
+              ? "text-gray-500 hover:text-amber-600 hover:bg-gray-100"
+              : "text-gray-500 hover:text-trust-700 hover:bg-gray-100"
           }`}
         >
           {tenant.is_active ? <XCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
@@ -1126,7 +1126,7 @@ function TenantCard({
         <button
           onClick={onDelete}
           title="Eliminar"
-          className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-zinc-800 transition ml-auto"
+          className="p-1.5 rounded-lg text-gray-500 hover:text-red-600 hover:bg-gray-100 transition ml-auto"
         >
           <Trash2 className="w-4 h-4" />
         </button>
@@ -1143,13 +1143,13 @@ function TenantCard({
           >
             <div className="pt-1 space-y-3">
               {statsLoading && (
-                <div className="flex items-center gap-2 text-xs text-zinc-500">
+                <div className="flex items-center gap-2 text-xs text-gray-500">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   Conectando a la DB del tenant...
                 </div>
               )}
               {statsError && (
-                <p className="text-xs text-amber-400">
+                <p className="text-xs text-amber-600">
                   No se pudo conectar a la DB del tenant. Verifica las credenciales.
                 </p>
               )}
@@ -1162,20 +1162,20 @@ function TenantCard({
               )}
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-zinc-600 w-16 shrink-0">Admin:</span>
-                  <code className="text-[11px] text-zinc-500 font-mono flex-1 truncate min-w-0">{adminUrl}</code>
+                  <span className="text-[11px] text-gray-400 w-16 shrink-0">Admin:</span>
+                  <code className="text-[11px] text-gray-500 font-mono flex-1 truncate min-w-0">{adminUrl}</code>
                   <CopyBtn text={adminUrl} />
                   <a href={adminUrl} target="_blank" rel="noopener noreferrer"
-                     className="text-zinc-600 hover:text-emerald-400 transition shrink-0">
+                     className="text-gray-400 hover:text-trust-700 transition shrink-0">
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-zinc-600 w-16 shrink-0">Votantes:</span>
-                  <code className="text-[11px] text-zinc-500 font-mono flex-1 truncate min-w-0">{voterUrl}</code>
+                  <span className="text-[11px] text-gray-400 w-16 shrink-0">Votantes:</span>
+                  <code className="text-[11px] text-gray-500 font-mono flex-1 truncate min-w-0">{voterUrl}</code>
                   <CopyBtn text={voterUrl} />
                   <a href={voterUrl} target="_blank" rel="noopener noreferrer"
-                     className="text-zinc-600 hover:text-emerald-400 transition shrink-0">
+                     className="text-gray-400 hover:text-trust-700 transition shrink-0">
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
@@ -1215,37 +1215,37 @@ function DeleteConfirm({
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-        className="relative z-10 w-full max-w-sm bg-zinc-900 border border-red-500/30 rounded-2xl p-5 shadow-2xl"
+        className="relative z-10 w-full max-w-sm bg-white border border-red-500/30 rounded-2xl p-5 shadow-2xl"
       >
         <div className="flex items-center gap-2 mb-3">
-          <AlertTriangle className="w-5 h-5 text-red-400" />
-          <h3 className="font-bold text-zinc-100">Eliminar tenant</h3>
+          <AlertTriangle className="w-5 h-5 text-red-600" />
+          <h3 className="font-bold text-gray-900">Eliminar tenant</h3>
         </div>
-        <p className="text-sm text-zinc-400 mb-1">
-          Esto eliminará el registro del tenant <strong className="text-zinc-200">{tenant.slug}</strong> de la tabla
-          principal. <strong className="text-red-400">La base de datos MySQL NO se elimina</strong> — hazlo manualmente si es necesario.
+        <p className="text-sm text-gray-400 mb-1">
+          Esto eliminará el registro del tenant <strong className="text-gray-800">{tenant.slug}</strong> de la tabla
+          principal. <strong className="text-red-600">La base de datos MySQL NO se elimina</strong> — hazlo manualmente si es necesario.
         </p>
-        <p className="text-xs text-zinc-500 mb-3">
-          Escribe <strong className="text-zinc-400 font-mono">{tenant.slug}</strong> para confirmar:
+        <p className="text-xs text-gray-500 mb-3">
+          Escribe <strong className="text-gray-400 font-mono">{tenant.slug}</strong> para confirmar:
         </p>
         <input
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
           placeholder={tenant.slug}
-          className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-100
+          className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900
                      font-mono mb-4 focus:outline-none focus:border-red-500 transition"
         />
         <div className="flex gap-2">
           <button
             onClick={onClose}
-            className="flex-1 py-2 rounded-lg border border-zinc-700 text-sm text-zinc-400 hover:text-zinc-200 transition"
+            className="flex-1 py-2 rounded-lg border border-gray-300 text-sm text-gray-400 hover:text-gray-800 transition"
           >
             Cancelar
           </button>
           <button
             onClick={handleDelete}
             disabled={confirm !== tenant.slug || loading}
-            className="flex-1 py-2 rounded-lg bg-red-500 hover:bg-red-400 disabled:opacity-40
+            className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-500 disabled:opacity-40
                        text-white text-sm font-semibold transition flex items-center justify-center gap-1.5"
           >
             {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
@@ -1274,9 +1274,9 @@ const FEATURE_LABELS: Record<string, string> = {
 };
 
 const PLAN_COLORS: Record<string, string> = {
-  starter: "text-zinc-400 bg-zinc-800",
-  pro:     "text-blue-400 bg-blue-900/40",
-  elite:   "text-amber-400 bg-amber-900/30",
+  starter: "text-gray-400 bg-gray-100",
+  pro:     "text-blue-600 bg-blue-50",
+  elite:   "text-amber-600 bg-amber-50",
 };
 
 function PlansTab({ saKey }: { saKey: string }) {
@@ -1323,13 +1323,13 @@ function PlansTab({ saKey }: { saKey: string }) {
 
   if (loading) return (
     <div className="flex justify-center py-20">
-      <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
+      <Loader2 className="w-6 h-6 animate-spin text-gray-500" />
     </div>
   );
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-zinc-500">
+      <p className="text-sm text-gray-500">
         Edita los módulos y límites de cada plan. Los cambios se aplican a todos los tenants con ese plan en el próximo request.
       </p>
 
@@ -1338,17 +1338,17 @@ function PlansTab({ saKey }: { saKey: string }) {
           const colorClass = PLAN_COLORS[plan.plan] ?? PLAN_COLORS.starter;
           const features = plan.features as Record<string, unknown>;
           return (
-            <div key={plan.plan} className="bg-zinc-800/60 border border-zinc-700 rounded-xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-zinc-700 flex items-center justify-between">
+            <div key={plan.plan} className="bg-gray-100/60 border border-gray-300 rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-300 flex items-center justify-between">
                 <div>
                   <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${colorClass}`}>
                     {plan.label.toUpperCase()}
                   </span>
-                  <p className="text-xs text-zinc-500 mt-1">${plan.price}/mes</p>
+                  <p className="text-xs text-gray-500 mt-1">${plan.price}/mes</p>
                 </div>
                 <button
                   onClick={() => startEdit(plan)}
-                  className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700 transition"
+                  className="p-1.5 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-200 transition"
                   title="Editar features"
                 >
                   <Pencil className="w-3.5 h-3.5" />
@@ -1362,10 +1362,10 @@ function PlansTab({ saKey }: { saKey: string }) {
                   return (
                     <div key={key} className="flex items-center gap-2 text-xs">
                       {enabled
-                        ? <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
-                        : <XCircle className="w-3 h-3 text-zinc-600 shrink-0" />}
-                      <span className={enabled ? "text-zinc-300" : "text-zinc-600"}>{label}</span>
-                      {display && <span className="ml-auto text-zinc-400 font-mono text-[10px]">{display}</span>}
+                        ? <CheckCircle2 className="w-3 h-3 text-trust-700 shrink-0" />
+                        : <XCircle className="w-3 h-3 text-gray-400 shrink-0" />}
+                      <span className={enabled ? "text-gray-700" : "text-gray-400"}>{label}</span>
+                      {display && <span className="ml-auto text-gray-400 font-mono text-[10px]">{display}</span>}
                     </div>
                   );
                 })}
@@ -1381,41 +1381,41 @@ function PlansTab({ saKey }: { saKey: string }) {
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setEditPlan(null)} />
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-            className="relative z-10 w-full max-w-lg bg-zinc-900 border border-zinc-700 rounded-2xl shadow-2xl"
+            className="relative z-10 w-full max-w-lg bg-white border border-gray-300 rounded-2xl shadow-2xl"
           >
-            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
-              <h3 className="font-bold text-zinc-100">Editar features — {editPlan.label}</h3>
-              <button onClick={() => setEditPlan(null)} className="text-zinc-500 hover:text-zinc-300 text-xl">×</button>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <h3 className="font-bold text-gray-900">Editar features — {editPlan.label}</h3>
+              <button onClick={() => setEditPlan(null)} className="text-gray-500 hover:text-gray-700 text-xl">×</button>
             </div>
             <div className="px-6 py-4 space-y-3">
               <div className="flex items-center gap-3">
-                <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Precio (USD/mes)</label>
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Precio (USD/mes)</label>
                 <input
                   type="number" min={0} step={1}
                   value={editPlan.price}
                   onChange={(e) => setEditPlan((p) => p ? { ...p, price: parseFloat(e.target.value) } : null)}
-                  className="w-24 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500"
+                  className="w-24 bg-gray-100 border border-gray-300 rounded px-2 py-1 text-sm text-gray-900 focus:outline-none focus:border-trust-500"
                 />
               </div>
               <div>
-                <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 block mb-1">Features (JSON)</label>
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 block mb-1">Features (JSON)</label>
                 <textarea
                   value={editFeatures}
                   onChange={(e) => setEditFeatures(e.target.value)}
                   rows={16}
-                  className="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-200 font-mono
-                             focus:outline-none focus:border-emerald-500 resize-y"
+                  className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-xs text-gray-800 font-mono
+                             focus:outline-none focus:border-trust-500 resize-y"
                 />
               </div>
             </div>
             <div className="flex gap-2 px-6 pb-5">
-              <button onClick={() => setEditPlan(null)} className="flex-1 py-2 rounded-lg border border-zinc-700 text-sm text-zinc-400 hover:text-zinc-200 transition">
+              <button onClick={() => setEditPlan(null)} className="flex-1 py-2 rounded-lg border border-gray-300 text-sm text-gray-400 hover:text-gray-800 transition">
                 Cancelar
               </button>
               <button
                 onClick={saveEdit}
                 disabled={saving === editPlan.id}
-                className="flex-1 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-white text-sm font-semibold flex items-center justify-center gap-1.5 transition"
+                className="flex-1 py-2 rounded-lg bg-trust-700 hover:bg-trust-600 disabled:opacity-40 text-white text-sm font-semibold flex items-center justify-center gap-1.5 transition"
               >
                 {saving === editPlan.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                 Guardar
@@ -1491,16 +1491,16 @@ export default function SuperAdminPage() {
     <>
       {/* Header */}
       <div className="flex items-center justify-between gap-2 mb-4">
-        <h1 className="text-xl font-bold text-zinc-100 truncate">PoliticOS</h1>
+        <h1 className="font-serif text-xl font-bold text-gray-900 truncate">PoliticOS</h1>
         <div className="flex items-center gap-2 shrink-0">
           {activeTab === "tenants" && (
             <>
-              <button onClick={load} className="p-2 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition" title="Recargar">
+              <button onClick={load} className="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition" title="Recargar">
                 <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
               </button>
               <button
                 onClick={() => setProvisionOpen(true)}
-                className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-semibold text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap shrink-0"
+                className="flex items-center gap-2 bg-trust-700 hover:bg-trust-600 text-white font-semibold text-sm px-3 sm:px-4 py-2 rounded-xl transition whitespace-nowrap shrink-0"
               >
                 <Plus className="w-4 h-4" />
                 <span className="hidden sm:inline">Nuevo Candidato</span>
@@ -1512,30 +1512,30 @@ export default function SuperAdminPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-zinc-800 mb-6">
+      <div className="flex border-b border-gray-200 mb-6">
         {([["tenants", "Candidatos", Database], ["plans", "Planes", CreditCard]] as const).map(([tab, label, Icon]) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`flex items-center gap-2 py-2.5 px-1 mr-6 text-sm font-medium border-b-2 transition ${
               activeTab === tab
-                ? "border-emerald-500 text-emerald-400"
-                : "border-transparent text-zinc-500 hover:text-zinc-300"
+                ? "border-trust-500 text-trust-700"
+                : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
             <Icon className="w-3.5 h-3.5" />
             {label}
-            {tab === "tenants" && <span className="text-[11px] bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded-full">{tenants.length}</span>}
+            {tab === "tenants" && <span className="text-[11px] bg-gray-100 text-gray-400 px-1.5 py-0.5 rounded-full">{tenants.length}</span>}
           </button>
         ))}
       </div>
 
       {/* Sub-header de tenants */}
       {activeTab === "tenants" && (
-        <p className="text-sm text-zinc-500 mb-4">
+        <p className="text-sm text-gray-500 mb-4">
           {tenants.length} candidatos ·{" "}
-          <span className="text-emerald-400">{active} activos</span>
-          {inactive > 0 && <span className="text-zinc-600"> · {inactive} inactivos</span>}
+          <span className="text-trust-700">{active} activos</span>
+          {inactive > 0 && <span className="text-gray-400"> · {inactive} inactivos</span>}
         </p>
       )}
 
@@ -1551,10 +1551,10 @@ export default function SuperAdminPage() {
           {PLANS.map((p) => {
             const count = tenants.filter((t) => t.plan === p.value).length;
             return (
-              <div key={p.value} className={`${p.bg} border border-zinc-700 rounded-xl p-3`}>
+              <div key={p.value} className={`${p.bg} border border-gray-300 rounded-xl p-3`}>
                 <p className={`text-xs font-bold ${p.color} uppercase tracking-wider mb-1`}>{p.label}</p>
-                <p className="text-2xl font-bold text-zinc-100">{count}</p>
-                <p className="text-xs text-zinc-600">
+                <p className="text-2xl font-bold text-gray-900">{count}</p>
+                <p className="text-xs text-gray-400">
                   {count === 1 ? "candidato" : "candidatos"}
                 </p>
               </div>
@@ -1565,24 +1565,24 @@ export default function SuperAdminPage() {
 
       {/* Tabla */}
       {error ? (
-        <div className="text-center py-20 text-red-400">
+        <div className="text-center py-20 text-red-600">
           <p>{error}</p>
-          <button onClick={load} className="mt-3 text-sm text-zinc-400 hover:text-zinc-200 underline">
+          <button onClick={load} className="mt-3 text-sm text-gray-400 hover:text-gray-800 underline">
             Reintentar
           </button>
         </div>
       ) : loading ? (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
+          <Loader2 className="w-6 h-6 animate-spin text-gray-500" />
         </div>
       ) : tenants.length === 0 ? (
-        <div className="text-center py-20 border border-dashed border-zinc-800 rounded-2xl">
-          <Database className="w-10 h-10 text-zinc-700 mx-auto mb-3" />
-          <p className="text-zinc-400 font-medium">Sin tenants todavía</p>
-          <p className="text-sm text-zinc-600 mt-1">Crea el primer candidato con el botón de arriba</p>
+        <div className="text-center py-20 border border-dashed border-gray-200 rounded-2xl">
+          <Database className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-400 font-medium">Sin tenants todavía</p>
+          <p className="text-sm text-gray-400 mt-1">Crea el primer candidato con el botón de arriba</p>
           <button
             onClick={() => setProvisionOpen(true)}
-            className="mt-4 text-sm text-emerald-400 hover:text-emerald-300 underline"
+            className="mt-4 text-sm text-trust-700 hover:text-trust-600 underline"
           >
             + Nuevo Candidato
           </button>
@@ -1605,12 +1605,12 @@ export default function SuperAdminPage() {
         </div>
 
         {/* Tablet / Desktop (≥md): tabla */}
-        <div className="hidden md:block rounded-xl border border-zinc-800 overflow-x-auto">
+        <div className="hidden md:block rounded-xl border border-gray-200 overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="bg-zinc-800/60">
+            <thead className="bg-gray-100/60">
               <tr>
                 {["Slug", "Nombre", "Plan", "Base de datos", "Creado", "Acciones"].map((h) => (
-                  <th key={h} className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                  <th key={h} className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
                     {h}
                   </th>
                 ))}

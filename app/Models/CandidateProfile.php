@@ -17,6 +17,10 @@ class CandidateProfile extends Model
         'personality_traits', 'biography_long', 'signature_phrases',
         'forbidden_topics', 'priority_topics', 'target_segments',
         'campaign_slogan', 'attack_response_style',
+        // Rediseño narrativo del sitio público — PÚBLICOS a propósito (no
+        // van en $hidden), distintos de los campos de personalidad de
+        // arriba que solo alimentan el chat.
+        'bio_timeline', 'why_running', 'differentiator', 'testimonial_video_url',
     ];
 
     // Configuración interna del AI (system prompt): nunca debe salir en
@@ -35,6 +39,7 @@ class CandidateProfile extends Model
         'forbidden_topics'   => 'array',
         'priority_topics'    => 'array',
         'target_segments'    => 'array',
+        'bio_timeline'       => 'array',
     ];
 
     public static function current(): ?self

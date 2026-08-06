@@ -12,6 +12,8 @@ use App\Http\Controllers\CampaignVideoController;
 use App\Http\Controllers\HeroSettingController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\TeamMemberController;
+use App\Http\Controllers\AchievementController;
+use App\Http\Controllers\TestimonialController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\KnowledgeDocumentController;
 use App\Http\Controllers\CandidateProfileController;
@@ -29,6 +31,7 @@ use App\Http\Controllers\IngestEntityController;
 use App\Http\Controllers\LiveStreamController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\SurveyController;
+use App\Http\Controllers\SystemController;
 
 /*
 |--------------------------------------------------------------------------
@@ -40,7 +43,7 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
 
     // ─── Auth ─────────────────────────────────────────────────────────
     Route::prefix('auth')->group(function () {
-        Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1');
+        Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:5,1,login');
         Route::middleware('auth:sanctum')->group(function () {
             Route::post('/logout', [AuthController::class, 'logout']);
             Route::get('/me', [AuthController::class, 'me']);
@@ -49,7 +52,7 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
 
     // ─── Chat público (rate-limited + captura de contexto) ────────────
     Route::prefix('chat')->middleware([
-        'throttle:30,1',
+        'throttle:30,1,chat',
         \App\Http\Middleware\CaptureRequestContext::class,
     ])->group(function () {
         Route::post('/',             [ChatController::class, 'send']);
@@ -60,7 +63,7 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
     });
 
     // ─── Registro ciudadano (público) ────────────────────────────────
-    Route::post('/citizen/register',        [CitizenController::class, 'register'])->middleware('throttle:5,1');
+    Route::post('/citizen/register',        [CitizenController::class, 'register'])->middleware('throttle:5,1,citizen-register');
     Route::get ('/citizen/profile/{uuid}',  [CitizenController::class, 'showByUuid']);
     Route::get ('/citizen/referral/{code}', [CitizenController::class, 'referralInfo']);
 
@@ -79,7 +82,7 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
     Route::get('/videos', [VideoController::class, 'index']);
 
     // ─── Analytics (público — métricas resumen) ──────────────────────
-    Route::get('/analytics/summary', [AnalyticsController::class, 'summary'])->middleware('throttle:20,1');
+    Route::get('/analytics/summary', [AnalyticsController::class, 'summary'])->middleware('throttle:20,1,analytics');
 
     // ─── Live Streams (público) ───────────────────────────────────────
     Route::get ('/livestreams',              [LiveStreamController::class, 'index']);
@@ -87,9 +90,9 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
     Route::get ('/livestreams/{key}/info',        [LiveStreamController::class, 'info']);
     Route::get ('/livestreams/{key}/chunk/{seq}',  [LiveStreamController::class, 'serveChunk']);
     Route::get ('/livestreams/{key}/recording',    [LiveStreamController::class, 'recording']);
-    Route::post('/livestreams/{key}/ping',        [LiveStreamController::class, 'ping'])->middleware('throttle:60,1');
+    Route::post('/livestreams/{key}/ping',        [LiveStreamController::class, 'ping'])->middleware('throttle:60,1,livestream-ping');
     Route::get ('/livestreams/{key}/comments',    [LiveStreamController::class, 'getComments']);
-    Route::post('/livestreams/{key}/comments',    [LiveStreamController::class, 'postComment'])->middleware('throttle:15,1');
+    Route::post('/livestreams/{key}/comments',    [LiveStreamController::class, 'postComment'])->middleware('throttle:15,1,livestream-comment');
 
     // ─── Galería (público) ───────────────────────────────────────────
     Route::get('/gallery',            [GalleryController::class, 'index']);
@@ -108,6 +111,11 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
     // ─── Equipo (público) ────────────────────────────────────────────
     Route::get('/team-members', [TeamMemberController::class, 'index']);
 
+    // ─── Obras destacadas / Testimonios (público) ────────────────────
+    // Rediseño narrativo del sitio público.
+    Route::get('/achievements', [AchievementController::class, 'index']);
+    Route::get('/testimonials', [TestimonialController::class, 'index']);
+
     // ─── Configuración home (público) ────────────────────────────────
     Route::get('/home-settings', [SettingController::class, 'publicIndex']);
 
@@ -117,13 +125,13 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
     // Mismo path /admin/... para conservar el gate de plan (CheckPlanFeature
     // matchea por path) y la URL que ya usa el servicio Python.
     Route::post('/admin/external-signals/ingest', [ExternalSignalController::class, 'ingest'])
-        ->middleware(['ingest_key', 'plan_feature', 'throttle:60,1']);
+        ->middleware(['ingest_key', 'plan_feature', 'throttle:60,1,ingest-signal']);
 
     // Diccionario de entidades JNE (global, no depende del tenant). El servicio
     // Python lo pullea vía beat (diaria + boot) y lo cachea en su Redis. Sin
     // plan_feature: es data de referencia, no una feature del tenant.
     Route::get('/ingest/entities', [IngestEntityController::class, 'index'])
-        ->middleware(['ingest_key', 'throttle:30,1']);
+        ->middleware(['ingest_key', 'throttle:30,1,ingest-entities']);
 
     // ─── Admin (sanctum + rol admin + plan check) ────────────────────
     Route::middleware(['auth:sanctum', 'admin', 'plan_feature'])->prefix('admin')->group(function () {
@@ -253,6 +261,18 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
         Route::put   ('/team-members/{id}', [TeamMemberController::class, 'update']);
         Route::delete('/team-members/{id}', [TeamMemberController::class, 'destroy']);
 
+        // Obras destacadas
+        Route::get   ('/achievements',      [AchievementController::class, 'adminIndex']);
+        Route::post  ('/achievements',      [AchievementController::class, 'store']);
+        Route::put   ('/achievements/{id}', [AchievementController::class, 'update']);
+        Route::delete('/achievements/{id}', [AchievementController::class, 'destroy']);
+
+        // Testimonios
+        Route::get   ('/testimonials',      [TestimonialController::class, 'adminIndex']);
+        Route::post  ('/testimonials',      [TestimonialController::class, 'store']);
+        Route::put   ('/testimonials/{id}', [TestimonialController::class, 'update']);
+        Route::delete('/testimonials/{id}', [TestimonialController::class, 'destroy']);
+
         // Configuración home
         Route::get('/settings', [SettingController::class, 'adminIndex']);
         Route::put('/settings', [SettingController::class, 'update']);
@@ -286,14 +306,14 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
     Route::middleware(['auth:sanctum', 'plan_feature'])->prefix('admin/surveys')->group(function () {
         Route::get ('/journeys',  [SurveyController::class, 'journeys']);
         Route::post('/journeys',  [SurveyController::class, 'storeJourney']);
-        Route::post('/sync',      [SurveyController::class, 'sync'])->middleware('throttle:30,1');
+        Route::post('/sync',      [SurveyController::class, 'sync'])->middleware('throttle:30,1,survey-sync');
         Route::get ('/dashboard', [SurveyController::class, 'dashboard']);
         Route::get ('/export',    [SurveyController::class, 'export']);
     });
 });
 
 // ─── Super Admin (sin tenant) ─────────────────────────────────────────
-Route::middleware(['throttle:30,1', \App\Http\Middleware\EnsureSuperAdmin::class])
+Route::middleware(['throttle:30,1,superadmin', \App\Http\Middleware\EnsureSuperAdmin::class])
     ->prefix('superadmin')
     ->group(function () {
         Route::get   ('/tenants',              [SuperAdminController::class, 'listTenants']);
@@ -309,3 +329,9 @@ Route::middleware(['throttle:30,1', \App\Http\Middleware\EnsureSuperAdmin::class
         Route::get   ('/tenants/{id}/credentials',    [SuperAdminController::class, 'getCredentials']);
         Route::post  ('/tenants/{id}/reset-password', [SuperAdminController::class, 'resetPassword']);
     });
+
+// ─── Cron externo (sin tenant) ──────────────────────────────────────────
+// Sustituye a un cron real de servidor cuando no hay uno disponible (Render
+// plan gratis). Ver .github/workflows/scheduler.yml.
+Route::post('/system/run-scheduler', [SystemController::class, 'runScheduler'])
+    ->middleware(['scheduler_key', 'throttle:20,1,system-scheduler']);

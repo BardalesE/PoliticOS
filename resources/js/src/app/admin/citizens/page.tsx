@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { adminApi, request, resolveTenantSlug } from "@/lib/api";
+import { adminApi, request, resolveTenantSlug, normalizeApiBase } from "@/lib/api";
 import {
   Users, Download, Search, Filter, Phone, Mail, MapPin,
   Star, TrendingUp, RefreshCw, Copy, Check, ChevronDown,
@@ -45,7 +45,7 @@ const INTENTION_LABELS: Record<string, { label: string; color: string }> = {
   media:   { label: "Media",     color: "text-blue-700 bg-blue-50" },
   baja:    { label: "Baja",      color: "text-amber-700 bg-amber-50" },
   opositor:{ label: "Opositor",  color: "text-red-700 bg-red-50" },
-  indeciso:{ label: "Indeciso",  color: "text-zinc-600 bg-zinc-100" },
+  indeciso:{ label: "Indeciso",  color: "text-gray-600 bg-gray-100" },
 };
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -112,7 +112,7 @@ export default function CitizensPage() {
   async function handleExport() {
     if (!token) return;
     setExporting(true);
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+    const API_URL = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
     const slug    = resolveTenantSlug();
     const params  = new URLSearchParams();
     if (filterDistrict)  params.set("district",  filterDistrict);
@@ -220,7 +220,7 @@ export default function CitizensPage() {
               className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
             />
           </div>
-          <button type="submit" className="px-4 py-2 bg-gray-900 text-white text-sm font-semibold rounded-xl hover:bg-gray-700 transition">
+          <button type="submit" className="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold rounded-xl transition-colors">
             Buscar
           </button>
         </form>
@@ -324,7 +324,7 @@ export default function CitizensPage() {
                     key={p}
                     onClick={() => setPage(p)}
                     className={`h-7 w-7 rounded-lg text-xs font-medium transition ${
-                      p === page ? "bg-gray-900 text-white" : "text-gray-500 hover:bg-gray-100"
+                      p === page ? "bg-brand-600 text-white" : "text-gray-500 hover:bg-gray-100"
                     }`}
                   >
                     {p}

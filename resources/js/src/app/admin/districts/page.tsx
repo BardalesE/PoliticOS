@@ -173,7 +173,7 @@ export default function DistrictsPage() {
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <FormField
-            label="Nombre del distrito *"
+            label="Nombre del distrito"
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             required

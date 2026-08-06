@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AiSetting;
 use App\Models\ChatMessage;
 use App\Models\ChatSession;
 use App\Models\ExternalSignal;
@@ -67,12 +68,18 @@ class IntelligenceService
                 ->select('inferred_segment', DB::raw('COUNT(*) as count'))
                 ->groupBy('inferred_segment')->orderByDesc('count')->get();
 
-            // Intención de voto declarada (de citizen_data)
-            $intentions = DB::table('citizen_data')
-                ->where('field_name','intencion_voto')
+            // Intención de voto — antes leía citizen_data.intencion_voto, una
+            // tabla que solo escribe ChatController::capturePotentialDeclaredData(),
+            // que depende de un payload `declared` que NINGÚN componente del
+            // frontend manda jamás (ruta de datos muerta — el componente que lo
+            // haría, DeclaredDataPrompt.tsx, existe pero no se importa en ningún
+            // lado). chat_sessions.inferred_intention sí lo escribe de verdad
+            // AnalyzeMessageJob::updateSession(). Mismo shape de salida
+            // (field_value/count) para no tocar el frontend. Ver informe de QA.
+            $intentions = ChatSession::whereNotNull('inferred_intention')
                 ->where('created_at','>=',$weekAgo)
-                ->select('field_value', DB::raw('COUNT(*) as count'))
-                ->groupBy('field_value')->orderByDesc('count')->get();
+                ->select(DB::raw('inferred_intention as field_value'), DB::raw('COUNT(*) as count'))
+                ->groupBy('inferred_intention')->orderByDesc('count')->get();
 
             return [
                 'sentiment' => [
@@ -146,11 +153,22 @@ class IntelligenceService
                          DB::raw('COUNT(*) as count'))
                 ->groupBy('hour')->orderBy('hour')->get();
 
+            // COUNT(*) en SQL, no ->count() de PHP sobre las colecciones de
+            // arriba — esas ya vienen truncadas por ->limit($limit) para el
+            // feed, así que total_week tenía un techo silencioso de 2×$limit
+            // aunque hubiera muchos más ataques esa semana. Ver informe de QA.
+            $totalWeek = ChatMessage::where('attack_detected', true)
+                    ->where('created_at', '>=', $weekAgo)
+                    ->count()
+                + ExternalSignal::where('is_attack', true)
+                    ->where('captured_at', '>=', $weekAgo)
+                    ->count();
+
             return [
                 'feed'           => $combined->all(),
                 'top_categories' => $topCategories,
                 'velocity_24h'   => $velocity,
-                'total_week'     => $internalAttacks->count() + $externalAttacks->count(),
+                'total_week'     => $totalWeek,
             ];
         });
     }
@@ -361,22 +379,40 @@ class IntelligenceService
     public function generateAlerts(): array
     {
         $alerts = [];
+        // Umbral configurable por tenant (antes fijo en 10 — deuda ya
+        // documentada en docs/architecture/02-separation-map.md).
+        $threshold = AiSetting::current()->attack_spike_threshold ?? 10;
 
-        // 1. Spike de ataques: ¿más de 10 ataques en última hora vs promedio horario?
         $lastHour = ChatMessage::where('attack_detected', true)
             ->where('created_at','>=', now()->subHour())->count();
 
-        $avgHour = ChatMessage::where('attack_detected', true)
-            ->where('created_at','>=', now()->subDays(7))
-            ->count() / 168;
+        // Baseline: promedio horario de ataques en los últimos 7 días,
+        // EXCLUYENDO la última hora (para no autoinflar su propio baseline)
+        // y escalado a las horas reales de historia disponibles. Antes se
+        // dividía siempre por 168 (7×24) fijo, así que un tenant con solo
+        // 2-3 días de historia real tenía un baseline artificialmente bajo
+        // y cualquier hora normal parecía un "spike". Ver informe de QA.
+        $baselineStart = now()->subDays(7);
+        $baselineEnd   = now()->subHour();
 
-        if ($lastHour > max(10, $avgHour * 3)) {
+        $oldestAttackAt = ChatMessage::where('attack_detected', true)->oldest('created_at')->value('created_at');
+        $effectiveStart = ($oldestAttackAt && $oldestAttackAt->gt($baselineStart))
+            ? $oldestAttackAt
+            : $baselineStart;
+
+        $baselineHours = max(1, $effectiveStart->diffInHours($baselineEnd));
+        $baselineCount = ChatMessage::where('attack_detected', true)
+            ->whereBetween('created_at', [$effectiveStart, $baselineEnd])
+            ->count();
+        $avgHour = $baselineCount / $baselineHours;
+
+        if ($lastHour > max($threshold, $avgHour * 3)) {
             $alerts[] = IntelAlert::create([
                 'severity'    => 'high',
                 'type'        => 'attack_spike',
                 'title'       => "Spike de ataques detectado: {$lastHour} en la última hora",
                 'description' => "El promedio histórico es ".round($avgHour, 1)." ataques/hora. Estás recibiendo 3x más de lo normal.",
-                'payload'     => ['count' => $lastHour, 'avg' => $avgHour],
+                'payload'     => ['count' => $lastHour, 'avg' => $avgHour, 'threshold' => $threshold],
                 'triggered_at'=> now(),
             ]);
         }
@@ -407,10 +443,16 @@ class IntelligenceService
             ->select('topic', DB::raw('COUNT(*) as count'))
             ->groupBy('topic')->having('count','>',50)->get();
 
+        // Promedio semanal de los topics candidatos en una sola query agrupada
+        // en vez de un COUNT() por iteración (antes: N queries para N hot topics).
+        $weeklyCounts = ChatMessage::whereIn('topic', $hotTopics->pluck('topic'))
+            ->where('created_at','>=', now()->subDays(7))
+            ->select('topic', DB::raw('COUNT(*) as count'))
+            ->groupBy('topic')
+            ->pluck('count', 'topic');
+
         foreach ($hotTopics as $hot) {
-            $weeklyAvg = ChatMessage::where('topic', $hot->topic)
-                ->where('created_at','>=', now()->subDays(7))
-                ->count() / 7;
+            $weeklyAvg = ($weeklyCounts[$hot->topic] ?? 0) / 7;
 
             if ($hot->count > $weeklyAvg * 5) {
                 $alerts[] = IntelAlert::firstOrCreate(

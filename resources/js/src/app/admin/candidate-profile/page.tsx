@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import {
   Save, Loader2, CheckCircle, AlertCircle, Upload, X, Video,
-  Plus, Zap, Copy, Trash2, Check,
+  Plus, Zap, Copy, Trash2, Check, ArrowUp, ArrowDown,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { adminApiExtended, type CandidateProfile, type CandidatePreset } from "@/lib/api";
+import { adminApiExtended, type CandidateProfile, type CandidatePreset, type BioMilestone } from "@/lib/api";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { Modal } from "@/components/admin/Modal";
 import { ImageDrop } from "@/components/admin/ImageDrop";
@@ -21,20 +21,15 @@ const EMPTY: Partial<CandidateProfile> = {
   tiktok_url: "", facebook_url: "", instagram_url: "", whatsapp_number: "",
 };
 
-const COLORS_CACHE_KEY = "brand_colors";
-const PROFILE_CACHE_KEY = "candidate_profile_cache";
-
-function updatePublicProfileCache(profile: Partial<CandidateProfile>) {
-  try {
-    const raw = localStorage.getItem(PROFILE_CACHE_KEY);
-    if (raw) {
-      const cached = JSON.parse(raw);
-      cached.profile = profile;
-      localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(cached));
-    }
-  } catch {}
-}
-
+// Antes esta función también escribía en localStorage ("brand_colors" /
+// "candidate_profile_cache", sin sufijo de tenant) para que CandidateContext
+// recogiera el cambio en la próxima carga — pero CandidateContext lee las
+// claves CON sufijo de tenant (tenantStorageKey()), así que esas escrituras
+// nunca se leían: código muerto. La propagación real al sitio público ahora
+// la resuelve el backend (FrontendRevalidationService → POST /api/revalidate
+// → revalidateTag/revalidatePath), así que no hace falta duplicarla aquí.
+// Esto solo aplica el color en vivo a ESTA pestaña del admin (preview
+// inmediato al guardar), sin persistir nada.
 function applyBrandColors(primary?: string | null, dark?: string | null, accent?: string | null) {
   const root = document.documentElement;
   if (primary) {
@@ -48,10 +43,6 @@ function applyBrandColors(primary?: string | null, dark?: string | null, accent?
     if (m) root.style.setProperty("--brand-dark-rgb", `${parseInt(m[1],16)} ${parseInt(m[2],16)} ${parseInt(m[3],16)}`);
   }
   if (accent) root.style.setProperty("--brand-accent", accent);
-  // Persist so CandidateContext applies the right color on next page load
-  try {
-    localStorage.setItem(COLORS_CACHE_KEY, JSON.stringify({ primary, dark, accent }));
-  } catch {}
 }
 
 // ImageDrop se movió a components/admin/ImageDrop.tsx (se reusa en onboarding).
@@ -132,6 +123,116 @@ function VideoDrop({ label, value, onUrl, uploadFn }: VidDropProps) {
         )}
       </div>
       {err && <p className="text-xs text-red-600 flex items-center gap-1"><AlertCircle size={11} />{err}</p>}
+    </div>
+  );
+}
+
+// ─── Editor de línea de tiempo (bio_timeline) ─────────────────────────────────
+// Antes este campo solo existía en la BD (Fase A del rediseño narrativo) sin
+// ningún formulario para editarlo — StoryTimeline.tsx ya lo consume en el
+// sitio público, pero no había cómo agregar/editar/borrar capítulos desde el
+// panel. Mismas categorías que StoryTimeline.tsx (CATEGORY_LABELS).
+
+const TIMELINE_CATEGORIES = [
+  { value: "",           label: "Sin categoría" },
+  { value: "origen",     label: "Origen" },
+  { value: "educacion",  label: "Educación" },
+  { value: "trabajo",    label: "Trabajo" },
+  { value: "liderazgo",  label: "Liderazgo" },
+  { value: "servicio",   label: "Servicio" },
+  { value: "fundacion",  label: "Fundación" },
+  { value: "decision",   label: "Decisión" },
+];
+
+type TimelineEditorProps = {
+  value: BioMilestone[];
+  onChange: (milestones: BioMilestone[]) => void;
+  uploadFn: (file: File) => Promise<string>;
+};
+
+function TimelineEditor({ value, onChange, uploadFn }: TimelineEditorProps) {
+  function update(i: number, patch: Partial<BioMilestone>) {
+    onChange(value.map((m, idx) => (idx === i ? { ...m, ...patch } : m)));
+  }
+  function remove(i: number) {
+    onChange(value.filter((_, idx) => idx !== i));
+  }
+  function move(i: number, dir: -1 | 1) {
+    const j = i + dir;
+    if (j < 0 || j >= value.length) return;
+    const next = [...value];
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  }
+  function add() {
+    onChange([...value, { year: "", title: "", detail: "", photo_url: "", category: "" }]);
+  }
+
+  return (
+    <div className="space-y-4">
+      {value.length === 0 && (
+        <p className="text-sm text-gray-400 text-center py-6">
+          Todavía no hay capítulos. Agrega el primero para que "Mi Historia" aparezca en el sitio público.
+        </p>
+      )}
+      {value.map((m, i) => (
+        <div key={i} className="border border-gray-200 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">Capítulo {i + 1}</span>
+            <div className="flex items-center gap-1">
+              <button type="button" onClick={() => move(i, -1)} disabled={i === 0}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-brand-500 hover:bg-brand-50 disabled:opacity-30 disabled:hover:bg-transparent transition-colors" title="Subir">
+                <ArrowUp size={14} />
+              </button>
+              <button type="button" onClick={() => move(i, 1)} disabled={i === value.length - 1}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-brand-500 hover:bg-brand-50 disabled:opacity-30 disabled:hover:bg-transparent transition-colors" title="Bajar">
+                <ArrowDown size={14} />
+              </button>
+              <button type="button" onClick={() => remove(i)}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Eliminar capítulo">
+                <Trash2 size={14} />
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-[100px_1fr_180px] gap-3">
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5 block">Año *</span>
+              <input value={m.year} onChange={(e) => update(i, { year: e.target.value })} placeholder="2018" required
+                className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 transition-colors" />
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5 block">Título del capítulo *</span>
+              <input value={m.title} onChange={(e) => update(i, { title: e.target.value })} placeholder="Fundé mi primera organización vecinal" required
+                className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 transition-colors" />
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5 block">Categoría</span>
+              <select value={m.category ?? ""} onChange={(e) => update(i, { category: e.target.value || null })}
+                className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 transition-colors">
+                {TIMELINE_CATEGORIES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5 block">Detalle</span>
+            <textarea value={m.detail ?? ""} onChange={(e) => update(i, { detail: e.target.value })} rows={2}
+              placeholder="Qué pasó, con quién, por qué importa..."
+              className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 transition-colors resize-none" />
+          </label>
+
+          <div className="max-w-xs">
+            <ImageDrop label="Foto del capítulo (opcional)" value={m.photo_url ?? ""}
+              onUrl={(url) => update(i, { photo_url: url })} uploadFn={uploadFn} />
+          </div>
+        </div>
+      ))}
+
+      <button type="button" onClick={add}
+        className="w-full flex items-center justify-center gap-1.5 py-3 rounded-xl border-2 border-dashed border-gray-200 text-sm font-medium text-gray-400 hover:border-brand-400 hover:text-brand-500 hover:bg-brand-50 transition-colors">
+        <Plus size={16} /> Agregar capítulo
+      </button>
     </div>
   );
 }
@@ -254,9 +355,8 @@ export default function CandidateProfilePage() {
     if (!token) return;
     setSaving(true); setError(null);
     try {
-      const updated = await adminApiExtended.candidateProfile.update(token, form);
+      await adminApiExtended.candidateProfile.update(token, form);
       applyBrandColors(form.color_primary, form.color_dark, form.color_accent);
-      updatePublicProfileCache(updated);
       await loadPresets();
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -271,7 +371,6 @@ export default function CandidateProfilePage() {
       const activated = await adminApiExtended.candidatePresets.activate(token, id);
       setForm(activated);
       applyBrandColors(activated.color_primary, activated.color_dark, activated.color_accent);
-      updatePublicProfileCache(activated);
       await loadPresets();
     } catch {}
     finally { setActivatingId(null); }
@@ -422,6 +521,19 @@ export default function CandidateProfilePage() {
             <VideoDrop label="Video hero" value={form.hero_video_url ?? ""}
               onUrl={(url) => setForm((f) => ({ ...f, hero_video_url: url }))} uploadFn={uploadVideo} />
           </div>
+        </Section>
+
+        {/* Línea de tiempo (Mi Historia) */}
+        <Section title="Mi historia (línea de tiempo)">
+          <p className="text-xs text-gray-400 mb-4">
+            Cada capítulo es un momento clave de tu vida o trayectoria — aparece en la sección
+            "Conoce mi historia" del sitio público, en el orden que los dejes aquí.
+          </p>
+          <TimelineEditor
+            value={form.bio_timeline ?? []}
+            onChange={(milestones) => setForm((f) => ({ ...f, bio_timeline: milestones }))}
+            uploadFn={uploadPhoto}
+          />
         </Section>
 
         {/* Colores */}

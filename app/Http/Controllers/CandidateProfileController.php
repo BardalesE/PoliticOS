@@ -6,16 +6,34 @@ use App\Models\CandidateProfile;
 use App\Models\SuggestedQuestion;
 use App\Models\Topic;
 use App\Models\District;
+use App\Services\FrontendRevalidationService;
+use App\Support\CacheBust;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class CandidateProfileController extends Controller
 {
+    public function __construct(private FrontendRevalidationService $revalidation) {}
+
     // GET /api/candidate  (público)
     public function show(): JsonResponse
     {
-        $profile   = CandidateProfile::current();
+        $profile     = CandidateProfile::current();
+        $profileData = null;
+        if ($profile) {
+            $profileData = $profile->toArray();
+            // Cache-busting: solo en la respuesta pública, nunca en adminShow()
+            // ni en el objeto que /admin/candidate-profile devuelve tras
+            // guardar — el formulario de edición debe seguir viendo/guardando
+            // la URL canónica, sin "?v=" pegado.
+            $profileData['photo_url']      = CacheBust::url($profile->photo_url, $profile->updated_at);
+            $profileData['logo_url']       = CacheBust::url($profile->logo_url, $profile->updated_at);
+            $profileData['hero_photo_url'] = CacheBust::url($profile->hero_photo_url, $profile->updated_at);
+            $profileData['hero_video_url'] = CacheBust::url($profile->hero_video_url, $profile->updated_at);
+            $profileData['testimonial_video_url'] = CacheBust::url($profile->testimonial_video_url, $profile->updated_at);
+        }
+
         $questions = SuggestedQuestion::where('is_active', true)
             ->orderBy('sort_order')
             ->get(['question', 'topic']);
@@ -33,7 +51,7 @@ class CandidateProfileController extends Controller
         $ai = \App\Models\AiSetting::current();
 
         return response()->json([
-            'profile'             => $profile,
+            'profile'             => $profileData,
             'suggested_questions' => $questions,
             'topics'              => $topics,
             'districts'           => $districts,
@@ -94,17 +112,44 @@ class CandidateProfileController extends Controller
             'facebook_url'   => ['nullable', 'string', 'max:500'],
             'instagram_url'  => ['nullable', 'string', 'max:500'],
             'whatsapp_number' => ['nullable', 'string', 'max:20'],
+            // Rediseño narrativo del sitio público
+            'bio_timeline'           => ['nullable', 'array'],
+            'bio_timeline.*.year'    => ['required_with:bio_timeline', 'string', 'max:10'],
+            'bio_timeline.*.title'   => ['required_with:bio_timeline', 'string', 'max:200'],
+            'bio_timeline.*.detail'  => ['nullable', 'string'],
+            'bio_timeline.*.photo_url' => ['nullable', 'string', 'max:500'],
+            'bio_timeline.*.category'  => ['nullable', 'string', 'max:50'],
+            'why_running'            => ['nullable', 'string'],
+            'differentiator'         => ['nullable', 'string', 'max:300'],
+            'testimonial_video_url'  => ['nullable', 'string', 'max:500'],
         ]);
 
-        // NOT NULL columns with DB defaults: replace null (from ConvertEmptyStringsToNull) with defaults
-        $data['list_number']   = $data['list_number']   ?? '1';
-        $data['color_primary'] = $data['color_primary'] ?? '#DC2626';
-        $data['color_dark']    = $data['color_dark']    ?? '#7F1D1D';
-        $data['color_accent']  = $data['color_accent']  ?? '#C9A84C';
-
         $profile = CandidateProfile::firstOrNew(['is_active' => true]);
+
+        // Columnas NOT NULL sin default en la BD: solo hay que rellenarlas si
+        // la fila es nueva (INSERT) o si el request mandó explícitamente un
+        // valor vacío (ConvertEmptyStringsToNull lo vuelve null). Si la fila
+        // YA EXISTE y el campo simplemente no vino en este request, no se debe
+        // tocar — antes esto pisaba el color de marca ya guardado del tenant
+        // con el rojo por defecto en CUALQUIER update parcial (ej. subir solo
+        // el logo), sin que el admin tocara nada de colores.
+        foreach ([
+            'list_number'   => '1',
+            'color_primary' => '#DC2626',
+            'color_dark'    => '#7F1D1D',
+            'color_accent'  => '#C9A84C',
+        ] as $field => $default) {
+            if (array_key_exists($field, $data) && $data[$field] === null) {
+                $data[$field] = $default;
+            } elseif (!$profile->exists && !array_key_exists($field, $data)) {
+                $data[$field] = $default;
+            }
+        }
+
         $profile->is_active = true;
         $profile->fill($data)->save();
+
+        $this->revalidation->notify(app('tenant')?->slug);
 
         return response()->json($profile);
     }
@@ -145,6 +190,10 @@ class CandidateProfileController extends Controller
             'facebook_url'   => ['nullable', 'string', 'max:500'],
             'instagram_url'  => ['nullable', 'string', 'max:500'],
             'whatsapp_number' => ['nullable', 'string', 'max:20'],
+            'bio_timeline'           => ['nullable', 'array'],
+            'why_running'            => ['nullable', 'string'],
+            'differentiator'         => ['nullable', 'string', 'max:300'],
+            'testimonial_video_url'  => ['nullable', 'string', 'max:500'],
         ]);
 
         $data['list_number']   = $data['list_number']   ?? '1';
@@ -167,6 +216,8 @@ class CandidateProfileController extends Controller
             $preset->update(['is_active' => true]);
         });
 
+        $this->revalidation->notify(app('tenant')?->slug);
+
         return response()->json($preset->fresh());
     }
 
@@ -176,7 +227,7 @@ class CandidateProfileController extends Controller
         $preset = CandidateProfile::findOrFail($id);
 
         if ($preset->is_active) {
-            return response()->json(['error' => 'No puedes eliminar el perfil activo.'], 422);
+            return response()->json(['message' => 'No puedes eliminar el perfil activo.'], 422);
         }
 
         $preset->delete();

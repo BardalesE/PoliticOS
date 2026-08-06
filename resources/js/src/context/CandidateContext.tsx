@@ -1,7 +1,8 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { candidateApi, resolveTenantSlug, type CandidatePublicData, type CandidateProfile, type TopicItem, type ChatBtnConfig, type VisitedPlace } from "@/lib/api";
+import { candidateApi, type CandidatePublicData, type CandidateProfile, type TopicItem, type ChatBtnConfig, type VisitedPlace } from "@/lib/api";
+import { tenantStorageKey } from "@/lib/utils";
 
 function hexToRgbVars(hex: string): string | null {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -21,11 +22,6 @@ function applyColors(primary?: string | null, dark?: string | null, accent?: str
     if (rgb) root.style.setProperty("--brand-dark-rgb", rgb);
   }
   if (accent) root.style.setProperty("--brand-accent", accent);
-}
-
-function tenantStorageKey(base: string) {
-  const slug = resolveTenantSlug() || "default";
-  return `${base}_${slug}`;
 }
 
 // Valores por defecto (usados mientras carga o si la API falla)

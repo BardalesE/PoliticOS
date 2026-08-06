@@ -5,15 +5,23 @@ import {
 } from "recharts";
 import { useCandidate } from "@/context/CandidateContext";
 
-const STATIC_COLORS = ["#E85D04", "#F59E0B", "#16A34A", "#2563EB", "#7C3AED", "#DB2777", "#0891B2"];
+// Misma paleta unificada que TopicsChart/RANK_COLORS (ver
+// dataviz/scripts/validate_palette.js) — orden fijo, no rotar.
+const STATIC_COLORS = ["#2563EB", "#16A34A", "#F59E0B", "#7C3AED", "#0891B2", "#DB2777", "#E85D04"];
 
 type DataPoint = { topic: string; count: number };
 
-function CustomTooltip({ active, payload }: any) {
+// Tipo mínimo propio (no el TooltipContentProps oficial de Recharts, que
+// exige todas sus props como requeridas al usarse como <CustomTooltip .../>
+// vía `content`, fricción innecesaria para un componente de presentación puro).
+type TooltipRenderProps = { active?: boolean; payload?: { value: number; payload: DataPoint }[] };
+
+function CustomTooltip({ active, payload }: TooltipRenderProps) {
   if (!active || !payload?.length) return null;
+  const point = payload[0].payload;
   return (
     <div className="bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 shadow-xl">
-      <p className="text-xs text-gray-400 capitalize mb-0.5">{payload[0].payload.topic}</p>
+      <p className="text-xs text-gray-400 capitalize mb-0.5">{point.topic}</p>
       <p className="text-sm font-bold text-gray-900">{payload[0].value} mensajes</p>
     </div>
   );

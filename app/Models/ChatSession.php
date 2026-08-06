@@ -10,6 +10,11 @@ class ChatSession extends Model
     protected $fillable = [
         'session_id', 'ip', 'user_agent', 'started_at',
         'visitor_uuid', 'geo_country', 'geo_region', 'geo_city', 'geo_lat', 'geo_lng',
+        // geo_province/geo_district: GeolocateSessionJob las escribe pero
+        // faltaban acá — el mass-assignment las descartaba en silencio y
+        // IntelligenceController::geoBreakdown() (nivel provincia/distrito)
+        // devolvía siempre vacío. Ver informe de QA.
+        'geo_province', 'geo_district',
         'browser_lat', 'browser_lng', 'browser_accuracy', 'browser_location_at',
         'device_type', 'referrer', 'utm_source', 'utm_medium', 'utm_campaign',
         'duration_seconds', 'messages_count', 'nonsense_count', 'blocked_at',

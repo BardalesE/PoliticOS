@@ -135,7 +135,7 @@ class KnowledgeDocumentController extends Controller
     {
         $doc = KnowledgeDocument::findOrFail($id);
         if (empty($doc->content)) {
-            return response()->json(['error' => 'Documento sin contenido extraído'], 422);
+            return response()->json(['message' => 'Documento sin contenido extraído'], 422);
         }
 
         $this->embeddings->delete($doc->id);

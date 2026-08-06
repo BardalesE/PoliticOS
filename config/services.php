@@ -84,4 +84,31 @@ return [
         'key' => env('INGEST_KEY'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Revalidación del frontend Next.js (SaaS: cambios instantáneos)
+    |--------------------------------------------------------------------------
+    | Tras guardar branding/contenido desde el admin, Laravel avisa al route
+    | handler /api/revalidate del frontend para que el ISR de Next.js
+    | refresque de inmediato en vez de esperar su TTL natural (30-120s). Usa
+    | FRONTEND_URL (ya existe para CORS) + un secreto dedicado.
+    */
+
+    'revalidate' => [
+        'url'    => env('FRONTEND_URL'),
+        'secret' => env('REVALIDATE_SECRET'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Cron externo (GitHub Actions) — sustituto de un cron real de servidor
+    |--------------------------------------------------------------------------
+    | POST /api/system/run-scheduler, protegido por X-Scheduler-Key. Ver
+    | .github/workflows/scheduler.yml (dispara cada 5 min, gratis).
+    */
+
+    'scheduler' => [
+        'key' => env('SCHEDULER_KEY'),
+    ],
+
 ];

@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useCandidate } from "@/context/CandidateContext";
-import { adminApiExtended, type AiSetting } from "@/lib/api";
+import { adminApiExtended, normalizeApiBase, tenantHeaders, type AiSetting } from "@/lib/api";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FormField } from "@/components/admin/FormField";
 import { cn } from "@/lib/utils";
@@ -173,10 +173,10 @@ export default function AiSettingsPage() {
     setNoInternet(false);
     setNetNote(null);
     try {
-      const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+      const API = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
       const r = await fetch(`${API}/admin/ai-settings/test`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...tenantHeaders() },
       });
       const data = await r.json();
       if (data.internet === false) {

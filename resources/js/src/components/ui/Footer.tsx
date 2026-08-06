@@ -5,14 +5,16 @@ import { motion } from "framer-motion";
 import { useCandidate } from "@/context/CandidateContext";
 import { TenantLink } from "@/components/ui/TenantLink";
 
-// Fase 7: la home es de pestañas — las secciones se abren con ?seccion=
-// (deep-link real), no con anclas que quedarían ocultas tras las pestañas.
+// HomeTabs (la sección "Explora todo" al final de la home) abre sus pestañas
+// vía ?seccion= (deep-link real), no anclas — por eso estos links de footer
+// usan query params y no "#" para las secciones que viven ahí adentro.
 // "Servicios" (#servicios / AssistantPreview) se retiró por redundante y
-// "Tu voz" desapareció como link: la opinión ahora es un modal dentro de la
-// home (botón en DosVias), no una URL enlazable; su equivalente es el chat.
+// "Tu voz" desapareció como link: la opinión ahora es el formulario de
+// ParticipateCTA en el scroll narrativo, no una URL enlazable aparte; su
+// equivalente rápido sigue siendo el chat.
 const contentLinks = [
   { href: "/propuestas",           label: "Propuestas" },
-  { href: "/distritos",            label: "Caseríos" },
+  { href: "/distritos",            label: "Mi Comunidad" },
   { href: "/galeria",              label: "Galería" },
   { href: "/videos",               label: "Videos" },
   { href: "/?seccion=documentos",  label: "Documentos" },
@@ -20,7 +22,6 @@ const contentLinks = [
 
 const participaLinks = [
   { href: "/?seccion=eventos",  label: "Agenda" },
-  { href: "/?seccion=lugares",  label: "Lugares Visitados" },
   { href: "/en-vivo",           label: "En vivo" },
   { href: "/chat",              label: "Chatbot IA" },
 ];
@@ -30,7 +31,12 @@ export function Footer() {
   const shortName = profile.name.split(" ")[0];
 
   return (
-    <footer style={{ background: "var(--page-ink, #0f1a12)", color: "#d9d4c9" }}>
+    <footer
+      className="pb-16 md:pb-0"
+      style={{ background: "rgb(var(--brand-dark-rgb))", color: "#d9d4c9" }}
+    >
+      {/* pb-16 en mobile: reserva el espacio de MobileBottomNav (fixed,
+          h-16 + safe-bottom), que si no taparía el último tramo del footer. */}
 
       {/* Franja tricolor */}
       <div className="flex h-[5px]">
@@ -39,9 +45,11 @@ export function Footer() {
         <div className="flex-1" style={{ background: "rgb(var(--brand-primary-rgb))" }} />
       </div>
 
-      {/* Grid principal */}
+      {/* Grid principal — 2 columnas ya desde mobile (Contenido/Participa lado
+          a lado) en vez de las 4 secciones apiladas de antes, que se sentían
+          muy densas en celular; Marca y Elecciones ocupan el ancho completo. */}
       <div className="max-w-5xl mx-auto px-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-9 py-16">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-8 sm:gap-9 py-10 sm:py-16">
 
           {/* Columna 1: Marca */}
           <motion.div
@@ -49,7 +57,7 @@ export function Footer() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-60px" }}
             transition={{ duration: 0.45 }}
-            className="lg:col-span-1"
+            className="col-span-2 lg:col-span-1"
           >
             {/* Badge + meta */}
             <div className="flex items-center gap-3 mb-4">
@@ -69,7 +77,6 @@ export function Footer() {
                   style={{ color: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 80%, white)" }}
                 >
                   {profile.party || "Campaña Electoral"}
-                  {profile.list_number ? ` · Lista N°${profile.list_number}` : ""}
                 </b>
                 <span className="text-sm font-semibold text-white leading-tight">
                   {profile.name}
@@ -162,6 +169,7 @@ export function Footer() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-60px" }}
             transition={{ duration: 0.45, delay: 0.19 }}
+            className="col-span-2 lg:col-span-1"
           >
             <h4
               className="text-[11.5px] font-bold uppercase tracking-[.16em] mb-4"

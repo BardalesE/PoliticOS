@@ -36,3 +36,10 @@ Schedule::call(function () {
         });
     });
 })->dailyAt('03:00')->name('purge-bot-sessions-per-tenant');
+
+// Cada 5 min: retomar merges de "En vivo" que quedaron pendientes/a medias
+// (streams largos con QUEUE_CONNECTION=sync — ver ContinueLiveStreamMerges).
+Schedule::command('livestreams:continue-merges')
+    ->everyFiveMinutes()
+    ->name('continue-livestream-merges')
+    ->withoutOverlapping();

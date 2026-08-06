@@ -280,12 +280,18 @@ DB_DATABASE=...                # BD del tenant por defecto en local
 APP_TENANT_SLUG=...            # tenant activo en local (en prod: subdominio)
 SUPER_ADMIN_KEY=...            # acceso a /api/superadmin/*
 INGEST_KEY=...                 # auth del servicio Python de ingest
+REVALIDATE_SECRET=...          # avisa al frontend (POST /api/revalidate) tras guardar
+                                # branding/contenido — mismo valor en Vercel/Next.js
+SCHEDULER_KEY=...              # cron externo (GitHub Actions) → POST /api/system/run-scheduler
+                                # mismo valor que el secret SCHEDULER_KEY en GitHub Actions
+APP_TIMEZONE=America/Lima      # default en config/app.php — "hoy" en analytics/alertas/clustering
 
 AI_PROVIDER=claude             # claude | openai
 ANTHROPIC_API_KEY=... / CLAUDE_MODEL=...
 OPENAI_API_KEY=... / OPENAI_MODEL=...
 GROQ_API_KEY=... / GROQ_MODEL=...   # clasificador del ingest
-AI_MAX_TOKENS=...
+# max_tokens de salida del chat: NO es env var, vive en AiSetting.max_tokens (BD
+# del tenant, /admin/ai-settings). Piso mínimo en CivicAIService::MIN_MAX_TOKENS.
 
 REDIS_HOST/PORT/PASSWORD=...   # cache, sesiones, queue, broker
 QUEUE_CONNECTION=...

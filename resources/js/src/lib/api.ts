@@ -3,7 +3,18 @@
  * Cliente API tipado para el backend Laravel.
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+// Normaliza NEXT_PUBLIC_API_URL: acepta el valor con o sin sufijo "/api" y con o
+// sin slash final, para que un typo de config (falta el "/api") no rompa CORS
+// silenciosamente — las rutas de Laravel solo llevan CORS en el grupo "api/*"
+// (ver config/cors.php), así que pegarle a la raíz del dominio nunca trae el
+// header Access-Control-Allow-Origin y el navegador lo reporta como error de
+// red genérico ("Failed to fetch"), no como 404.
+export function normalizeApiBase(url: string): string {
+  const trimmed = url.replace(/\/+$/, "");
+  return trimmed.endsWith("/api") ? trimmed : `${trimmed}/api`;
+}
+
+const API_URL = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
 // Dev: set NEXT_PUBLIC_TENANT_SLUG in .env.local
 // Prod: auto-detected from subdomain (maria.politicos.pe → "maria")
 const BASE_DOMAIN = process.env.NEXT_PUBLIC_BASE_DOMAIN || "";
@@ -147,6 +158,12 @@ export async function request<T>(
 
   if (isGet) {
     _cache.set(cacheKey(endpoint, token), { data, expires: Date.now() + ttl });
+  } else {
+    // El comentario de arriba ("cleared on POST/PUT/DELETE mutations") no era
+    // cierto hasta este fix: ninguna mutación invalidaba nada, así que un GET
+    // al mismo endpoint (incluido el propio panel admin viendo su cambio)
+    // podía devolver el dato viejo hasta 30s después de guardar.
+    invalidateCache(endpoint);
   }
   return data;
 }
@@ -526,6 +543,8 @@ export const homeApi = {
   events:       () => request<CampaignEvent[]>("/events"),
   featuredEvent:() => request<CampaignEvent | null>("/events/featured"),
   teamMembers:  () => request<TeamMember[]>("/team-members"),
+  achievements: () => request<Achievement[]>("/achievements"),
+  testimonials: () => request<Testimonial[]>("/testimonials"),
   settings:     () => request<HomeSettings>("/home-settings"),
 };
 
@@ -600,6 +619,44 @@ export type CandidateProfile = {
   facebook_url: string | null;
   instagram_url: string | null;
   whatsapp_number: string | null;
+  // Rediseño narrativo del sitio público
+  bio_timeline?: BioMilestone[] | null;
+  why_running?: string | null;
+  differentiator?: string | null;
+  testimonial_video_url?: string | null;
+};
+
+export type BioMilestone = {
+  year: string;
+  title: string;
+  detail?: string | null;
+  photo_url?: string | null;
+  category?: string | null;
+};
+
+export type Achievement = {
+  id: number;
+  title: string;
+  description: string | null;
+  metric_label: string | null;
+  metric_value: string | null;
+  photo_before_url: string | null;
+  photo_after_url: string | null;
+  district: string | null;
+  status: "completado" | "en_curso";
+  sort_order: number;
+  is_active: boolean;
+};
+
+export type Testimonial = {
+  id: number;
+  name: string;
+  role: string | null;
+  photo_url: string | null;
+  quote: string;
+  district: string | null;
+  sort_order: number;
+  is_active: boolean;
 };
 
 export type TopicItem = {
@@ -761,6 +818,28 @@ export const adminApiExtended = {
       request<SuggestedQuestion>(`/admin/suggested-questions/${id}`, { method: "PUT", body: JSON.stringify(data) }, token),
     delete: (token: string, id: number) =>
       request<{ deleted: boolean }>(`/admin/suggested-questions/${id}`, { method: "DELETE" }, token),
+  },
+
+  achievements: {
+    list: (token: string, page = 1) =>
+      request<Paginated<Achievement>>(`/admin/achievements?page=${page}`, {}, token),
+    upload: (token: string, formData: FormData) =>
+      upload<Achievement>("/admin/achievements", formData, token),
+    update: (token: string, id: number, formData: FormData) =>
+      upload<Achievement>(`/admin/achievements/${id}`, formData, token, "PUT"),
+    delete: (token: string, id: number) =>
+      request<{ deleted: boolean }>(`/admin/achievements/${id}`, { method: "DELETE" }, token),
+  },
+
+  testimonials: {
+    list: (token: string, page = 1) =>
+      request<Paginated<Testimonial>>(`/admin/testimonials?page=${page}`, {}, token),
+    upload: (token: string, formData: FormData) =>
+      upload<Testimonial>("/admin/testimonials", formData, token),
+    update: (token: string, id: number, formData: FormData) =>
+      upload<Testimonial>(`/admin/testimonials/${id}`, formData, token, "PUT"),
+    delete: (token: string, id: number) =>
+      request<{ deleted: boolean }>(`/admin/testimonials/${id}`, { method: "DELETE" }, token),
   },
 };
 

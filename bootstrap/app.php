@@ -12,6 +12,15 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // Sin esto, $request->ip() devuelve la IP interna del balanceador de
+        // Render/Cloudflare, no la del ciudadano — GeoIPService nunca resuelve
+        // nada real (IP privada → ip-api.com falla → geo_region queda null,
+        // cacheado 24h) y "Top regiones" en el dashboard siempre sale vacío.
+        // '*' porque no controlamos el rango de IPs del proxy de la
+        // plataforma (patrón estándar para apps 100% detrás de un PaaS
+        // gestionado). Ver informe de QA.
+        $middleware->trustProxies(at: '*');
+
         // CORS aplicado a todas las rutas (necesario para Next.js en puerto 3000)
         $middleware->prepend(\Illuminate\Http\Middleware\HandleCors::class);
 
@@ -55,6 +64,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'superadmin'   => \App\Http\Middleware\EnsureSuperAdmin::class,
             'plan_feature' => \App\Http\Middleware\CheckPlanFeature::class,
             'ingest_key'   => \App\Http\Middleware\EnsureIngestKey::class,
+            'scheduler_key' => \App\Http\Middleware\EnsureSchedulerKey::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

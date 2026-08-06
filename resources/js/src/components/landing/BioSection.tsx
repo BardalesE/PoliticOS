@@ -1,24 +1,15 @@
 "use client";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { Flag, MapPin, Milestone, User } from "lucide-react";
+import { Flag, MapPin, User } from "lucide-react";
 import { useCandidate } from "@/context/CandidateContext";
-
-// Hito de trayectoria del candidato.
-// TODO(backend): /api/candidate aún no expone `bio_timeline` (JSON en
-// CandidateProfile: [{ year, title, detail? }]). Cuando exista, la línea de
-// tiempo se enciende sola; mientras tanto la sección muestra solo la bio.
-interface BioMilestone {
-  year: string;
-  title: string;
-  detail?: string | null;
-}
+import { StoryTimeline } from "@/components/landing/StoryTimeline";
+import { EmphasisText } from "@/lib/textEmphasis";
 
 export function BioSection() {
   const { profile } = useCandidate();
 
-  const timeline: BioMilestone[] =
-    (profile as { bio_timeline?: BioMilestone[] }).bio_timeline ?? [];
+  const timeline = profile.bio_timeline ?? [];
 
   // Sin bio ni trayectoria no hay nada que contar: la sección no renderiza.
   if (!profile.bio && timeline.length === 0) return null;
@@ -72,9 +63,6 @@ export function BioSection() {
                 <dt className="sr-only">Partido</dt>
                 <dd className="font-semibold">
                   {profile.party}
-                  {profile.list_number && (
-                    <span className="ml-1.5 font-normal opacity-60">· Lista {profile.list_number}</span>
-                  )}
                 </dd>
               </div>
             )}
@@ -119,46 +107,45 @@ export function BioSection() {
             </h2>
             {paragraphs.map((p, i) => (
               <p key={i} className="text-base leading-relaxed mb-4" style={{ color: "var(--page-ink-soft)" }}>
-                {p}
+                <EmphasisText text={p} />
               </p>
             ))}
           </motion.div>
-
-          {/* Línea de tiempo — solo si el backend expone hitos */}
-          {timeline.length > 0 && (
-            <ol className="mt-8 relative border-l-2 pl-6 space-y-7" style={{ borderColor: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 25%, transparent)" }}>
-              {timeline.map((m, i) => (
-                <motion.li
-                  key={`${m.year}-${i}`}
-                  initial={{ opacity: 0, x: -12 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true, margin: "-40px" }}
-                  transition={{ duration: 0.4, delay: i * 0.06 }}
-                  className="relative"
-                >
-                  <span
-                    className="absolute -left-[31px] top-1 w-4 h-4 rounded-full grid place-items-center"
-                    style={{ background: "rgb(var(--brand-primary-rgb))" }}
-                  >
-                    <Milestone size={9} className="text-white" aria-hidden />
-                  </span>
-                  <p className="text-[11px] font-bold uppercase tracking-[.15em]" style={{ color: "rgb(var(--brand-primary-rgb))" }}>
-                    {m.year}
-                  </p>
-                  <p className="font-serif font-semibold text-base mt-0.5" style={{ color: "var(--page-ink)" }}>
-                    {m.title}
-                  </p>
-                  {m.detail && (
-                    <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--page-ink-soft)" }}>
-                      {m.detail}
-                    </p>
-                  )}
-                </motion.li>
-              ))}
-            </ol>
-          )}
         </div>
       </div>
+
+      {/* Mi Historia — a ancho completo (no dentro de la columna angosta de
+          arriba): el rediseño "documental" necesita el espacio completo
+          para el layout de 3 columnas (año/foto/texto) de cada capítulo. */}
+      {timeline.length > 0 && (
+        <div className="max-w-5xl mx-auto mt-20 md:mt-28">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-60px" }}
+            transition={{ duration: 0.5 }}
+            className="mb-14 md:mb-20 max-w-xl"
+          >
+            <span
+              className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.2em] mb-4"
+              style={{ color: "rgb(var(--brand-primary-rgb))" }}
+            >
+              <span className="w-2 h-2 rounded-full" style={{ background: "rgb(var(--brand-primary-rgb))" }} />
+              Mi Historia
+            </span>
+            <h2
+              className="font-serif font-semibold leading-[1.04] tracking-tight mt-2"
+              style={{ fontSize: "clamp(31px,4.4vw,50px)", color: "var(--page-ink)" }}
+            >
+              Cada capítulo{" "}
+              <em className="not-italic" style={{ color: "rgb(var(--brand-dark-rgb))" }}>
+                cuenta algo real.
+              </em>
+            </h2>
+          </motion.div>
+          <StoryTimeline milestones={timeline} />
+        </div>
+      )}
     </section>
   );
 }

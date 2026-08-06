@@ -1,14 +1,14 @@
 "use client";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Shield, ChevronRight } from "lucide-react";
+import { Menu, X, ChevronRight } from "lucide-react";
 import Image from "next/image";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useCandidate } from "@/context/CandidateContext";
 import { TenantLink } from "@/components/ui/TenantLink";
-import { tenantHeaders } from "@/lib/api";
+import { tenantHeaders, normalizeApiBase } from "@/lib/api";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+const API = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
 
 const NAV_DEFS = [
   { href: "/",           label: "Inicio" },
@@ -16,7 +16,7 @@ const NAV_DEFS = [
   { href: "/galeria",    label: "Galería" },
   { href: "/videos",     label: "Videos" },
   { href: "/en-vivo",    label: "En vivo", live: true },
-  { href: "/distritos",  label: "Lugares Visitados" },
+  { href: "/distritos",  label: "Mi Comunidad" },
   { href: "/chat",       label: "Chat IA" },
 ];
 
@@ -60,28 +60,6 @@ export function Navbar() {
     <>
       <header className="sticky top-0 z-50 w-full">
 
-        {/* Top bar — azul institucional */}
-        <div className="bg-brand-700">
-          <div className="mx-auto max-w-7xl px-5 py-2 flex items-center justify-between gap-3">
-            <span className="text-[11px] font-semibold text-white/80 hidden sm:block">
-              {profile.party || "Campaña Electoral"} · {profile.location}
-            </span>
-            <span className="text-[11px] font-semibold text-white/80 sm:hidden">
-              Lista N°{profile.list_number} · {profile.location}
-            </span>
-            <TenantLink
-              href="/?seccion=documentos"
-              className="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white
-                         text-[10px] sm:text-[11px] font-bold uppercase px-3 py-1.5 rounded-full
-                         transition-colors shrink-0 border border-white/20"
-            >
-              <Shield size={10} />
-              <span className="hidden sm:inline">Portal de Transparencia</span>
-              <span className="sm:hidden">Transparencia</span>
-            </TenantLink>
-          </div>
-        </div>
-
         {/* Header principal */}
         <div
           className="bg-white border-b border-ink-200 transition-all duration-300"
@@ -95,7 +73,7 @@ export function Navbar() {
             <div className="flex items-center justify-between h-16 sm:h-[68px]">
 
               {/* Logo */}
-              <TenantLink href="/" className="flex items-center gap-3 shrink-0 group">
+              <TenantLink href="/" className="flex items-center gap-3 min-w-0 group">
                 <div
                   className="relative w-11 h-11 rounded-xl overflow-hidden border-2 border-brand-100 shadow-sm
                               group-hover:border-brand-400 group-hover:shadow-md transition-all duration-200 shrink-0"
@@ -114,11 +92,15 @@ export function Navbar() {
                     </div>
                   )}
                 </div>
-                <div className="hidden sm:block leading-tight">
-                  <p className="text-[11px] font-extrabold uppercase tracking-[1.5px] text-brand-700">
+                {/* Antes escondido bajo `sm:` (hidden sm:block) — con la franja
+                    superior retirada, dejaba el header mobile con solo el logo
+                    y el hamburguesa, sin texto. Ahora siempre visible, con
+                    truncate + min-w-0 en el padre para no empujar el botón. */}
+                <div className="leading-tight min-w-0">
+                  <p className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-[1.5px] text-brand-700 truncate">
                     {profile.party || "Campaña Electoral"}
                   </p>
-                  <p className="text-xs font-semibold text-ink-500">
+                  <p className="text-[11px] sm:text-xs font-semibold text-ink-500 truncate">
                     {shortName} · {profile.title}
                   </p>
                 </div>
@@ -235,9 +217,6 @@ export function Navbar() {
                   <div>
                     <p className="text-white font-extrabold text-sm uppercase tracking-wider leading-none">
                       {profile.party || "Campaña Electoral"}
-                    </p>
-                    <p className="text-white/65 text-[11px] font-semibold mt-0.5">
-                      Lista N°{profile.list_number}
                     </p>
                   </div>
                 </div>

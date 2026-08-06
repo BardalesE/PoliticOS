@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\ChatMessage;
 use App\Models\ChatSession;
+use App\Models\District;
 use App\Models\VisitorProfile;
 use App\Services\TenantContext;
 use Illuminate\Bus\Queueable;
@@ -99,6 +100,12 @@ class AnalyzeMessageJob implements ShouldQueue
 
     // ─── Sentimiento ────────────────────────────────────────────────────────
 
+    // Antes: str_contains() por substring, sin límite de palabra — "también"
+    // (contiene "bien" como substring literal) sumaba +0.15 positivo, y
+    // ninguna negación se manejaba ("no es bueno" → +0.15 positivo, mal).
+    // Ver informe de QA.
+    private const NEGATION_WORDS = ['no', 'nunca', 'jamás', 'jamas', 'ni', 'tampoco'];
+
     private function scoreSentiment(string $text): float
     {
         $positive = [
@@ -109,14 +116,62 @@ class AnalyzeMessageJob implements ShouldQueue
         ];
         $negative = [
             'malo', 'pésimo', 'corrupto', 'mentira', 'fraude', 'robo', 'ladrón',
-            'terrible', 'horrible', 'inútil', 'problema', 'fracaso', 'nunca', 'jamás',
+            'terrible', 'horrible', 'inútil', 'problema', 'fracaso',
             'desastre', 'engaño', 'incapaz', 'peor', 'miedo', 'preocupa', 'falta',
             'no hay', 'olvidado', 'abandonado', 'sin agua', 'sin luz', 'sin pista',
         ];
         $score = 0.0;
-        foreach ($positive as $w) { if (str_contains($text, $w)) $score += 0.15; }
-        foreach ($negative as $w) { if (str_contains($text, $w)) $score -= 0.15; }
+        foreach ($positive as $w) {
+            if (($pos = $this->wordPosition($text, $w)) !== null) {
+                $score += $this->isNegatedBefore($text, $pos) ? -0.15 : 0.15;
+            }
+        }
+        foreach ($negative as $w) {
+            if (($pos = $this->wordPosition($text, $w)) !== null) {
+                $score += $this->isNegatedBefore($text, $pos) ? 0.15 : -0.15;
+            }
+        }
         return max(-1.0, min(1.0, $score));
+    }
+
+    /**
+     * Posición en CARACTERES (compatible con mb_substr, a diferencia de
+     * PREG_OFFSET_CAPTURE que devuelve bytes) de $needle como palabra
+     * completa dentro de $text — no como substring arbitrario. Soporta
+     * needles de varias palabras ("sin agua").
+     */
+    private function wordPosition(string $text, string $needle): ?int
+    {
+        $len = mb_strlen($text);
+        $needleLen = mb_strlen($needle);
+        $offset = 0;
+
+        while (($pos = mb_stripos($text, $needle, $offset)) !== false) {
+            $before = $pos > 0 ? mb_substr($text, $pos - 1, 1) : ' ';
+            $afterPos = $pos + $needleLen;
+            $after = $afterPos < $len ? mb_substr($text, $afterPos, 1) : ' ';
+            if (!preg_match('/[\p{L}\p{N}]/u', $before) && !preg_match('/[\p{L}\p{N}]/u', $after)) {
+                return $pos;
+            }
+            $offset = $pos + 1;
+        }
+        return null;
+    }
+
+    private function containsWord(string $text, string $needle): bool
+    {
+        return $this->wordPosition($text, $needle) !== null;
+    }
+
+    /** ¿Alguna de las ~3 palabras antes de la posición $pos es una negación? */
+    private function isNegatedBefore(string $text, int $pos): bool
+    {
+        $before = mb_substr($text, max(0, $pos - 30), min($pos, 30));
+        $words  = array_slice(preg_split('/\s+/u', trim($before)) ?: [], -3);
+        foreach ($words as $w) {
+            if (in_array(trim($w, ".,;:!?¡¿()\"'"), self::NEGATION_WORDS, true)) return true;
+        }
+        return false;
     }
 
     // ─── Emoción ────────────────────────────────────────────────────────────
@@ -164,7 +219,7 @@ class AnalyzeMessageJob implements ShouldQueue
         $found = [];
         foreach ($map as $concern => $keywords) {
             foreach ($keywords as $kw) {
-                if (str_contains($text, $kw)) { $found[] = $concern; break; }
+                if ($this->containsWord($text, $kw)) { $found[] = $concern; break; }
             }
         }
         return array_slice(array_unique($found), 0, 4);
@@ -172,34 +227,21 @@ class AnalyzeMessageJob implements ShouldQueue
 
     // ─── Distrito mencionado ────────────────────────────────────────────────
 
+    /**
+     * Antes: 19 distritos de UN candidato (San Miguel/Cajamarca) hardcodeados
+     * acá, incluido 'Lima' => ['lima','capital'] que hacía match por
+     * substring dentro de "climático"/"capitalismo". Violaba la invariante
+     * de CLAUDE.md ("no hardcodear identidad de candidato") y para cualquier
+     * tenant que no fuera ese candidato la detección de distrito era basura.
+     * Ahora usa el modelo District real del tenant — el mismo que ya usa
+     * CivicAIService::detectDistrict() — con match por palabra completa.
+     * Ver informe de QA.
+     */
     private function detectDistrict(string $text): ?string
     {
-        // Mapa de distritos con sus variantes de escritura
-        $districts = [
-            'San Miguel'     => ['san miguel', 'sanmiguel'],
-            'San Gregorio'   => ['san gregorio', 'sangregorio'],
-            'Calquis'        => ['calquis'],
-            'Catilluc'       => ['catilluc'],
-            'El Prado'       => ['el prado', 'prado'],
-            'La Florida'     => ['la florida', 'florida'],
-            'Llapa'          => ['llapa'],
-            'Nanchoc'        => ['nanchoc'],
-            'Niepos'         => ['niepos'],
-            'San Silvestre'  => ['san silvestre'],
-            'Cochán'         => ['cochán', 'cochan'],
-            'Tongod'         => ['tongod'],
-            'Lima'           => ['lima', 'capital'],
-            'Cajamarca'      => ['cajamarca'],
-            'Chiclayo'       => ['chiclayo'],
-            'Trujillo'       => ['trujillo'],
-            'Arequipa'       => ['arequipa'],
-            'Cusco'          => ['cusco', 'cuzco'],
-            'Piura'          => ['piura'],
-        ];
-
-        foreach ($districts as $name => $variants) {
-            foreach ($variants as $variant) {
-                if (str_contains($text, $variant)) return $name;
+        foreach (District::activeKeywordsMap() as $name => $keywords) {
+            foreach ((array) $keywords as $kw) {
+                if ($this->containsWord($text, mb_strtolower($kw))) return $name;
             }
         }
         return null;
@@ -268,6 +310,15 @@ class AnalyzeMessageJob implements ShouldQueue
 
     private function isAttack(string $text, string $intent): bool
     {
+        // "me preocupa la corrupción en el país" no es un ataque al
+        // candidato — es una preocupación general sobre el tema. Antes
+        // cualquier mención de estas palabras se marcaba como ataque sin
+        // distinguir contexto, inflando attack_detected y disparando
+        // attack_spike con falsos positivos. Ver informe de QA.
+        if (preg_match('/\bme preocupa|\bqu[eé] opin|\bqu[eé] piensa|\ben el pa[ií]s\b|\ben general\b|\bmi opini[oó]n\b/u', $text)) {
+            return false;
+        }
+
         return $intent === 'ataque' ||
             (bool) preg_match('/\bladrón|\bcorrupt|\bfraude|\bmentiroso|\bimpostor|\bengañ/u', $text);
     }

@@ -1,4 +1,5 @@
 ﻿"use client";
+import { PlanGate } from "@/components/admin/PlanGate";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Trash2, Loader2, Pencil, Users, Upload } from "lucide-react";
 import { adminApi, type TeamMember } from "@/lib/api";
@@ -15,7 +16,7 @@ const EMPTY_FORM = {
   sort_order: 0, is_active: true,
 };
 
-export default function TeamPage() {
+function TeamPageInner() {
   const { token } = useAuth();
   const photoRef = useRef<HTMLInputElement>(null);
 
@@ -265,5 +266,13 @@ export default function TeamPage() {
         onCancel={() => setDeleteTarget(null)}
       />
     </div>
+  );
+}
+
+export default function TeamPage() {
+  return (
+    <PlanGate feature="team">
+      <TeamPageInner />
+    </PlanGate>
   );
 }

@@ -74,9 +74,12 @@ export default {
         },
       },
       fontFamily: {
-        sans:    ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
-        serif:   ["var(--font-serif)", "Source Serif 4", "Georgia", "serif"],
-        display: ["var(--font-display)", "Fraunces", "Georgia", "serif"],
+        sans:      ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
+        serif:     ["var(--font-serif)", "Source Serif 4", "Georgia", "serif"],
+        display:   ["var(--font-display)", "Fraunces", "Georgia", "serif"],
+        // Condensada/bold — uso acotado (Hero, año de StoryTimeline, píldora
+        // flotante); NO reemplaza `display` en el resto del sitio.
+        condensed: ["var(--font-condensed)", "Impact", "sans-serif"],
       },
       // Escala tipográfica de la landing — mobile-first vía clamp().
       // Consolida los valores que las secciones usaban inline; usar

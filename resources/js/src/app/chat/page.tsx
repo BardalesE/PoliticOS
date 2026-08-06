@@ -2,12 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FileText, Play, Link as LinkIcon, X, ImageIcon, ShieldAlert, AlertTriangle, ArrowRight, RotateCcw, Mic, Square } from "lucide-react";
+import { FileText, Play, Link as LinkIcon, X, ImageIcon, ShieldAlert, AlertTriangle, ArrowRight, RotateCcw, Mic, Square, Send, MapPin, Star, Lock } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import ConsentModal from "@/components/chat/ConsentModal";
 import AIBadge from "@/components/chat/AIBadge";
 import { LiveAlert } from "@/components/live/LiveAlert";
 import { useCandidate } from "@/context/CandidateContext";
-import { resolveTenantSlug } from "@/lib/api";
+import { resolveTenantSlug, normalizeApiBase } from "@/lib/api";
+import { tenantStorageKey } from "@/lib/utils";
 import { TenantLink } from "@/components/ui/TenantLink";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -43,7 +46,7 @@ interface WelcomeBack {
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+const API = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
 
 const LS_HISTORY        = "politicos_chat_history";
 const LS_SAVED_AT       = "politicos_chat_saved_at";
@@ -92,14 +95,18 @@ function formatSavedDate(ts: number): string {
 // vez de instalar una dependencia solo para esto. Soporte real: Chrome/Edge/
 // Safari (prefijo webkit). Firefox no la implementa — feature detection oculta
 // el botón ahí en vez de mostrar uno roto.
+interface MinimalSpeechRecognitionEvent {
+  results: { [index: number]: { [index: number]: { transcript: string } } };
+}
+
 interface MinimalSpeechRecognition extends EventTarget {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
   start(): void;
   stop(): void;
-  onresult: ((event: any) => void) | null;
-  onerror: ((event: any) => void) | null;
+  onresult: ((event: MinimalSpeechRecognitionEvent) => void) | null;
+  onerror: ((event: Event) => void) | null;
   onend: (() => void) | null;
 }
 
@@ -186,12 +193,12 @@ function ThinkingAnimation() {
         {[0, 1, 2].map((i) => (
           <span
             key={i}
-            className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce"
+            className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
             style={{ animationDelay: `${i * 150}ms` }}
           />
         ))}
       </div>
-      <span className="text-xs text-zinc-400 italic">{THINKING_STEPS[step]}...</span>
+      <span className="text-xs text-gray-400 italic">{THINKING_STEPS[step]}...</span>
     </div>
   );
 }
@@ -219,7 +226,7 @@ function MediaBadge({ item }: { item: MediaItem }) {
       <>
         <button
           onClick={() => setPreviewOpen(true)}
-          className="w-full text-left rounded-xl overflow-hidden border border-zinc-200 hover:border-zinc-400 transition-colors group"
+          className="w-full text-left rounded-xl overflow-hidden border border-gray-200 hover:border-gray-300 transition-colors group"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -228,10 +235,10 @@ function MediaBadge({ item }: { item: MediaItem }) {
             className="w-full max-h-52 object-cover"
             onError={(e) => { (e.target as HTMLImageElement).parentElement!.style.display = "none"; }}
           />
-          <div className="px-3 py-2 bg-zinc-50 flex items-center gap-2">
-            <ImageIcon size={12} className="text-zinc-400 shrink-0" />
-            <p className="text-xs text-zinc-600 truncate flex-1">{item.title}</p>
-            <span className="text-[10px] text-zinc-400 shrink-0">Ver imagen</span>
+          <div className="px-3 py-2 bg-gray-50 flex items-center gap-2">
+            <ImageIcon size={12} className="text-gray-400 shrink-0" />
+            <p className="text-xs text-gray-400 truncate flex-1">{item.title}</p>
+            <span className="text-[10px] text-gray-400 shrink-0">Ver imagen</span>
           </div>
         </button>
         <AnimatePresence>
@@ -307,7 +314,7 @@ function MediaBadge({ item }: { item: MediaItem }) {
       <>
         <button
           onClick={() => setPreviewOpen(true)}
-          className="w-full text-left rounded-xl overflow-hidden border border-zinc-200 hover:border-red-300 transition-colors group"
+          className="w-full text-left rounded-xl overflow-hidden border border-gray-200 hover:border-red-300 transition-colors group"
         >
           <div className="relative">
             {thumbUrl ? (
@@ -324,12 +331,12 @@ function MediaBadge({ item }: { item: MediaItem }) {
               </div>
             </div>
           </div>
-          <div className="px-3 py-2 bg-zinc-50 flex items-center gap-2">
+          <div className="px-3 py-2 bg-gray-50 flex items-center gap-2">
             <div className="h-5 w-5 rounded bg-red-600 flex items-center justify-center shrink-0">
               <Play size={8} className="text-white fill-white ml-px" />
             </div>
-            <p className="text-xs font-medium text-zinc-800 truncate flex-1">{item.title}</p>
-            <span className="text-[10px] text-zinc-400 shrink-0">Reproducir</span>
+            <p className="text-xs font-medium text-gray-800 truncate flex-1">{item.title}</p>
+            <span className="text-[10px] text-gray-400 shrink-0">Reproducir</span>
           </div>
         </button>
         <AnimatePresence>
@@ -377,9 +384,9 @@ function MediaBadge({ item }: { item: MediaItem }) {
 
   return (
     <a href={item.url} target="_blank" rel="noopener noreferrer"
-      className="flex items-center gap-2 px-3 py-2 bg-zinc-100 border border-zinc-200 rounded-xl hover:bg-zinc-200 transition-colors">
-      <LinkIcon size={14} className="text-zinc-500 shrink-0" />
-      <p className="text-xs text-zinc-700 truncate max-w-[200px]">{item.title}</p>
+      className="flex items-center gap-2 px-3 py-2 bg-gray-100 border border-gray-200 rounded-xl hover:bg-gray-200 transition-colors">
+      <LinkIcon size={14} className="text-gray-500 shrink-0" />
+      <p className="text-xs text-gray-600 truncate max-w-[200px]">{item.title}</p>
     </a>
   );
 }
@@ -398,7 +405,7 @@ function QuickReplyButtons({ replies, onSelect }: { replies: QuickReply[]; onSel
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.1 + i * 0.05 }}
           onClick={() => onSelect(r.value)}
-          className="px-3 py-1.5 bg-white border border-zinc-300 hover:border-zinc-500 hover:bg-zinc-50 rounded-full text-xs font-medium text-zinc-700 transition-colors shadow-sm"
+          className="px-3 py-1.5 bg-white border border-gray-300 hover:border-gray-400 hover:bg-gray-50 rounded-full text-xs font-medium text-gray-600 transition-colors shadow-sm"
         >
           {r.label}
         </motion.button>
@@ -437,7 +444,7 @@ function BlockedBanner() {
       animate={{ opacity: 1, y: 0 }}
       className="flex items-center gap-2 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-medium"
     >
-      <span>🔒</span>
+      <Lock size={13} className="shrink-0" />
       <span>Sesión bloqueada — escribe <strong>hola</strong>, <strong>menú</strong> o <strong>inicio</strong> para continuar</span>
     </motion.div>
   );
@@ -501,7 +508,7 @@ export default function ChatPage() {
     recognition.continuous = false;
     recognition.interimResults = false;
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event) => {
       const transcript = event?.results?.[0]?.[0]?.transcript ?? "";
       if (transcript) {
         // Se agrega al texto existente, por si ya había algo escrito.
@@ -521,15 +528,15 @@ export default function ChatPage() {
     if (welcomeBack !== null) return; // no sobreescribir mientras se muestra la pantalla de bienvenida
     const saveable = messages.filter((m) => !m.pending && m.content.length > 0);
     if (saveable.length === 0) return;
-    localStorage.setItem(LS_HISTORY, JSON.stringify(saveable));
-    localStorage.setItem(LS_SAVED_AT, Date.now().toString());
+    localStorage.setItem(tenantStorageKey(LS_HISTORY), JSON.stringify(saveable));
+    localStorage.setItem(tenantStorageKey(LS_SAVED_AT), Date.now().toString());
   }, [messages, welcomeBack]);
 
   // ── Init ────────────────────────────────────────────────────────────────────
   useEffect(() => {
     const hasConsent = ConsentModal.hasConsent();
     setConsent(hasConsent);
-    const stored = localStorage.getItem(LS_SESSION);
+    const stored = localStorage.getItem(tenantStorageKey(LS_SESSION));
     if (stored) setSessionId(stored);
 
     if (hasConsent) {
@@ -548,22 +555,22 @@ export default function ChatPage() {
     requestGeoLocation(); // pedir GPS siempre que el usuario tenga consentimiento
     let savedMessages: ChatMessage[] = [];
     try {
-      const raw = localStorage.getItem(LS_HISTORY);
+      const raw = localStorage.getItem(tenantStorageKey(LS_HISTORY));
       if (raw) savedMessages = JSON.parse(raw);
     } catch {}
 
     if (savedMessages.length > 0) {
       // Hay historial → mostrar pantalla de bienvenida de regreso
-      const savedName   = localStorage.getItem(LS_CITIZEN_NAME) || "";
-      const savedPoints = localStorage.getItem(LS_CITIZEN_POINTS);
-      const savedAt     = parseInt(localStorage.getItem(LS_SAVED_AT) || "0");
+      const savedName   = localStorage.getItem(tenantStorageKey(LS_CITIZEN_NAME)) || "";
+      const savedPoints = localStorage.getItem(tenantStorageKey(LS_CITIZEN_POINTS));
+      const savedAt     = parseInt(localStorage.getItem(tenantStorageKey(LS_SAVED_AT)) || "0");
       setWelcomeBack({
         name:   savedName,
         points: savedPoints ? parseInt(savedPoints) : null,
         savedAt,
       });
     } else {
-      const regDone = localStorage.getItem(LS_REG_DONE);
+      const regDone = localStorage.getItem(tenantStorageKey(LS_REG_DONE));
       if (regDone) {
         setChatInitialized(true);
         setRegPhase("done");
@@ -609,6 +616,7 @@ export default function ChatPage() {
     const tenant = resolveTenantSlug();
     fetch(`${API}/chat/location`, {
       method:  "POST",
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
         ...(tenant ? { "X-Tenant": tenant } : {}),
@@ -691,7 +699,7 @@ export default function ChatPage() {
   function handleContinue() {
     let saved: ChatMessage[] = [];
     try {
-      const raw = localStorage.getItem(LS_HISTORY);
+      const raw = localStorage.getItem(tenantStorageKey(LS_HISTORY));
       if (raw) saved = JSON.parse(raw);
     } catch {}
 
@@ -723,10 +731,10 @@ export default function ChatPage() {
   // ── Mejora 2: nuevo chat desde cero ──────────────────────────────────────────
 
   function handleNewChat() {
-    localStorage.removeItem(LS_HISTORY);
-    localStorage.removeItem(LS_SAVED_AT);
-    localStorage.removeItem(LS_SESSION);
-    localStorage.removeItem(LS_REG_DONE);
+    localStorage.removeItem(tenantStorageKey(LS_HISTORY));
+    localStorage.removeItem(tenantStorageKey(LS_SAVED_AT));
+    localStorage.removeItem(tenantStorageKey(LS_SESSION));
+    localStorage.removeItem(tenantStorageKey(LS_REG_DONE));
     setSessionId(null);
     setWelcomeBack(null);
     setRegPhase(null);
@@ -793,6 +801,7 @@ export default function ChatPage() {
           const tenant = resolveTenantSlug();
           const r = await fetch(`${API}/citizen/register`, {
             method: "POST",
+            credentials: "include",
             headers: {
               "Content-Type": "application/json",
               ...(tenant ? { "X-Tenant": tenant } : {}),
@@ -818,8 +827,8 @@ export default function ChatPage() {
             const pts  = result.points ?? 50;
             const code = result.referral_code ?? "";
             // Guardar datos del ciudadano para la pantalla de bienvenida de regreso
-            localStorage.setItem(LS_CITIZEN_NAME,   regData.name);
-            localStorage.setItem(LS_CITIZEN_POINTS, pts.toString());
+            localStorage.setItem(tenantStorageKey(LS_CITIZEN_NAME),   regData.name);
+            localStorage.setItem(tenantStorageKey(LS_CITIZEN_POINTS), pts.toString());
             addBotMsg(
               `🎉 ¡Listo, ${regData.name.split(" ")[0]}! Quedaste registrado/a y ganaste **${pts} puntos** de participación.\n\nTu código de referido es **${code}** — compártelo y gana 100 puntos más por cada vecino que se registre.`,
               [
@@ -827,7 +836,7 @@ export default function ChatPage() {
                 { label: "🗺️ Mi distrito",     value: "¿Qué propuestas hay para mi zona?" },
               ]
             );
-            localStorage.setItem(LS_REG_DONE, "done");
+            localStorage.setItem(tenantStorageKey(LS_REG_DONE), "done");
             setChatInitialized(true);
             setRegPhase("done");
           }
@@ -847,7 +856,7 @@ export default function ChatPage() {
     addBotMsg(
       `No hay problema. ¿De qué zona eres y qué problema ves en tu comunidad que más te preocupa? Cuéntame y te explico qué propone ${shortName} para resolverlo. 👇`
     );
-    localStorage.setItem(LS_REG_DONE, "skipped");
+    localStorage.setItem(tenantStorageKey(LS_REG_DONE), "skipped");
     setChatInitialized(true);
     setRegPhase("done");
   }
@@ -869,6 +878,7 @@ export default function ChatPage() {
       const tenant = resolveTenantSlug();
       const r = await fetch(`${API}/chat/stream`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           ...(tenant ? { "X-Tenant": tenant } : {}),
@@ -902,7 +912,7 @@ export default function ChatPage() {
             if (payload.done) {
               if (payload.sessionId) {
                 setSessionId(payload.sessionId);
-                localStorage.setItem(LS_SESSION, payload.sessionId);
+                localStorage.setItem(tenantStorageKey(LS_SESSION), payload.sessionId);
               }
               if (payload.media?.length) {
                 setMessages((m) =>
@@ -937,6 +947,7 @@ export default function ChatPage() {
       const tenant = resolveTenantSlug();
       const r = await fetch(`${API}/chat`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           ...(tenant ? { "X-Tenant": tenant } : {}),
@@ -947,7 +958,7 @@ export default function ChatPage() {
       const data = await r.json();
       if (data.sessionId) {
         setSessionId(data.sessionId);
-        localStorage.setItem(LS_SESSION, data.sessionId);
+        localStorage.setItem(tenantStorageKey(LS_SESSION), data.sessionId);
       }
       setMessages((m) =>
         m.map((x) =>
@@ -1042,17 +1053,30 @@ export default function ChatPage() {
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white flex flex-col">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex flex-col">
       <LiveAlert />
 
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-zinc-200 px-4 py-3">
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="font-bold text-zinc-900">Asistente PoliticOS</h1>
-            <AIBadge mode={assistantMode} />
+      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-gray-200 px-4 py-3">
+        <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            {profile.photo_url || profile.logo_url ? (
+              <img
+                src={profile.photo_url ?? profile.logo_url ?? undefined}
+                alt={profile.name}
+                className="h-9 w-9 rounded-full object-cover shrink-0 border border-gray-200"
+              />
+            ) : (
+              <div className="h-9 w-9 rounded-full bg-brand-500 flex items-center justify-center shrink-0">
+                <span className="font-serif font-bold text-white text-sm leading-none">{shortName[0]}</span>
+              </div>
+            )}
+            <div className="min-w-0">
+              <h1 className="font-serif font-bold text-gray-900 truncate">{shortName}</h1>
+              <AIBadge mode={assistantMode} />
+            </div>
           </div>
-          <TenantLink href="/" className="text-sm text-zinc-600 hover:underline">Inicio</TenantLink>
+          <TenantLink href="/" className="text-sm text-gray-500 hover:text-brand-600 transition-colors shrink-0">Inicio</TenantLink>
         </div>
       </header>
 
@@ -1065,21 +1089,29 @@ export default function ChatPage() {
             transition={{ duration: 0.4 }}
             className="w-full max-w-sm"
           >
-            <div className="bg-white border border-zinc-200 rounded-2xl shadow-lg overflow-hidden">
+            <div className="bg-white border border-gray-200 rounded-2xl shadow-lg overflow-hidden">
               {/* Franja superior */}
-              <div className="h-1.5 bg-gradient-to-r from-zinc-800 to-zinc-600" />
+              <div className="h-1.5 bg-gradient-to-r from-brand-600 to-brand-400" />
 
               <div className="px-6 py-7 flex flex-col gap-5">
                 {/* Avatar + saludo */}
                 <div className="flex flex-col items-center text-center gap-2">
-                  <div className="w-14 h-14 rounded-full bg-zinc-900 flex items-center justify-center text-2xl shadow-md">
-                    🤖
-                  </div>
+                  {profile.photo_url || profile.logo_url ? (
+                    <img
+                      src={profile.photo_url ?? profile.logo_url ?? undefined}
+                      alt={profile.name}
+                      className="w-14 h-14 rounded-full object-cover shadow-md border border-gray-200"
+                    />
+                  ) : (
+                    <div className="w-14 h-14 rounded-full bg-brand-500 flex items-center justify-center shadow-md">
+                      <span className="font-serif font-bold text-white text-xl leading-none">{shortName[0]}</span>
+                    </div>
+                  )}
                   <div>
-                    <p className="text-xs text-zinc-400 font-medium uppercase tracking-widest mb-0.5">
+                    <p className="text-xs text-gray-400 font-medium uppercase tracking-widest mb-0.5">
                       De vuelta
                     </p>
-                    <h2 className="text-xl font-bold text-zinc-900">
+                    <h2 className="text-xl font-bold text-gray-900">
                       {welcomeBack.name
                         ? `Bienvenido/a de nuevo, ${welcomeBack.name.split(" ")[0]}`
                         : "Bienvenido/a de nuevo"}
@@ -1088,16 +1120,16 @@ export default function ChatPage() {
                 </div>
 
                 {/* Info de la conversación anterior */}
-                <div className="bg-zinc-50 border border-zinc-100 rounded-xl px-4 py-3 flex flex-col gap-1.5">
-                  <p className="text-sm text-zinc-700 font-medium">Tienes una conversación anterior</p>
-                  <p className="text-xs text-zinc-400">
+                <div className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 flex flex-col gap-1.5">
+                  <p className="text-sm text-gray-600 font-medium">Tienes una conversación anterior</p>
+                  <p className="text-xs text-gray-400">
                     {welcomeBack.savedAt
                       ? `Del ${formatSavedDate(welcomeBack.savedAt)}`
                       : "Guardada recientemente"}
                   </p>
                   {welcomeBack.points !== null && (
                     <div className="flex items-center gap-1.5 mt-1">
-                      <span className="text-amber-500 text-sm">⭐</span>
+                      <Star size={13} className="text-amber-500 fill-amber-500" />
                       <span className="text-xs font-semibold text-amber-600">
                         {welcomeBack.points} puntos acumulados
                       </span>
@@ -1109,16 +1141,16 @@ export default function ChatPage() {
                 <div className="flex flex-col gap-2.5">
                   <button
                     onClick={handleContinue}
-                    className="w-full flex items-center justify-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-white font-semibold py-3.5 px-5 rounded-xl transition-colors text-sm shadow-sm"
+                    className="w-full flex items-center justify-center gap-2 bg-chat-500 hover:bg-chat-600 text-white font-semibold py-3.5 px-5 rounded-xl transition-colors text-sm shadow-sm"
                   >
                     Continuar conversación
                     <ArrowRight size={16} />
                   </button>
                   <button
                     onClick={handleNewChat}
-                    className="w-full flex items-center justify-center gap-2 bg-white hover:bg-zinc-50 text-zinc-700 font-medium py-3 px-5 rounded-xl border border-zinc-200 transition-colors text-sm"
+                    className="w-full flex items-center justify-center gap-2 bg-white hover:bg-gray-50 text-gray-600 font-medium py-3 px-5 rounded-xl border border-gray-200 transition-colors text-sm"
                   >
-                    <RotateCcw size={14} className="text-zinc-400" />
+                    <RotateCcw size={14} className="text-gray-400" />
                     Iniciar nueva conversación
                   </button>
                 </div>
@@ -1134,10 +1166,10 @@ export default function ChatPage() {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="text-center py-10 text-zinc-500"
+                className="text-center py-10 text-gray-500"
               >
                 <p className="text-base font-medium">Acepta las condiciones para comenzar a chatear.</p>
-                <p className="text-xs mt-2 text-zinc-400">Soy un asistente entrenado con propuestas oficiales públicas.</p>
+                <p className="text-xs mt-2 text-gray-400">Soy un asistente entrenado con propuestas oficiales públicas.</p>
               </motion.div>
             )}
 
@@ -1148,50 +1180,71 @@ export default function ChatPage() {
                   key={msg.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className={`mb-3 flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
+                  className={`mb-3 flex gap-2.5 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}
                 >
-                  <div
-                    className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
-                      msg.role === "user"
-                        ? "bg-zinc-900 text-white"
-                        : "bg-white border border-zinc-200 text-zinc-800 shadow-sm"
-                    }`}
-                  >
-                    {msg.pending ? (
-                      <ThinkingAnimation />
+                  {msg.role === "assistant" && (
+                    profile.photo_url || profile.logo_url ? (
+                      <img
+                        src={profile.photo_url ?? profile.logo_url ?? undefined}
+                        alt={profile.name}
+                        className="h-8 w-8 rounded-full object-cover shrink-0 border border-gray-200"
+                      />
                     ) : (
-                      <>
-                        {msg.content}
-                        {msg.media && msg.media.length > 0 && msg.content.length > 0 && (
-                          <div className="mt-3 pt-3 border-t border-zinc-100 space-y-2">
-                            <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-widest mb-2">
-                              Recursos relacionados
-                            </p>
-                            {msg.media.slice(0, 8).map((m, i) => (
-                              <MediaBadge key={i} item={m} />
-                            ))}
-                          </div>
-                        )}
-                        {msg.sources && msg.sources.length > 0 && (
-                          <div className="mt-3 pt-3 border-t border-zinc-100">
-                            <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-widest mb-1.5">
-                              Fuentes verificadas
-                            </p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {msg.sources.slice(0, 5).map((url, i) => (
-                                <SourceChip key={i} url={url} />
+                      <div className="h-8 w-8 rounded-full bg-brand-500 flex items-center justify-center shrink-0">
+                        <span className="font-serif font-bold text-white text-xs leading-none">{shortName[0]}</span>
+                      </div>
+                    )
+                  )}
+                  <div className={`flex flex-col min-w-0 ${msg.role === "user" ? "items-end" : "items-start"}`}>
+                    <div
+                      className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                        msg.role === "user"
+                          ? "bg-chat-500 text-white rounded-tr-md shadow-sm"
+                          : "bg-white border border-gray-200 text-gray-800 rounded-tl-md shadow-sm"
+                      }`}
+                    >
+                      {msg.pending ? (
+                        <ThinkingAnimation />
+                      ) : (
+                        <>
+                          {msg.role === "assistant" ? (
+                            <div className="[&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ul]:pl-4 [&_ul]:mb-2 [&_ol]:list-decimal [&_ol]:pl-4 [&_ol]:mb-2 [&_li]:leading-relaxed [&_strong]:font-semibold [&_em]:italic [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:rounded [&_code]:text-[13px] [&_code]:font-mono">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                            </div>
+                          ) : (
+                            <span className="whitespace-pre-wrap">{msg.content}</span>
+                          )}
+                          {msg.media && msg.media.length > 0 && msg.content.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+                              <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-widest mb-2">
+                                Recursos relacionados
+                              </p>
+                              {msg.media.slice(0, 8).map((m, i) => (
+                                <MediaBadge key={i} item={m} />
                               ))}
                             </div>
-                          </div>
-                        )}
-                      </>
+                          )}
+                          {msg.sources && msg.sources.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-gray-100">
+                              <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-widest mb-1.5">
+                                Fuentes verificadas
+                              </p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {msg.sources.slice(0, 5).map((url, i) => (
+                                  <SourceChip key={i} url={url} />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    {!msg.pending && msg.role === "assistant" && msg.quickReplies && msg.quickReplies.length > 0 && (
+                      <div className="max-w-[85%] w-full">
+                        <QuickReplyButtons replies={msg.quickReplies} onSelect={sendQuickReply} />
+                      </div>
                     )}
                   </div>
-                  {!msg.pending && msg.role === "assistant" && msg.quickReplies && msg.quickReplies.length > 0 && (
-                    <div className="max-w-[85%] w-full">
-                      <QuickReplyButtons replies={msg.quickReplies} onSelect={sendQuickReply} />
-                    </div>
-                  )}
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -1205,24 +1258,26 @@ export default function ChatPage() {
             {/* Banner de ubicación GPS */}
             {showGeoBanner && !geoLocation && (
               <div className="mx-auto max-w-sm mb-3">
-                <div className="bg-white border border-zinc-200 rounded-2xl shadow-lg p-4">
+                <div className="bg-white border border-gray-200 rounded-2xl shadow-lg p-4">
                   <div className="flex items-start gap-3">
-                    <span className="text-2xl">📍</span>
+                    <div className="h-9 w-9 rounded-full bg-brand-50 flex items-center justify-center shrink-0">
+                      <MapPin size={16} className="text-brand-600" />
+                    </div>
                     <div className="flex-1">
-                      <p className="text-sm font-semibold text-zinc-800">¿Compartir tu ubicación?</p>
-                      <p className="text-xs text-zinc-500 mt-0.5">
+                      <p className="text-sm font-semibold text-gray-800">¿Compartir tu ubicación?</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
                         Nos ayuda a mostrarte información relevante para tu distrito y mejorar las propuestas del candidato en tu zona.
                       </p>
                       <div className="flex gap-2 mt-3">
                         <button
                           onClick={handleGeoAccept}
-                          className="flex-1 bg-zinc-900 text-white text-xs font-medium py-2 rounded-full hover:bg-zinc-700 transition"
+                          className="flex-1 bg-chat-500 text-white text-xs font-medium py-2 rounded-full hover:bg-chat-600 transition"
                         >
                           Sí, compartir
                         </button>
                         <button
                           onClick={handleGeoDismiss}
-                          className="flex-1 border border-zinc-200 text-zinc-500 text-xs font-medium py-2 rounded-full hover:bg-zinc-50 transition"
+                          className="flex-1 border border-gray-200 text-gray-500 text-xs font-medium py-2 rounded-full hover:bg-gray-50 transition"
                         >
                           No, gracias
                         </button>
@@ -1236,8 +1291,8 @@ export default function ChatPage() {
             {/* Confirmación cuando GPS fue aceptado */}
             {geoLocation && (
               <div className="flex justify-center mb-2">
-                <span className="text-xs text-zinc-400 bg-zinc-50 border border-zinc-100 rounded-full px-3 py-1">
-                  📍 Ubicación compartida
+                <span className="flex items-center gap-1 text-xs text-gray-400 bg-gray-50 border border-gray-100 rounded-full px-3 py-1">
+                  <MapPin size={11} /> Ubicación compartida
                 </span>
               </div>
             )}
@@ -1246,16 +1301,17 @@ export default function ChatPage() {
           </main>
 
           {/* Composer */}
-          <footer className="sticky bottom-0 bg-white border-t border-zinc-200 px-4 py-3">
+          <footer className="sticky bottom-0 bg-white border-t border-gray-200 px-4 py-3">
             <div className="max-w-3xl mx-auto flex gap-2">
               <input
                 type="text"
+                aria-label="Escribe tu mensaje"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && send()}
                 placeholder={inputPlaceholder()}
                 disabled={inputDisabled}
-                className="flex-1 px-4 py-3 border border-zinc-300 rounded-full focus:outline-none focus:ring-2 focus:ring-zinc-900 text-sm disabled:opacity-50"
+                className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-chat-500 text-sm disabled:opacity-50"
               />
               {micSupported && (
                 <button
@@ -1267,7 +1323,7 @@ export default function ChatPage() {
                   className={`shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                     listening
                       ? "bg-red-500 text-white shadow-sm"
-                      : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                      : "bg-gray-100 text-gray-400 hover:bg-gray-200"
                   }`}
                 >
                   {listening ? <Square size={16} fill="currentColor" /> : <Mic size={17} />}
@@ -1276,9 +1332,14 @@ export default function ChatPage() {
               <button
                 onClick={send}
                 disabled={inputDisabled || !input.trim()}
-                className="bg-zinc-900 text-white font-medium px-5 rounded-full hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                aria-label="Enviar mensaje"
+                className="shrink-0 w-11 h-11 rounded-full bg-chat-500 text-white flex items-center justify-center hover:bg-chat-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                {streaming ? "..." : "Enviar"}
+                {streaming ? (
+                  <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                ) : (
+                  <Send size={16} />
+                )}
               </button>
             </div>
             {listening && (
@@ -1287,7 +1348,7 @@ export default function ChatPage() {
                 Escuchando... toca el cuadrado para detener
               </p>
             )}
-            <p className="text-[10px] text-zinc-400 text-center mt-1.5">
+            <p className="text-[10px] text-gray-400 text-center mt-1.5">
               IA basada en información pública. Verifica decisiones electorales en{" "}
               <a className="underline" href="https://infogob.jne.gob.pe" target="_blank" rel="noopener noreferrer">infogob.jne.gob.pe</a>
             </p>

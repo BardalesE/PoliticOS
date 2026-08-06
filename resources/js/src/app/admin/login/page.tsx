@@ -52,12 +52,37 @@ export default function AdminLoginPage() {
   const hasRealParty     = profile?.party && profile.party !== "Por definir";
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4">
+    <div className="relative flex items-center justify-center min-h-screen px-4 overflow-hidden bg-ink-950">
+      {/* Fondo institucional: gradiente oscuro + glows de marca animados (sin imagen externa) */}
+      <div className="absolute inset-0 bg-gradient-to-br from-ink-900 via-ink-950 to-black" />
+      <div
+        className="absolute -top-32 left-1/2 -translate-x-1/2 w-[900px] h-[900px] rounded-full anim-orb-1 pointer-events-none"
+        style={{ background: "radial-gradient(circle, rgb(var(--brand-primary-rgb) / 0.35), transparent 65%)" }}
+      />
+      <div
+        className="absolute -bottom-48 -left-24 w-[600px] h-[600px] rounded-full anim-orb-2 pointer-events-none"
+        style={{ background: "radial-gradient(circle, rgb(var(--brand-dark-rgb) / 0.3), transparent 70%)" }}
+      />
+      <div
+        className="absolute -bottom-24 -right-24 w-[500px] h-[500px] rounded-full anim-orb-3 pointer-events-none"
+        style={{ background: "radial-gradient(circle, rgba(59,130,246,0.18), transparent 70%)" }}
+      />
+      {/* Textura de grano — misma técnica CSS-only que la landing (globals.css .landing-main::before) */}
+      <div
+        className="absolute inset-0 opacity-[0.06] pointer-events-none"
+        style={{
+          backgroundImage:
+            "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+        }}
+      />
+      {/* Blur semioscuro entre el fondo institucional y la tarjeta */}
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-md" />
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="w-full max-w-md"
+        className="relative z-10 w-full max-w-md"
       >
         {/* Header */}
         <div className="text-center mb-8">
@@ -65,7 +90,7 @@ export default function AdminLoginPage() {
             <img
               src={profile.photo_url}
               alt={profile.name}
-              className="h-16 w-16 rounded-2xl object-cover mx-auto mb-4 shadow-lg ring-2 ring-brand-500/20"
+              className="h-16 w-16 rounded-2xl object-cover mx-auto mb-4 shadow-lg ring-2 ring-white/20"
             />
           ) : (
             <div className="inline-flex items-center justify-center h-14 w-14 rounded-2xl bg-brand-500 mb-4 shadow-lg shadow-brand-500/30">
@@ -77,26 +102,29 @@ export default function AdminLoginPage() {
           <span className="eyebrow-red block mb-2">
             {hasRealParty ? profile.party : "PoliticOS · Panel Admin"}
           </span>
-          <h1 className="font-serif text-3xl font-bold text-gray-900">
+          <h1 className="font-serif text-3xl font-bold text-white">
             {firstName ? `Bienvenido, ${firstName}` : "Ingresar al panel"}
           </h1>
-          <p className="text-sm text-gray-500 mt-2">
+          <p className="text-sm text-gray-300 mt-2">
             {hasRealCandidate ? "Panel de administración de campaña" : "Solo para administradores autorizados"}
           </p>
         </div>
 
         {/* Card */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-modal overflow-hidden">
+          <div className="banner-rojiblanco" />
+          <div className="p-8">
           <form onSubmit={handleSubmit} className="space-y-5">
 
             {/* Email */}
             <div>
-              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+              <label htmlFor="admin-login-email" className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
                 Correo electrónico
               </label>
               <div className="relative">
                 <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 <input
+                  id="admin-login-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -110,12 +138,13 @@ export default function AdminLoginPage() {
 
             {/* Password */}
             <div>
-              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
+              <label htmlFor="admin-login-password" className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">
                 Contraseña
               </label>
               <div className="relative">
                 <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 <input
+                  id="admin-login-password"
                   type={showPass ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -164,6 +193,7 @@ export default function AdminLoginPage() {
               )}
             </button>
           </form>
+          </div>
         </div>
       </motion.div>
     </div>

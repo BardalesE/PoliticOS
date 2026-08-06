@@ -181,9 +181,9 @@ export default function FaqsPage() {
 
       <Modal open={modalOpen} onClose={closeModal} title={editing ? "Editar FAQ" : "Nueva FAQ"}>
         <form onSubmit={handleSave} className="space-y-4">
-          <FormField label="Pregunta *" required value={form.question} onChange={set("question")}
+          <FormField label="Pregunta" required value={form.question} onChange={set("question")}
             placeholder="¿Qué harás por el agua potable?" />
-          <FormField as="textarea" label="Respuesta *" required value={form.answer}
+          <FormField as="textarea" label="Respuesta" required value={form.answer}
             onChange={set("answer")} rows={5} placeholder="Como alcalde, mi compromiso es..." />
           <div className="grid grid-cols-2 gap-4">
             <FormField as="select" label="Tema" value={form.topic} onChange={set("topic")} options={TOPICS} />

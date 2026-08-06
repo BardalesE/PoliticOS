@@ -41,6 +41,8 @@ services:
         value: es
       - key: APP_FALLBACK_LOCALE
         value: es
+      - key: APP_TIMEZONE
+        value: America/Lima         # afecta "hoy"/alertas/clustering — cambiar solo si el tenant no está en Perú
 
       # ── Logs a stdout/stderr (visibles en Render → Logs) ───────────────
       - key: LOG_CHANNEL
@@ -89,8 +91,8 @@ services:
         sync: false               # pegar: tu key gsk_... de console.groq.com
       - key: GROQ_MODEL
         value: llama-3.3-70b-versatile
-      - key: AI_MAX_TOKENS
-        value: "600"
+      # El límite de tokens de salida NO se configura por env — vive en
+      # AiSetting.max_tokens (BD del tenant, editable desde /admin/ai-settings).
 
       # ── RAG sin Qdrant: FULLTEXT de MySQL 8 ─────────────────────────────
       - key: AI_EMBEDDINGS_DRIVER
@@ -107,6 +109,22 @@ services:
         generateValue: true
       - key: INGEST_KEY
         generateValue: true
+
+      # ── Revalidación del frontend (SaaS: cambios instantáneos) ──────────
+      # Genera un valor (openssl rand -hex 32) y pégalo TAMBIÉN como
+      # REVALIDATE_SECRET en las env vars del proyecto de Vercel — debe ser
+      # exactamente el mismo string en ambos lados.
+      - key: REVALIDATE_SECRET
+        sync: false
+
+      # ── Cron externo (GitHub Actions) ────────────────────────────────────
+      # Genera un valor y pégalo TAMBIÉN como secret SCHEDULER_KEY en GitHub
+      # → Settings → Secrets and variables → Actions (mismo repo). Sin esto,
+      # las alertas automáticas y el clustering diario de preguntas no corren
+      # — Render (plan gratis) no tiene Cron Job nativo. Ver
+      # .github/workflows/scheduler.yml.
+      - key: SCHEDULER_KEY
+        sync: false
 
       # ── Control del entrypoint (deploy/render/entrypoint.sh) ────────────
       # La BD ya está migrada y sembrada desde tu PC; en el deploy solo se

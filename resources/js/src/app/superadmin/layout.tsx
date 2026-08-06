@@ -20,21 +20,21 @@ function SuperAdminGuard({ children }: { children: React.ReactNode }) {
   if (pathname === "/superadmin/login") return <>{children}</>;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      <header className="border-b border-zinc-800 px-4 sm:px-6 py-3 flex items-center justify-between gap-2 sticky top-0 z-30 bg-zinc-950">
+    <div className="min-h-screen bg-gray-50 text-gray-900">
+      <header className="border-b border-gray-200 px-4 sm:px-6 py-3 flex items-center justify-between gap-2 sticky top-0 z-30 bg-white">
         <div className="flex items-center gap-2 min-w-0">
-          <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
-          <span className="font-bold text-sm tracking-wide truncate">
+          <ShieldCheck className="w-5 h-5 text-trust-700 shrink-0" />
+          <span className="font-serif font-bold text-sm tracking-wide truncate text-gray-900">
             <span className="sm:hidden">SuperAdmin</span>
             <span className="hidden sm:inline">PoliticOS SuperAdmin</span>
           </span>
-          <span className="hidden sm:inline-block text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-mono ml-2 shrink-0">
+          <span className="hidden sm:inline-block text-[10px] bg-trust-50 text-trust-700 px-2 py-0.5 rounded-full font-mono ml-2 shrink-0 border border-trust-100">
             PLATFORM OWNER
           </span>
         </div>
         <button
           onClick={() => { logout(); router.replace("/superadmin/login"); }}
-          className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-red-400 transition-colors shrink-0"
+          className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-red-600 transition-colors shrink-0"
         >
           <LogOut className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Salir</span>
