@@ -9,6 +9,7 @@ import { adminApi, adminApiExtended, resolveTenantSlug, withTenant, type Onboard
 import { useAuth } from "@/context/AuthContext";
 import { FormField } from "@/components/admin/FormField";
 import { KnowledgeUploadPanel } from "@/components/admin/KnowledgeUploadPanel";
+import { ImageDrop } from "@/components/admin/ImageDrop";
 import { cn } from "@/lib/utils";
 
 // El provisioning siembra estos placeholders; en el form se muestran vacíos
@@ -102,6 +103,12 @@ export default function OnboardingPage() {
   function set<K extends keyof ProfileForm>(k: K, v: ProfileForm[K]) {
     setForm(prev => ({ ...prev, [k]: v }));
   }
+
+  const uploadPhoto = async (file: File) => {
+    if (!token) throw new Error("No token");
+    const photo = await adminApiExtended.candidateProfile.uploadPhoto(token, file);
+    return photo.url;
+  };
 
   const profileValid =
     form.name.trim() && form.title.trim() && form.party.trim() &&
@@ -210,15 +217,13 @@ export default function OnboardingPage() {
               onChange={(e) => set("party", e.target.value)} placeholder="Partido Renovación" />
             <FormField label="Ubicación" required value={form.location}
               onChange={(e) => set("location", e.target.value)} placeholder="Lima, Perú" />
-            <FormField label="Número de lista" value={form.list_number}
-              onChange={(e) => set("list_number", e.target.value)} placeholder="3" />
             <FormField label="Fecha de elección" value={form.election_date}
               onChange={(e) => set("election_date", e.target.value)} placeholder="4 de octubre de 2026" />
           </div>
           <FormField label="Lema de campaña" value={form.tagline}
             onChange={(e) => set("tagline", e.target.value)} placeholder="Por el bien de todos" />
-          <FormField label="URL de foto del candidato" value={form.photo_url}
-            onChange={(e) => set("photo_url", e.target.value)} placeholder="https://..." />
+          <ImageDrop label="Foto del candidato" value={form.photo_url}
+            onUrl={(url) => set("photo_url", url)} uploadFn={uploadPhoto} />
           <FormField as="textarea" label="Biografía" required rows={5} value={form.bio}
             onChange={(e) => set("bio", e.target.value)}
             placeholder="Trayectoria, experiencia y por qué postula. El asistente la usa para presentar al candidato." />
