@@ -14,7 +14,7 @@ const SECTIONS = [
   { key: "show_districts",  label: "Lugares",           desc: "Lugares visitados por la campaña" },
   { key: "show_team",       label: "Equipo político",   desc: "Candidato y miembros del equipo" },
   { key: "show_opinion",    label: "Opiniones",         desc: "Formulario de opinión ciudadana (WhatsApp)" },
-  { key: "show_connection", label: "Sección de cita",   desc: "Estadísticas y cita del candidato" },
+  { key: "show_connection", label: "Redes sociales",    desc: "Íconos flotantes de Facebook/WhatsApp/TikTok/Instagram" },
 ];
 
 const DEFAULTS: Record<string, string> = {

@@ -23,9 +23,9 @@ const TestimonialCarousel = dynamic(() => import("@/components/landing/Testimoni
 const VideoMessage        = dynamic(() => import("@/components/landing/VideoMessage").then(m => ({ default: m.VideoMessage })));
 const ParticipateCTA      = dynamic(() => import("@/components/landing/ParticipateCTA").then(m => ({ default: m.ParticipateCTA })));
 const HomeTabs            = dynamic(() => import("@/components/landing/HomeTabs").then(m => ({ default: m.HomeTabs })));
-const Connection          = dynamic(() => import("@/components/landing/Connection").then(m => ({ default: m.Connection })));
 const Footer              = dynamic(() => import("@/components/ui/Footer").then(m => ({ default: m.Footer })));
 const ChatFAB             = dynamic(() => import("@/components/ui/ChatFAB").then(m => ({ default: m.ChatFAB })));
+const SocialFAB           = dynamic(() => import("@/components/ui/SocialFAB").then(m => ({ default: m.SocialFAB })));
 const StickyCampaignBar   = dynamic(() => import("@/components/ui/StickyCampaignBar").then(m => ({ default: m.StickyCampaignBar })));
 const MobileBottomNav     = dynamic(() => import("@/components/ui/MobileBottomNav").then(m => ({ default: m.MobileBottomNav })));
 const ScrollToTopFab      = dynamic(() => import("@/components/ui/ScrollToTopFab").then(m => ({ default: m.ScrollToTopFab })));
@@ -136,9 +136,9 @@ export default function DynamicHome({
         initialGallery={initialGallery}
         initialVideos={initialVideos}
       />
-      {on(settings, "show_connection") && <Connection />}
       <Footer />
       <ChatFAB />
+      {on(settings, "show_connection") && <SocialFAB />}
       <StickyCampaignBar />
       <MobileBottomNav />
       <ScrollToTopFab />
