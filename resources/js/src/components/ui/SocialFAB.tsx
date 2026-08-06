@@ -48,7 +48,7 @@ export function SocialFAB() {
   if (links.length === 0) return null;
 
   return (
-    <div className="hidden md:flex fixed left-4 top-1/2 -translate-y-1/2 z-40 flex-col gap-2.5">
+    <div className="flex fixed left-2 sm:left-4 top-1/2 -translate-y-1/2 z-40 flex-col gap-2 sm:gap-2.5">
       {links.map((s, i) => {
         const Icon = s.icon;
         return (
@@ -64,10 +64,10 @@ export function SocialFAB() {
             transition={{ delay: 0.5 + i * 0.06, duration: 0.25 }}
             whileHover={{ scale: 1.08, x: 2 }}
             whileTap={{ scale: 0.95 }}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-white shadow-lg"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white shadow-lg shrink-0"
             style={{ background: s.bg }}
           >
-            <Icon className="w-[18px] h-[18px]" />
+            <Icon className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
           </motion.a>
         );
       })}
