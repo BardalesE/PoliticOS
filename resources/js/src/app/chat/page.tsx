@@ -833,7 +833,7 @@ export default function ChatPage() {
               `🎉 ¡Listo, ${regData.name.split(" ")[0]}! Quedaste registrado/a y ganaste **${pts} puntos** de participación.\n\nTu código de referido es **${code}** — compártelo y gana 100 puntos más por cada vecino que se registre.`,
               [
                 { label: "📋 Ver propuestas",  value: "Muéstrame las propuestas del candidato" },
-                { label: "🗺️ Mi distrito",     value: "¿Qué propuestas hay para mi zona?" },
+                { label: "🗺️ Mi lugar",        value: "¿Qué propuestas hay para mi zona?" },
               ]
             );
             localStorage.setItem(tenantStorageKey(LS_REG_DONE), "done");
@@ -1266,7 +1266,7 @@ export default function ChatPage() {
                     <div className="flex-1">
                       <p className="text-sm font-semibold text-gray-800">¿Compartir tu ubicación?</p>
                       <p className="text-xs text-gray-500 mt-0.5">
-                        Nos ayuda a mostrarte información relevante para tu distrito y mejorar las propuestas del candidato en tu zona.
+                        Nos ayuda a mostrarte información relevante para tu lugar y mejorar las propuestas del candidato en tu zona.
                       </p>
                       <div className="flex gap-2 mt-3">
                         <button

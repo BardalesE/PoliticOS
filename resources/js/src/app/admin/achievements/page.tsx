@@ -152,7 +152,7 @@ export default function AchievementsPage() {
         onNew={openCreate}
         newLabel="Nueva obra"
       >
-        <SearchBar value={search} onChange={setSearch} placeholder="Buscar por título o distrito..." className="w-full sm:w-64" />
+        <SearchBar value={search} onChange={setSearch} placeholder="Buscar por título o lugar..." className="w-full sm:w-64" />
       </PageHeader>
 
       {loading ? (
@@ -215,7 +215,7 @@ export default function AchievementsPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FormField label="Distrito" value={form.district} onChange={(e) => setForm(p => ({ ...p, district: e.target.value }))} placeholder="San Isidro" />
+            <FormField label="Lugar" value={form.district} onChange={(e) => setForm(p => ({ ...p, district: e.target.value }))} placeholder="San Isidro" />
             <FormField as="select" label="Estado" value={form.status} onChange={(e) => setForm(p => ({ ...p, status: e.target.value as "completado" | "en_curso" }))}
               options={[{ value: "completado", label: "Completado" }, { value: "en_curso", label: "En curso" }]} />
           </div>

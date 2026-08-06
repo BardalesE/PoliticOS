@@ -78,7 +78,17 @@ function PlaceCard({ place, onOpen }: { place: VisitedPlace; onOpen: () => void 
 function PlaceDetail({ place, onClose }: { place: VisitedPlace; onClose: () => void }) {
   return (
     <Modal onClose={onClose} label={place.name} className="max-w-lg">
-      {place.highlight_photo_url && (
+      {place.highlight_video_url ? (
+        <div className="relative h-48 w-full overflow-hidden bg-black">
+          <video
+            src={place.highlight_video_url}
+            poster={place.highlight_photo_url ?? undefined}
+            controls
+            playsInline
+            className="w-full h-full object-cover"
+          />
+        </div>
+      ) : place.highlight_photo_url ? (
         <div className="relative h-48 w-full overflow-hidden">
           <Image
             src={place.highlight_photo_url}
@@ -88,7 +98,7 @@ function PlaceDetail({ place, onClose }: { place: VisitedPlace; onClose: () => v
             className="object-cover"
           />
         </div>
-      )}
+      ) : null}
       <div className="p-6">
         <button
           onClick={onClose}
@@ -189,7 +199,7 @@ export function Districts() {
             style={{ color: "rgb(var(--brand-primary-rgb))" }}
           >
             <span className="w-2 h-2 rounded-full" style={{ background: "rgb(var(--brand-primary-rgb))" }} />
-            {hasVisited ? visitedPlaces.length : districts.length || 0} caseríos
+            {hasVisited ? visitedPlaces.length : districts.length || 0} lugares
           </span>
           <h2
             className="font-serif font-semibold leading-[1.04] tracking-tight mt-2"
@@ -213,8 +223,8 @@ export function Districts() {
           </h2>
           <p className="mt-3 text-base" style={{ color: "var(--page-ink-soft)" }}>
             {hasVisited
-              ? "Cada caserío tiene algo propio. Haz clic para conocerlo y ver qué haremos por ti."
-              : "Haz clic en tu caserío para ver qué haremos por ti. Cada comunidad tiene su propio plan."}
+              ? "Cada lugar tiene algo propio. Haz clic para conocerlo y ver qué haremos por ti."
+              : "Haz clic en tu lugar para ver qué haremos por ti. Cada comunidad tiene su propio plan."}
           </p>
         </motion.div>
 

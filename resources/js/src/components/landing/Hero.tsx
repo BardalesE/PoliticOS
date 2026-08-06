@@ -240,7 +240,7 @@ export function Hero({ initialHero }: HeroProps) {
             style={!onDark ? { borderColor: "var(--page-line)" } : undefined}
           >
             <label htmlFor="hero-zone" className="sr-only">
-              Buscar propuestas por caserío o zona
+              Buscar propuestas por lugar o zona
             </label>
             <Search
               size={15}
@@ -252,7 +252,7 @@ export function Hero({ initialHero }: HeroProps) {
               list="hero-zone-list"
               value={zone}
               onChange={(e) => setZone(e.target.value)}
-              placeholder="Escribe tu caserío o zona…"
+              placeholder="Escribe tu lugar o zona…"
               className={`flex-1 min-w-0 bg-transparent px-2 py-2 text-sm font-medium outline-none ${
                 onDark ? "text-white placeholder-white/50" : "text-ink-900 placeholder-ink-400"
               }`}

@@ -63,7 +63,7 @@ export function ConcernsWidget() {
         className="text-[10px] font-extrabold uppercase tracking-[1.5px] mb-0.5"
         style={{ color: "rgb(var(--brand-primary-rgb))" }}
       >
-        Lo que más preguntan los caseríos
+        Lo que más preguntan en cada lugar
       </p>
       <p className="text-[11px] mb-4" style={{ color: "var(--page-ink-soft)" }}>
         Según las conversaciones reales con el asistente — solo conteos, ninguna pregunta identificable.

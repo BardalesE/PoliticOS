@@ -186,7 +186,7 @@ export function ParticipateCTA() {
                   {districts.length > 0 && (
                     <div>
                       <label htmlFor="part-district" className="block text-[11px] font-extrabold uppercase tracking-wider mb-1.5" style={{ color: "var(--page-ink-soft)" }}>
-                        Tu barrio o caserío
+                        Tu barrio o lugar
                       </label>
                       <div className="relative">
                         <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "var(--page-ink-soft)" }} />
@@ -213,7 +213,7 @@ export function ParticipateCTA() {
                     <textarea
                       id="part-message"
                       rows={3}
-                      placeholder="Ej: Puedo ayudar los fines de semana en mi caserío..."
+                      placeholder="Ej: Puedo ayudar los fines de semana en mi lugar..."
                       value={form.message}
                       onChange={(e) => setForm({ ...form, message: e.target.value })}
                       className="w-full px-4 py-3 rounded-xl border text-sm outline-none transition-all duration-200 bg-white resize-none leading-relaxed"

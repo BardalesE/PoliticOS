@@ -683,6 +683,7 @@ export type DistrictItem = {
   event_type?: string | null;
   highlight_text?: string | null;
   highlight_photo_url?: string | null;
+  highlight_video_url?: string | null;
 };
 
 export type SuggestedQuestion = {
@@ -736,6 +737,7 @@ export type VisitedPlace = {
   event_type: string | null;
   highlight_text: string | null;
   highlight_photo_url: string | null;
+  highlight_video_url: string | null;
 };
 
 export type CandidatePublicData = {
@@ -796,6 +798,17 @@ export const adminApiExtended = {
       request<DistrictItem>(`/admin/districts/${id}`, { method: "PUT", body: JSON.stringify(data) }, token),
     delete: (token: string, id: number) =>
       request<{ deleted: boolean }>(`/admin/districts/${id}`, { method: "DELETE" }, token),
+    uploadPhoto: (token: string, file: File) => {
+      const fd = new FormData();
+      fd.append("image", file);
+      fd.append("category", "lugar");
+      return upload<CampaignPhoto>("/admin/gallery", fd, token);
+    },
+    uploadVideo: (token: string, file: File) => {
+      const fd = new FormData();
+      fd.append("video", file);
+      return upload<{ url: string }>("/admin/districts/upload-video", fd, token);
+    },
   },
 
   topics: {

@@ -8,10 +8,13 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { Modal } from "@/components/admin/Modal";
 import { ConfirmDialog } from "@/components/admin/ConfirmDialog";
 import { FormField } from "@/components/admin/FormField";
+import { ImageDrop } from "@/components/admin/ImageDrop";
+import { VideoDrop } from "@/components/admin/VideoDrop";
 
 const EMPTY: Omit<DistrictItem, "id"> = {
   name: "", keywords: [], sort_order: 0, is_active: true,
-  visited_at: null, event_type: null, highlight_text: null, highlight_photo_url: null,
+  visited_at: null, event_type: null, highlight_text: null,
+  highlight_photo_url: null, highlight_video_url: null,
 };
 
 export default function DistrictsPage() {
@@ -51,6 +54,7 @@ export default function DistrictsPage() {
       event_type: d.event_type ?? null,
       highlight_text: d.highlight_text ?? null,
       highlight_photo_url: d.highlight_photo_url ?? null,
+      highlight_video_url: d.highlight_video_url ?? null,
     });
     setKeywordsText(d.keywords.join(", "));
     setModalOpen(true);
@@ -78,6 +82,18 @@ export default function DistrictsPage() {
     }
   };
 
+  const uploadPhoto = async (file: File) => {
+    if (!token) throw new Error("No token");
+    const photo = await adminApiExtended.districts.uploadPhoto(token, file);
+    return photo.url;
+  };
+
+  const uploadVideo = async (file: File) => {
+    if (!token) throw new Error("No token");
+    const res = await adminApiExtended.districts.uploadVideo(token, file);
+    return res.url;
+  };
+
   const handleDelete = async () => {
     if (!token || !deleteId) return;
     await adminApiExtended.districts.delete(token, deleteId);
@@ -88,10 +104,10 @@ export default function DistrictsPage() {
   return (
     <div className="p-4 md:p-6 lg:p-8">
       <PageHeader
-        title="Distritos"
-        subtitle="Palabras clave que el AI usa para detectar de qué distrito habla el ciudadano"
+        title="Lugares"
+        subtitle="Palabras clave que el AI usa para detectar de qué lugar habla el ciudadano"
         onNew={openCreate}
-        newLabel="Nuevo distrito"
+        newLabel="Nuevo lugar"
       />
 
       {loading ? (
@@ -101,7 +117,7 @@ export default function DistrictsPage() {
       ) : districts.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-gray-400">
           <MapPin size={40} className="mb-3 opacity-30" />
-          <p className="text-sm">No hay distritos. Crea el primero.</p>
+          <p className="text-sm">No hay lugares. Crea el primero.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -169,11 +185,11 @@ export default function DistrictsPage() {
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editing ? "Editar distrito" : "Nuevo distrito"}
+        title={editing ? "Editar lugar" : "Nuevo lugar"}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <FormField
-            label="Nombre del distrito"
+            label="Nombre del lugar"
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             required
@@ -213,15 +229,22 @@ export default function DistrictsPage() {
               onChange={(e) => setForm((f) => ({ ...f, highlight_text: e.target.value || null }))}
               placeholder="Qué se hizo en la visita, qué se comprometió, qué destaca del lugar…"
             />
-            <FormField
-              className="mt-3"
-              label="URL de foto destacada"
-              value={form.highlight_photo_url ?? ""}
-              onChange={(e) => setForm((f) => ({ ...f, highlight_photo_url: e.target.value || null }))}
-              placeholder="https://…/foto-visita.jpg"
-            />
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <ImageDrop
+                label="Foto destacada"
+                value={form.highlight_photo_url ?? ""}
+                onUrl={(url) => setForm((f) => ({ ...f, highlight_photo_url: url || null }))}
+                uploadFn={uploadPhoto}
+              />
+              <VideoDrop
+                label="Video destacado (opcional)"
+                value={form.highlight_video_url ?? ""}
+                onUrl={(url) => setForm((f) => ({ ...f, highlight_video_url: url || null }))}
+                uploadFn={uploadVideo}
+              />
+            </div>
             <p className="text-[11px] text-gray-400 mt-2">
-              Solo los distritos con fecha de visita aparecen en "Lugares Visitados" de la home.
+              Solo los lugares con fecha de visita aparecen en "Lugares Visitados" de la home.
             </p>
           </div>
 
@@ -255,7 +278,7 @@ export default function DistrictsPage() {
               disabled={saving}
               className="flex-1 py-2.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-60 text-white rounded-xl text-sm font-semibold transition-colors"
             >
-              {saving ? "Guardando..." : editing ? "Guardar cambios" : "Crear distrito"}
+              {saving ? "Guardando..." : editing ? "Guardar cambios" : "Crear lugar"}
             </button>
           </div>
         </form>
@@ -265,8 +288,8 @@ export default function DistrictsPage() {
         open={!!deleteId}
         onCancel={() => setDeleteId(null)}
         onConfirm={handleDelete}
-        title="Eliminar distrito"
-        message="¿Eliminar este distrito? El AI no podrá detectarlo en conversaciones."
+        title="Eliminar lugar"
+        message="¿Eliminar este lugar? El AI no podrá detectarlo en conversaciones."
       />
     </div>
   );

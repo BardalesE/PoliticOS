@@ -81,7 +81,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Operación",
     items: [
       { href: "/admin/chat-sessions", label: "Sesiones de chat",  icon: MessageSquare },
-      { href: "/admin/districts",     label: "Distritos",         icon: MapPin },
+      { href: "/admin/districts",     label: "Lugares",           icon: MapPin },
       { href: "/admin/users",         label: "Usuarios",          icon: Users },
       { href: "/admin/hero-settings", label: "Hero (portada)",    icon: ImageIcon },
       { href: "/admin/home-settings", label: "Secciones del Home",icon: Settings },

@@ -29,7 +29,7 @@ export default function ProposalsPage() {
                 <div className="text-5xl mb-5">{t.emoji}</div>
                 <h3 className="font-display text-2xl font-bold text-gray-900 mb-3">{t.label}</h3>
                 <p className="text-sm text-gray-600 leading-relaxed mb-6">
-                  Propuestas específicas para cada distrito, con presupuesto detallado y plazos de ejecución claros.
+                  Propuestas específicas para cada lugar, con presupuesto detallado y plazos de ejecución claros.
                 </p>
                 <TenantLink
                   href={`/chat?q=${encodeURIComponent(`Cuéntame sobre ${t.label.toLowerCase()}`)}`}

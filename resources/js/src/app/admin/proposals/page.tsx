@@ -239,7 +239,7 @@ function ProposalsPageInner() {
         onNew={openNew}
         newLabel="Nueva propuesta"
       >
-        <SearchBar value={search} onChange={setSearch} placeholder="Buscar por título o distrito..." className="w-64" />
+        <SearchBar value={search} onChange={setSearch} placeholder="Buscar por título o lugar..." className="w-64" />
       </PageHeader>
 
       {loading ? (
@@ -333,7 +333,7 @@ function ProposalsPageInner() {
             <FormField as="textarea" label="Descripción" required value={form.description}
               onChange={set("description")} rows={3} placeholder="Descripción detallada..."
               className="col-span-2" />
-            <FormField label="Distrito" value={form.district} onChange={set("district")} placeholder="San Miguel de Pallaques" />
+            <FormField label="Lugar" value={form.district} onChange={set("district")} placeholder="San Miguel de Pallaques" />
             <FormField as="select" label="Tema" required value={form.topic} onChange={set("topic")}
               options={topics.length > 0
                 ? topics.map((t) => ({ value: t.name, label: `${t.emoji} ${t.label}` }))

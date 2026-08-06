@@ -123,7 +123,7 @@ export default function TestimonialsPage() {
         onNew={openCreate}
         newLabel="Nuevo testimonio"
       >
-        <SearchBar value={search} onChange={setSearch} placeholder="Buscar por nombre o distrito..." className="w-full sm:w-64" />
+        <SearchBar value={search} onChange={setSearch} placeholder="Buscar por nombre o lugar..." className="w-full sm:w-64" />
       </PageHeader>
 
       {loading ? (
@@ -211,7 +211,7 @@ export default function TestimonialsPage() {
           <FormField as="textarea" label="Testimonio" required value={form.quote} onChange={(e) => setForm(p => ({ ...p, quote: e.target.value }))} rows={3} placeholder="Lo que la persona dijo, en sus propias palabras..." />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <FormField label="Distrito" value={form.district} onChange={(e) => setForm(p => ({ ...p, district: e.target.value }))} placeholder="San Isidro" />
+            <FormField label="Lugar" value={form.district} onChange={(e) => setForm(p => ({ ...p, district: e.target.value }))} placeholder="San Isidro" />
             <FormField label="Orden de aparición" value={String(form.sort_order)} onChange={(e) => setForm(p => ({ ...p, sort_order: parseInt(e.target.value) || 0 }))} placeholder="0" />
           </div>
 

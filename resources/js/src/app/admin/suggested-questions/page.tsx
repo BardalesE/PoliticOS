@@ -175,7 +175,7 @@ export default function SuggestedQuestionsPage() {
             value={form.question}
             onChange={(e) => setForm((f) => ({ ...f, question: e.target.value }))}
             required
-            placeholder="¿Qué harás por el agua en los caseríos?"
+            placeholder="¿Qué harás por el agua en los lugares que visitaste?"
             rows={3}
           />
           <div className="grid grid-cols-3 gap-3">

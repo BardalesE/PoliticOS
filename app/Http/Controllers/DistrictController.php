@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\District;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class DistrictController extends Controller
 {
@@ -27,6 +28,7 @@ class DistrictController extends Controller
             'event_type'           => ['nullable', 'string', 'max:100'],
             'highlight_text'       => ['nullable', 'string', 'max:2000'],
             'highlight_photo_url'  => ['nullable', 'string', 'max:500'],
+            'highlight_video_url'  => ['nullable', 'string', 'max:500'],
         ]);
 
         return response()->json(District::create($data), 201);
@@ -46,6 +48,7 @@ class DistrictController extends Controller
             'event_type'           => ['nullable', 'string', 'max:100'],
             'highlight_text'       => ['nullable', 'string', 'max:2000'],
             'highlight_photo_url'  => ['nullable', 'string', 'max:500'],
+            'highlight_video_url'  => ['nullable', 'string', 'max:500'],
         ]);
         $district->update($data);
         return response()->json($district);
@@ -56,5 +59,22 @@ class DistrictController extends Controller
     {
         District::findOrFail($id)->delete();
         return response()->json(['deleted' => true]);
+    }
+
+    // POST /api/admin/districts/upload-video  (admin)
+    // Endpoint propio (no reusa /admin/hero-settings/upload-video) porque
+    // ese tiene el efecto colateral de sobreescribir el video del Hero. Este
+    // solo guarda el archivo y devuelve la URL — sin tocar ninguna otra fila.
+    public function uploadVideo(Request $request): JsonResponse
+    {
+        $request->validate([
+            'video' => ['required', 'file', 'mimes:mp4,webm,mov,ogg', 'max:512000'], // 500 MB
+        ]);
+
+        $file = $request->file('video');
+        $path = $file->store('districts/videos', config('filesystems.media'));
+        $url  = Storage::disk(config('filesystems.media'))->url($path);
+
+        return response()->json(['url' => $url]);
     }
 }

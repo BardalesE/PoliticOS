@@ -318,7 +318,7 @@ function RegistroContent() {
                         </div>
                         <div>
                             <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
-                                Distrito
+                                Lugar
                             </label>
                             <div className="relative">
                                 <MapPin
@@ -330,7 +330,7 @@ function RegistroContent() {
                                     onChange={(e) =>
                                         set("district", e.target.value)
                                     }
-                                    placeholder="¿En qué distrito vives?"
+                                    placeholder="¿En qué lugar vives?"
                                     className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
                                 />
                             </div>

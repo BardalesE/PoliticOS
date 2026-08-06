@@ -242,7 +242,7 @@ export default function CitizensPage() {
             onChange={(e) => { setFilterDistrict(e.target.value); setPage(1); }}
             className="border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 focus:outline-none focus:border-brand-500"
           >
-            <option value="">Todos los distritos</option>
+            <option value="">Todos los lugares</option>
             {Object.keys(summary.by_district).map((d) => (
               <option key={d} value={d}>{d}</option>
             ))}
@@ -268,7 +268,7 @@ export default function CitizensPage() {
           <table className="w-full text-left">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                {["Nombre", "WhatsApp", "Distrito", "Intención", "Fuente", "Puntos", "Registrado"].map((h) => (
+                {["Nombre", "WhatsApp", "Lugar", "Intención", "Fuente", "Puntos", "Registrado"].map((h) => (
                   <th key={h} className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
                     {h}
                   </th>

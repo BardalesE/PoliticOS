@@ -2,7 +2,7 @@ import { Navbar } from "@/components/ui/Navbar";
 import { Footer } from "@/components/ui/Footer";
 import { Districts } from "@/components/landing/Districts";
 
-export const metadata = { title: "13 Distritos · PoliticOS" };
+export const metadata = { title: "Lugares · PoliticOS" };
 
 export default function DistrictsPage() {
   return (

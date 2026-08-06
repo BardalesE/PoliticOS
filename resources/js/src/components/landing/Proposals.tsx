@@ -139,9 +139,9 @@ function ProposalModal({
 }
 
 const FALLBACK: ProposalExtended[] = [
-  { id: 1, title: "Agua potable para todos los caseríos", description: "Sistema integral de agua y saneamiento con financiamiento regional y mantenimiento garantizado.", district: null, topic: "agua", status: "propuesta" as const },
+  { id: 1, title: "Agua potable para todos los lugares", description: "Sistema integral de agua y saneamiento con financiamiento regional y mantenimiento garantizado.", district: null, topic: "agua", status: "propuesta" as const },
   { id: 2, title: "Carreteras y conectividad rural", description: "Pavimentación de vías secundarias y puentes que conecten cada comunidad con su mercado.", district: null, topic: "infraestructura", status: "propuesta" as const },
-  { id: 3, title: "Salud comunitaria en cada caserío", description: "Postas médicas equipadas y brigadas de salud preventiva que lleguen donde hoy no llega nadie.", district: null, topic: "salud", status: "propuesta" as const },
+  { id: 3, title: "Salud comunitaria en cada lugar", description: "Postas médicas equipadas y brigadas de salud preventiva que lleguen donde hoy no llega nadie.", district: null, topic: "salud", status: "propuesta" as const },
   { id: 4, title: "Educación de calidad", description: "Mejora de infraestructura educativa, conectividad y becas para toda la provincia.", district: null, topic: "educacion", status: "propuesta" as const },
   { id: 5, title: "Reactivación económica local", description: "Apoyo a microempresarios, ferias agropecuarias y capital semilla para emprendedores.", district: null, topic: "economia", status: "propuesta" as const },
   { id: 6, title: "Seguridad ciudadana", description: "Red de cámaras, serenazgo ampliado y trabajo coordinado con la PNP.", district: null, topic: "seguridad", status: "propuesta" as const },

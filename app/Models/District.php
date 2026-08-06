@@ -8,7 +8,7 @@ class District extends Model
 {
     protected $fillable = [
         'name', 'keywords', 'sort_order', 'is_active',
-        'visited_at', 'event_type', 'highlight_text', 'highlight_photo_url',
+        'visited_at', 'event_type', 'highlight_text', 'highlight_photo_url', 'highlight_video_url',
     ];
 
     protected $casts = [
@@ -34,6 +34,6 @@ class District extends Model
         return static::where('is_active', true)
             ->whereNotNull('visited_at')
             ->orderByDesc('visited_at')
-            ->get(['id', 'name', 'visited_at', 'event_type', 'highlight_text', 'highlight_photo_url']);
+            ->get(['id', 'name', 'visited_at', 'event_type', 'highlight_text', 'highlight_photo_url', 'highlight_video_url']);
     }
 }

@@ -23,7 +23,7 @@ export function StatsBar({
   const stats = [
     districts.length > 0 && {
       value: <>{districts.length}</>,
-      label: settings.stats_districts_label || "Caseríos visitados",
+      label: settings.stats_districts_label || "Lugares visitados",
     },
     {
       value: <>100<em className="not-italic" style={BRAND_EM}>d</em></>,

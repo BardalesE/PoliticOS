@@ -187,10 +187,11 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
         Route::post('/ai-settings/test', [AiSettingController::class, 'test']);
 
         // Distritos
-        Route::get   ('/districts',      [DistrictController::class, 'index']);
-        Route::post  ('/districts',      [DistrictController::class, 'store']);
-        Route::put   ('/districts/{id}', [DistrictController::class, 'update']);
-        Route::delete('/districts/{id}', [DistrictController::class, 'destroy']);
+        Route::get   ('/districts',              [DistrictController::class, 'index']);
+        Route::post  ('/districts',              [DistrictController::class, 'store']);
+        Route::post  ('/districts/upload-video', [DistrictController::class, 'uploadVideo']);
+        Route::put   ('/districts/{id}',         [DistrictController::class, 'update']);
+        Route::delete('/districts/{id}',         [DistrictController::class, 'destroy']);
 
         // Temas
         Route::get   ('/topics',      [TopicController::class, 'index']);

@@ -11,7 +11,7 @@ const SECTIONS = [
   { key: "show_proposals",  label: "Propuestas",        desc: "Las 8 categorías de propuestas" },
   { key: "show_multimedia", label: "Multimedia",        desc: "Galería de fotos y videos recientes" },
   { key: "show_events",     label: "Eventos",           desc: "Próximos eventos y cuenta regresiva" },
-  { key: "show_districts",  label: "Distritos",         desc: "Distritos de la provincia" },
+  { key: "show_districts",  label: "Lugares",           desc: "Lugares visitados por la campaña" },
   { key: "show_team",       label: "Equipo político",   desc: "Candidato y miembros del equipo" },
   { key: "show_opinion",    label: "Opiniones",         desc: "Formulario de opinión ciudadana (WhatsApp)" },
   { key: "show_connection", label: "Sección de cita",   desc: "Estadísticas y cita del candidato" },
@@ -21,16 +21,16 @@ const DEFAULTS: Record<string, string> = {
   events_title:      "Próximos encuentros con el pueblo.",
   events_badge:      "Agenda",
   election_date_iso: "2026-10-04",
-  stats_districts_label: "Caseríos visitados",
+  stats_districts_label: "Lugares visitados",
   stats_plan_label:      "Plan de primeros 100 días",
   stats_proposals_label: "Propuestas concretas",
   stats_ai_label:        "Asistente IA disponible",
 };
 
-// Etiquetas de la barra de estadísticas bajo el hero. Las cifras de caseríos
+// Etiquetas de la barra de estadísticas bajo el hero. Las cifras de lugares
 // y propuestas salen de los datos reales del tenant y se ocultan si no hay.
 const STAT_LABELS = [
-  { key: "stats_districts_label", label: "Etiqueta: caseríos/distritos (cifra = distritos activos)" },
+  { key: "stats_districts_label", label: "Etiqueta: lugares (cifra = lugares activos)" },
   { key: "stats_plan_label",      label: "Etiqueta: plan de gobierno (cifra fija “100d”)" },
   { key: "stats_proposals_label", label: "Etiqueta: propuestas (cifra = propuestas publicadas)" },
   { key: "stats_ai_label",        label: "Etiqueta: asistente (cifra fija “24/7”)" },
@@ -151,7 +151,7 @@ export default function HomeSettingsPage() {
             ))}
           </div>
           <p className="text-[11px] text-gray-400 mt-3">
-            Las cifras de caseríos y propuestas se calculan con los datos reales del
+            Las cifras de lugares y propuestas se calculan con los datos reales del
             tenant; si no hay datos, esa estadística no se muestra en la home.
           </p>
         </div>
