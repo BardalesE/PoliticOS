@@ -77,7 +77,6 @@ export function Footer() {
                   style={{ color: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 80%, white)" }}
                 >
                   {profile.party || "Campaña Electoral"}
-                  {profile.list_number ? ` · Lista N°${profile.list_number}` : ""}
                 </b>
                 <span className="text-sm font-semibold text-white leading-tight">
                   {profile.name}

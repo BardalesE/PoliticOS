@@ -63,9 +63,6 @@ export function BioSection() {
                 <dt className="sr-only">Partido</dt>
                 <dd className="font-semibold">
                   {profile.party}
-                  {profile.list_number && (
-                    <span className="ml-1.5 font-normal opacity-60">· Lista {profile.list_number}</span>
-                  )}
                 </dd>
               </div>
             )}

@@ -218,9 +218,6 @@ export function Navbar() {
                     <p className="text-white font-extrabold text-sm uppercase tracking-wider leading-none">
                       {profile.party || "Campaña Electoral"}
                     </p>
-                    <p className="text-white/65 text-[11px] font-semibold mt-0.5">
-                      Lista N°{profile.list_number}
-                    </p>
                   </div>
                 </div>
                 <button

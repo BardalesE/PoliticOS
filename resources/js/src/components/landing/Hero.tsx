@@ -50,7 +50,7 @@ export function Hero({ initialHero }: HeroProps) {
   const d = {
     title:      initialHero?.title           ?? profile.tagline ?? "Un *compromiso* real\ncon nuestra gente.",
     subtitle:   initialHero?.subtitle        ?? (profile.title ? `${profile.title} · ${profile.location}` : profile.location),
-    badge_text: initialHero?.badge_text      ?? (profile.party ? `${profile.party}${profile.list_number ? ` · Lista N°${profile.list_number}` : ""}` : "Campaña Electoral"),
+    badge_text: initialHero?.badge_text      ?? (profile.party || "Campaña Electoral"),
     btn1_label: initialHero?.btn1_label      ?? "Sé parte del cambio",
     btn1_url:   initialHero?.btn1_url        ?? "#participa",
     btn2_label: initialHero?.btn2_label      ?? "Conoce mi historia",
