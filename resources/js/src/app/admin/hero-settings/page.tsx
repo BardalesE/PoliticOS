@@ -57,6 +57,11 @@ export default function HeroSettingsPage() {
   const [mediaDragOver, setMediaDragOver] = useState(false);
   const [mediaUploading, setMediaUploading] = useState(false);
   const [mediaError, setMediaError]     = useState<string | null>(null);
+  // Videos/fotos cuyo archivo ya no carga (típico: se perdieron por reinicio
+  // del servidor con almacenamiento efímero) — se marcan con onError, no se
+  // dejan como un cuadro negro sin explicación.
+  const [brokenMedia, setBrokenMedia]   = useState<Record<number, boolean>>({});
+  const [justUploaded, setJustUploaded] = useState<Record<number, boolean>>({});
   const mediaInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -174,6 +179,11 @@ export default function HeroSettingsPage() {
       for (const file of list) {
         const result = await adminApi.heroSettings.uploadMedia(token, file);
         setMedia(result.media);
+        const newId = result.created?.id;
+        if (newId != null) {
+          setJustUploaded((prev) => ({ ...prev, [newId]: true }));
+          setTimeout(() => setJustUploaded((prev) => { const next = { ...prev }; delete next[newId]; return next; }), 4000);
+        }
       }
     } catch (err: any) {
       setMediaError(err?.message ?? "Error al subir uno de los archivos.");
@@ -276,35 +286,68 @@ export default function HeroSettingsPage() {
 
           {media.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {media.map((m, i) => (
-                <div key={m.id} className="relative group rounded-xl overflow-hidden bg-black aspect-video border border-gray-200">
-                  {m.type === "video" ? (
-                    <video src={m.url} className="w-full h-full object-cover" autoPlay muted loop playsInline preload="metadata" />
-                  ) : (
-                    <img src={m.url} alt="" className="w-full h-full object-cover" />
-                  )}
-                  <div className="absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/60 text-white text-[9px] font-bold uppercase tracking-wide">
-                    {m.type === "video" ? <Film size={9} /> : <ImagePlus size={9} />}
-                    {i + 1}
-                  </div>
-                  <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <button type="button" onClick={() => moveMedia(i, -1)} disabled={i === 0}
-                        className="p-1.5 rounded-md bg-white/90 text-gray-900 disabled:opacity-30" aria-label="Mover a la izquierda">
-                        <ArrowLeft size={12} />
-                      </button>
-                      <button type="button" onClick={() => moveMedia(i, 1)} disabled={i === media.length - 1}
-                        className="p-1.5 rounded-md bg-white/90 text-gray-900 disabled:opacity-30" aria-label="Mover a la derecha">
-                        <ArrowRight size={12} />
+              {media.map((m, i) => {
+                const broken = brokenMedia[m.id];
+                return (
+                  <div key={m.id} className="relative group rounded-xl overflow-hidden bg-black aspect-video border border-gray-200">
+                    {broken ? (
+                      <div className="w-full h-full flex flex-col items-center justify-center gap-1.5 bg-red-950/40 px-2 text-center">
+                        <AlertCircle size={16} className="text-red-400" />
+                        <p className="text-[10px] text-red-300 leading-tight">
+                          No se pudo cargar. Probablemente se perdió el archivo — bórralo y súbelo de nuevo.
+                        </p>
+                      </div>
+                    ) : m.type === "video" ? (
+                      <video
+                        src={m.url}
+                        className="w-full h-full object-cover"
+                        autoPlay muted loop playsInline preload="metadata"
+                        onError={() => setBrokenMedia((prev) => ({ ...prev, [m.id]: true }))}
+                      />
+                    ) : (
+                      <img
+                        src={m.url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        onError={() => setBrokenMedia((prev) => ({ ...prev, [m.id]: true }))}
+                      />
+                    )}
+                    <div className="absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/60 text-white text-[9px] font-bold uppercase tracking-wide">
+                      {m.type === "video" ? <Film size={9} /> : <ImagePlus size={9} />}
+                      {i + 1}
+                    </div>
+                    {justUploaded[m.id] && !broken && (
+                      <div className="absolute top-1.5 right-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-green-500/90 text-white text-[9px] font-semibold">
+                        <CheckCircle size={9} /> Subido
+                      </div>
+                    )}
+                    <div className={cn(
+                      "absolute inset-0 bg-black/55 flex flex-col items-center justify-center gap-1.5 transition-opacity",
+                      broken ? "opacity-100 bg-transparent" : "opacity-0 group-hover:opacity-100"
+                    )}>
+                      {!broken && (
+                        <div className="flex items-center gap-1.5">
+                          <button type="button" onClick={() => moveMedia(i, -1)} disabled={i === 0}
+                            className="p-1.5 rounded-md bg-white/90 text-gray-900 disabled:opacity-30" aria-label="Mover a la izquierda">
+                            <ArrowLeft size={12} />
+                          </button>
+                          <button type="button" onClick={() => moveMedia(i, 1)} disabled={i === media.length - 1}
+                            className="p-1.5 rounded-md bg-white/90 text-gray-900 disabled:opacity-30" aria-label="Mover a la derecha">
+                            <ArrowRight size={12} />
+                          </button>
+                        </div>
+                      )}
+                      <button type="button" onClick={() => deleteMediaItem(m.id)}
+                        className={cn(
+                          "flex items-center gap-1 px-2 py-1 rounded-md bg-red-500/90 text-white text-[10px] font-medium",
+                          broken && "mt-1"
+                        )}>
+                        <X size={11} /> Quitar
                       </button>
                     </div>
-                    <button type="button" onClick={() => deleteMediaItem(m.id)}
-                      className="flex items-center gap-1 px-2 py-1 rounded-md bg-red-500/90 text-white text-[10px] font-medium">
-                      <X size={11} /> Quitar
-                    </button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 

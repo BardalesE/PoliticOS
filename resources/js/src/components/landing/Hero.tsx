@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
 import { TenantLink } from "@/components/ui/TenantLink";
-import { ChevronDown, LocateFixed, Search } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, LocateFixed, Search } from "lucide-react";
 import { resolveTenantSlug, withTenant, type HeroSettings } from "@/lib/api";
 import { useCandidate } from "@/context/CandidateContext";
 import { EmphasisText } from "@/lib/textEmphasis";
@@ -43,6 +43,9 @@ export function Hero({ initialHero }: HeroProps) {
   useEffect(() => {
     if (slide >= media.length && media.length > 0) setSlide(0);
   }, [media.length, slide]);
+
+  const prevSlide = () => setSlide((s) => (s - 1 + media.length) % media.length);
+  const nextSlide = () => setSlide((s) => (s + 1) % media.length);
 
   // Navegación programática preservando ?tenant= (mismo mecanismo que TenantLink)
   const goTenant = (href: string) => {
@@ -192,6 +195,30 @@ export function Hero({ initialHero }: HeroProps) {
                 />
               ))}
             </div>
+          )}
+
+          {/* Flechas del carrusel — la izquierda va más adentro (left-14+) para
+              no chocar con SocialFAB, que vive fijo en left-2/left-4 centrado
+              verticalmente en todo el viewport (misma zona que el Hero). */}
+          {hasCarousel && media.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={prevSlide}
+                aria-label="Diapositiva anterior"
+                className="absolute left-14 sm:left-20 top-1/2 -translate-y-1/2 z-10 w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center bg-black/30 hover:bg-black/50 text-white backdrop-blur-sm border border-white/20 transition-colors"
+              >
+                <ChevronLeft size={18} className="sm:w-5 sm:h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={nextSlide}
+                aria-label="Diapositiva siguiente"
+                className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-10 w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center bg-black/30 hover:bg-black/50 text-white backdrop-blur-sm border border-white/20 transition-colors"
+              >
+                <ChevronRight size={18} className="sm:w-5 sm:h-5" />
+              </button>
+            </>
           )}
         </>
       )}

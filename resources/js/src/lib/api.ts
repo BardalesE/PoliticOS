@@ -401,7 +401,7 @@ export const adminApi = {
     uploadMedia: (token: string, file: File) => {
       const fd = new FormData();
       fd.append("file", file);
-      return upload<{ media: HeroMedia[] }>("/admin/hero-settings/media", fd, token);
+      return upload<{ media: HeroMedia[]; created: HeroMedia }>("/admin/hero-settings/media", fd, token);
     },
     deleteMedia: (token: string, id: number) =>
       request<{ media: HeroMedia[] }>(`/admin/hero-settings/media/${id}`, { method: "DELETE" }, token),
