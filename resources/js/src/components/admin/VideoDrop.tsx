@@ -51,7 +51,7 @@ export function VideoDrop({ label, value, onUrl, uploadFn }: VideoDropProps) {
           onChange={(e) => { const f = e.target.files?.[0]; if (f) handle(f); e.target.value = ""; }} />
         {value ? (
           <div className="relative group aspect-video bg-black">
-            <video src={value} className="w-full h-full object-cover" muted playsInline />
+            <video src={value} className="w-full h-full object-cover" autoPlay muted loop playsInline preload="metadata" />
             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
               <button type="button" onClick={(e) => { e.stopPropagation(); ref.current?.click(); }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/90 text-gray-900 text-xs font-medium">

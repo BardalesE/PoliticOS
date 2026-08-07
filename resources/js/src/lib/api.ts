@@ -397,6 +397,16 @@ export const adminApi = {
       fd.append("video", file);
       return upload<{ url: string; hero: HeroSettings }>("/admin/hero-settings/upload-video", fd, token);
     },
+    // Carrusel de fondo: varias fotos/videos, se sube uno a la vez.
+    uploadMedia: (token: string, file: File) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      return upload<{ media: HeroMedia[] }>("/admin/hero-settings/media", fd, token);
+    },
+    deleteMedia: (token: string, id: number) =>
+      request<{ media: HeroMedia[] }>(`/admin/hero-settings/media/${id}`, { method: "DELETE" }, token),
+    reorderMedia: (token: string, ids: number[]) =>
+      request<{ media: HeroMedia[] }>("/admin/hero-settings/media/reorder", { method: "POST", body: JSON.stringify({ ids }) }, token),
   },
 
   events: {
@@ -470,6 +480,12 @@ export type CampaignVideo = {
 
 // ─── Tipos dinámicos de Home ───────────────────────────────────────────
 
+export type HeroMedia = {
+  id: number;
+  type: "image" | "video";
+  url: string;
+};
+
 export type HeroSettings = {
   id: number;
   title: string;
@@ -486,6 +502,7 @@ export type HeroSettings = {
   btn3_label: string | null;
   btn3_url: string | null;
   is_active: boolean;
+  media?: HeroMedia[];
 };
 
 export type CampaignEvent = {

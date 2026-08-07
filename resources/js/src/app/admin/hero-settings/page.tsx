@@ -3,8 +3,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Loader2, Save, Eye, EyeOff, Sliders,
   Upload, Video, X, CheckCircle, AlertCircle, Link2, Image,
+  ArrowLeft, ArrowRight, ImagePlus, Film, GripVertical,
 } from "lucide-react";
-import { adminApi, adminApiExtended, type HeroSettings } from "@/lib/api";
+import { adminApi, adminApiExtended, type HeroSettings, type HeroMedia } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { FormField } from "@/components/admin/FormField";
 import { cn } from "@/lib/utils";
@@ -51,12 +52,22 @@ export default function HeroSettingsPage() {
   const [imgError, setImgError]         = useState<string | null>(null);
   const imgInputRef = useRef<HTMLInputElement>(null);
 
+  // Carrusel de fondo (varias fotos/videos)
+  const [media, setMedia]               = useState<HeroMedia[]>([]);
+  const [mediaDragOver, setMediaDragOver] = useState(false);
+  const [mediaUploading, setMediaUploading] = useState(false);
+  const [mediaError, setMediaError]     = useState<string | null>(null);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
+
   const load = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     try {
       const data = await adminApi.heroSettings.get(token);
-      if (data) setForm(data);
+      if (data) {
+        setForm(data);
+        setMedia(data.media ?? []);
+      }
     } catch {}
     finally { setLoading(false); }
   }, [token]);
@@ -146,6 +157,62 @@ export default function HeroSettingsPage() {
     e.target.value = "";
   }
 
+  // ── Carrusel de fondo: varias fotos/videos ──────────────────────────
+  async function uploadMediaFiles(files: FileList | File[]) {
+    if (!token) return;
+    const list = Array.from(files);
+    const bad = list.find((f) => !f.type.startsWith("image/") && !f.type.startsWith("video/"));
+    if (bad) { setMediaError("Solo se aceptan imágenes o videos."); return; }
+    const tooBig = list.find((f) => f.size > 512 * 1024 * 1024);
+    if (tooBig) { setMediaError("Cada archivo debe pesar menos de 500 MB."); return; }
+
+    setMediaUploading(true);
+    setMediaError(null);
+    try {
+      // Uno a la vez: el backend agrega cada archivo al final del carrusel
+      // y devuelve la lista completa ya reordenada.
+      for (const file of list) {
+        const result = await adminApi.heroSettings.uploadMedia(token, file);
+        setMedia(result.media);
+      }
+    } catch (err: any) {
+      setMediaError(err?.message ?? "Error al subir uno de los archivos.");
+    } finally {
+      setMediaUploading(false);
+    }
+  }
+
+  function onMediaDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setMediaDragOver(false);
+    if (e.dataTransfer.files.length) uploadMediaFiles(e.dataTransfer.files);
+  }
+
+  function onMediaFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (e.target.files?.length) uploadMediaFiles(e.target.files);
+    e.target.value = "";
+  }
+
+  async function deleteMediaItem(id: number) {
+    if (!token) return;
+    try {
+      const result = await adminApi.heroSettings.deleteMedia(token, id);
+      setMedia(result.media);
+    } catch { setMediaError("Error al eliminar."); }
+  }
+
+  async function moveMedia(index: number, direction: -1 | 1) {
+    if (!token) return;
+    const next = [...media];
+    const target = index + direction;
+    if (target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    setMedia(next); // optimista
+    try {
+      await adminApi.heroSettings.reorderMedia(token, next.map((m) => m.id));
+    } catch { setMediaError("Error al reordenar — recarga la página."); }
+  }
+
   if (loading) {
     return (
       <div className="p-8 flex justify-center py-20">
@@ -198,9 +265,95 @@ export default function HeroSettingsPage() {
           </div>
         </div>
 
-        {/* ── Video de fondo ── */}
+        {/* ── Carrusel de fondo (varias fotos/videos) ── */}
+        <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Carrusel del Hero</p>
+            <p className="text-xs text-gray-400 mt-1">
+              Sube varias fotos y videos — se muestran rotando de fondo en la portada. Si está vacío, se usa el video/imagen únicos de abajo como respaldo.
+            </p>
+          </div>
+
+          {media.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {media.map((m, i) => (
+                <div key={m.id} className="relative group rounded-xl overflow-hidden bg-black aspect-video border border-gray-200">
+                  {m.type === "video" ? (
+                    <video src={m.url} className="w-full h-full object-cover" autoPlay muted loop playsInline preload="metadata" />
+                  ) : (
+                    <img src={m.url} alt="" className="w-full h-full object-cover" />
+                  )}
+                  <div className="absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/60 text-white text-[9px] font-bold uppercase tracking-wide">
+                    {m.type === "video" ? <Film size={9} /> : <ImagePlus size={9} />}
+                    {i + 1}
+                  </div>
+                  <div className="absolute inset-0 bg-black/55 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <button type="button" onClick={() => moveMedia(i, -1)} disabled={i === 0}
+                        className="p-1.5 rounded-md bg-white/90 text-gray-900 disabled:opacity-30" aria-label="Mover a la izquierda">
+                        <ArrowLeft size={12} />
+                      </button>
+                      <button type="button" onClick={() => moveMedia(i, 1)} disabled={i === media.length - 1}
+                        className="p-1.5 rounded-md bg-white/90 text-gray-900 disabled:opacity-30" aria-label="Mover a la derecha">
+                        <ArrowRight size={12} />
+                      </button>
+                    </div>
+                    <button type="button" onClick={() => deleteMediaItem(m.id)}
+                      className="flex items-center gap-1 px-2 py-1 rounded-md bg-red-500/90 text-white text-[10px] font-medium">
+                      <X size={11} /> Quitar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div
+            onDragOver={(e) => { e.preventDefault(); setMediaDragOver(true); }}
+            onDragLeave={() => setMediaDragOver(false)}
+            onDrop={onMediaDrop}
+            onClick={() => mediaInputRef.current?.click()}
+            className={cn(
+              "relative border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all duration-200",
+              mediaDragOver ? "border-brand-500 bg-brand-50" : "border-gray-200 hover:border-brand-400 hover:bg-gray-50"
+            )}
+          >
+            <input
+              ref={mediaInputRef}
+              type="file"
+              multiple
+              accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/mov,video/ogg,video/quicktime"
+              onChange={onMediaFileChange}
+              className="sr-only"
+            />
+            {mediaUploading ? (
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 size={22} className="animate-spin text-brand-400" />
+                <p className="text-sm text-gray-600">Subiendo…</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2">
+                <div className="h-11 w-11 rounded-xl bg-brand-50 border border-brand-100 flex items-center justify-center">
+                  <GripVertical size={18} className="text-brand-500" />
+                </div>
+                <p className="text-sm font-medium text-gray-900">
+                  Arrastra fotos o videos aquí <span className="text-gray-400 font-normal">(puedes elegir varios)</span>
+                </p>
+                <p className="text-[11px] text-gray-400">JPG, PNG, WebP, MP4, WebM, MOV · máx. 500 MB c/u</p>
+              </div>
+            )}
+          </div>
+          {mediaError && (
+            <p className="text-xs text-red-600 flex items-center gap-1"><AlertCircle size={11} /> {mediaError}</p>
+          )}
+        </div>
+
+        {/* ── Video de fondo (respaldo único, si no hay carrusel) ── */}
         <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-5">
-          <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Video de fondo</p>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Video/imagen de respaldo</p>
+            <p className="text-[11px] text-gray-400 mt-1">Solo se usa si el carrusel de arriba está vacío.</p>
+          </div>
 
           {/* Current video preview */}
           {currentVideo && (

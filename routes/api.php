@@ -246,9 +246,12 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
         Route::delete('/campaign-videos/{id}', [CampaignVideoController::class, 'destroy']);
 
         // Hero settings
-        Route::get ('/hero-settings',              [HeroSettingController::class, 'adminShow']);
-        Route::put ('/hero-settings',              [HeroSettingController::class, 'update']);
-        Route::post('/hero-settings/upload-video', [HeroSettingController::class, 'uploadVideo']);
+        Route::get   ('/hero-settings',              [HeroSettingController::class, 'adminShow']);
+        Route::put   ('/hero-settings',              [HeroSettingController::class, 'update']);
+        Route::post  ('/hero-settings/upload-video', [HeroSettingController::class, 'uploadVideo']);
+        Route::post  ('/hero-settings/media',         [HeroSettingController::class, 'uploadMedia']);
+        Route::delete('/hero-settings/media/{id}',    [HeroSettingController::class, 'destroyMedia']);
+        Route::post  ('/hero-settings/media/reorder', [HeroSettingController::class, 'reorderMedia']);
 
         // Eventos
         Route::get   ('/events',      [EventController::class, 'adminIndex']);

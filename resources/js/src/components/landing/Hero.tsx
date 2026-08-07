@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
 import { TenantLink } from "@/components/ui/TenantLink";
 import { ChevronDown, LocateFixed, Search } from "lucide-react";
@@ -13,11 +13,36 @@ interface HeroProps {
   initialHero?: HeroSettings | null;
 }
 
+// Cuánto dura cada foto en pantalla antes de pasar a la siguiente. Los
+// videos avanzan solos al terminar (evento `onEnded`), no usan este timer.
+const IMAGE_SLIDE_MS = 6000;
+
 export function Hero({ initialHero }: HeroProps) {
   const { profile, districts } = useCandidate();
   const [videoError, setVideoError] = useState(false);
   const [zone, setZone] = useState("");
   const router = useRouter();
+
+  // ── Carrusel de fondo (fotos + videos) ──────────────────────────────
+  const media = (initialHero?.media ?? []).filter((m) => m.url);
+  const hasCarousel = media.length > 0;
+  const [slide, setSlide] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!hasCarousel || media.length < 2) return;
+    const current = media[slide];
+    if (current.type === "image") {
+      timerRef.current = setTimeout(() => setSlide((s) => (s + 1) % media.length), IMAGE_SLIDE_MS);
+      return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+    }
+    // Los videos avanzan con onEnded (ver <video>), no con timer.
+  }, [slide, hasCarousel, media.length]);
+
+  // Si el admin quita medios mientras se ve la página, no te quedes fuera de rango.
+  useEffect(() => {
+    if (slide >= media.length && media.length > 0) setSlide(0);
+  }, [media.length, slide]);
 
   // Navegación programática preservando ?tenant= (mismo mecanismo que TenantLink)
   const goTenant = (href: string) => {
@@ -63,7 +88,7 @@ export function Hero({ initialHero }: HeroProps) {
     overlay_color:  initialHero?.overlay_color   ?? null,
   };
 
-  const hasBackground = (d.video_url && !videoError) || d.image_url;
+  const hasBackground = hasCarousel || (d.video_url && !videoError) || d.image_url;
   const onDark = !!hasBackground;
 
   const container = {
@@ -104,10 +129,37 @@ export function Hero({ initialHero }: HeroProps) {
         </>
       )}
 
-      {/* ── Fondo: video o imagen ── */}
+      {/* ── Fondo: carrusel de fotos/videos, o fallback video/imagen único ── */}
       {hasBackground && (
         <>
-          {d.video_url && !videoError ? (
+          {hasCarousel ? (
+            <AnimatePresence mode="sync">
+              {media.map((m, i) =>
+                i === slide ? (
+                  <motion.div
+                    key={m.id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.7, ease: "easeInOut" }}
+                    className="absolute inset-0 w-full h-full"
+                  >
+                    {m.type === "video" ? (
+                      <video
+                        key={m.id}
+                        src={m.url}
+                        autoPlay muted playsInline
+                        onEnded={() => setSlide((s) => (s + 1) % media.length)}
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                    ) : (
+                      <img src={m.url} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                    )}
+                  </motion.div>
+                ) : null
+              )}
+            </AnimatePresence>
+          ) : d.video_url && !videoError ? (
             <video
               src={d.video_url}
               autoPlay muted loop playsInline
@@ -124,6 +176,23 @@ export function Hero({ initialHero }: HeroProps) {
               background: `linear-gradient(180deg, rgba(0,0,0,${d.opacity * 0.75}) 0%, rgba(0,0,0,${d.opacity}) 100%)`,
             }}
           />
+
+          {/* Dots del carrusel — responsive, no compite con el contenido */}
+          {hasCarousel && media.length > 1 && (
+            <div className="absolute bottom-20 sm:bottom-24 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 sm:gap-2">
+              {media.map((m, i) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  aria-label={`Ir a la diapositiva ${i + 1}`}
+                  onClick={() => setSlide(i)}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    i === slide ? "w-6 sm:w-7 bg-white" : "w-1.5 bg-white/40 hover:bg-white/60"
+                  }`}
+                />
+              ))}
+            </div>
+          )}
         </>
       )}
 
