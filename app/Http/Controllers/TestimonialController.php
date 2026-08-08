@@ -29,7 +29,7 @@ class TestimonialController extends Controller
         $data = $request->validate([
             'name'       => ['required', 'string', 'max:150'],
             'role'       => ['nullable', 'string', 'max:150'],
-            'photo'      => ['nullable', 'file', 'image', 'mimes:jpeg,png,webp', 'max:4096'],
+            'photo'      => ['nullable', 'file', 'image', 'mimes:jpeg,png,webp', 'max:10240'],
             'quote'      => ['required', 'string'],
             'district'   => ['nullable', 'string', 'max:100'],
             'sort_order' => ['nullable', 'integer'],
@@ -54,7 +54,7 @@ class TestimonialController extends Controller
         $data = $request->validate([
             'name'       => ['sometimes', 'required', 'string', 'max:150'],
             'role'       => ['nullable', 'string', 'max:150'],
-            'photo'      => ['nullable', 'file', 'image', 'mimes:jpeg,png,webp', 'max:4096'],
+            'photo'      => ['nullable', 'file', 'image', 'mimes:jpeg,png,webp', 'max:10240'],
             'quote'      => ['sometimes', 'required', 'string'],
             'district'   => ['nullable', 'string', 'max:100'],
             'sort_order' => ['nullable', 'integer'],
