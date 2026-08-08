@@ -98,11 +98,31 @@ services:
       - key: AI_EMBEDDINGS_DRIVER
         value: mysql_fulltext
 
-      # ── Storage de media (efímero en plan free) ─────────────────────────
+      # ── Storage de media — Cloudflare R2 (S3-compatible) ────────────────
+      # ANTES estaba en "public" (disco local) con valor fijo aquí — Render
+      # reseteaba MEDIA_DISK a "public" en CADA deploy sin importar lo que se
+      # cambiara a mano en el dashboard, porque un blueprint con `value:`
+      # fijo siempre gana sobre ediciones manuales. Causa raíz de que las
+      # fotos/videos "se borraran solas": el disco local de Render es
+      # efímero (se borra en cada redeploy/reinicio) — R2 es persistente.
       - key: FILESYSTEM_DISK
         value: local
       - key: MEDIA_DISK
-        value: public
+        value: s3
+      - key: AWS_DEFAULT_REGION
+        value: auto                 # R2 usa "auto", no una región real de AWS
+      - key: AWS_BUCKET
+        value: politicos-media
+      - key: AWS_ENDPOINT
+        value: https://0982f041dc51e9f673a53f106cf86fc1.r2.cloudflarestorage.com
+      - key: AWS_USE_PATH_STYLE_ENDPOINT
+        value: "true"
+      - key: AWS_URL
+        sync: false                 # pegar: https://pub-xxxxxxxx.r2.dev (R2 → bucket → Settings → Public Access)
+      - key: AWS_ACCESS_KEY_ID
+        sync: false                 # pegar: R2 → Manage API tokens → Access Key ID
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false                 # pegar: R2 → Manage API tokens → Secret Access Key (se muestra una sola vez)
 
       # ── Claves internas (Render las genera aleatorias y fuertes) ────────
       - key: SUPER_ADMIN_KEY
