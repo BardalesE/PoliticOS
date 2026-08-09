@@ -35,7 +35,12 @@ const csp = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: blob: https: http:",
-  "media-src 'self' blob:",
+  // Videos ahora viven en Cloudflare R2 (dominio externo), no en el mismo
+  // origen — 'self' + blob: bloqueaba TODO video remoto (Chrome lo reporta
+  // como "Media load rejected by URL safety check"). Mismo criterio que
+  // img-src arriba: se permite https: en general en vez de listar un
+  // dominio *.r2.dev específico (cambia si se conecta un dominio propio).
+  "media-src 'self' blob: https:",
   `connect-src 'self' ${apiOrigin} https://api.anthropic.com`,
   // Auditoría de calidad (Fase 17): 'none' bloqueaba también el auto-embed del
   // wizard de onboarding (Paso 3 "Probar el chat" mete /chat en un <iframe>
