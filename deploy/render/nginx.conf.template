@@ -12,8 +12,9 @@ server {
     root  /var/www/html/public;
     index index.php;
 
-    # Uploads de media (fotos, PDFs del knowledge base)
-    client_max_body_size 25m;
+    # Uploads de media (fotos, videos, PDFs) — alineado con el límite real
+    # de 500MB que validan los controllers (antes 25m, cortaba videos).
+    client_max_body_size 520m;
 
     # Render ya termina TLS; los headers de seguridad los pone la app
     # (App\Http\Middleware\SecurityHeaders), no duplicar aquí.
