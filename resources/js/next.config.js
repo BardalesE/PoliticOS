@@ -79,11 +79,14 @@ const nextConfig = {
   // 'standalone' provoca fallo post-build. Se mantiene para auto-hospedaje.
   output: process.env.VERCEL ? undefined : 'standalone',
 
-  images: {
+images: {
     remotePatterns: [
       // Dominios propios (uploads servidos por el backend de cada tenant)
       { protocol: "https", hostname: "politicos.pe" },
       { protocol: "https", hostname: "**.politicos.pe" },
+      // Media de campaña (logo, foto candidato, hero, galería) — Cloudflare R2
+      { protocol: "https", hostname: "**.r2.dev" },
+      { protocol: "https", hostname: "**.r2.cloudflarestorage.com" },
       // Hosts externos que el contenido ya referencia
       { protocol: "https", hostname: "img.youtube.com" },     // thumbnails de videos
       { protocol: "https", hostname: "images.unsplash.com" }, // placeholders del landing
