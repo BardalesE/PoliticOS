@@ -41,6 +41,14 @@ return [
         'claude_model'  => env('CLAUDE_MODEL', 'claude-haiku-4-5-20251001'),
         'openai_key'    => env('OPENAI_API_KEY'),
         'openai_model'  => env('OPENAI_MODEL', 'gpt-4o-mini'),
+        // El slot "openai" acepta cualquier API compatible con el formato
+        // /chat/completions de OpenAI — no solo OpenAI. Sirve para enchufar un
+        // segundo proveedor de respaldo sin tocar código: basta apuntar esta
+        // URL + su key + su modelo. Ej. Gemini (tier gratis):
+        //   OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/chat/completions
+        //   OPENAI_API_KEY=<key de aistudio.google.com>
+        //   OPENAI_MODEL=gemini-3.7-flash
+        'openai_url'    => env('OPENAI_BASE_URL', 'https://api.openai.com/v1/chat/completions'),
         'groq_key'      => env('GROQ_API_KEY'),
         'groq_model'    => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
 
