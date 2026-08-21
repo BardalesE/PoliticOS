@@ -516,7 +516,13 @@ class CivicAIService
             $groups[$cid ?? 0][] = $d;
         }
 
-        $parts = ["\nDOCUMENTACIÓN VERIFICADA POR CANDIDATO (cita siempre con [Candidato] — [Fuente: URL]):"];
+        // FIX 2026-08-20 (bug "links alucinados"): la instrucción "cita siempre
+        // con [Fuente: URL]" antes era incondicional — cuando el documento no
+        // tenía source_url/file_url real, el LLM igual debía "citar" y
+        // fabricaba una URL plausible para cumplir el formato. Ahora el tag de
+        // fuente solo se arma si hay URL real; si no, se lo decimos explícito
+        // al modelo para que no invente un link.
+        $parts = ["\nDOCUMENTACIÓN VERIFICADA POR CANDIDATO (cita [Candidato] siempre; agrega [Fuente: URL] SOLO si el documento trae una URL real — si dice \"sin fuente pública\", NUNCA inventes un link):"];
 
         foreach ($groups as $cid => $groupDocs) {
             if ($cid && isset($names[$cid])) {
@@ -528,11 +534,12 @@ class CivicAIService
             }
 
             foreach ($groupDocs as $d) {
-                $title  = $d['title'] ?: 'Documento';
-                $type   = $typeLabels[$d['metadata']['source_type'] ?? 'pdf'] ?? 'documento';
-                $source = $d['metadata']['source_url'] ?? $d['metadata']['file_url'] ?? '';
-                $excerpt = mb_substr($d['excerpt'], 0, 1200);
-                $parts[] = "— {$title} [{$type}] [Fuente: {$source}]\n{$excerpt}";
+                $title    = $d['title'] ?: 'Documento';
+                $type     = $typeLabels[$d['metadata']['source_type'] ?? 'pdf'] ?? 'documento';
+                $source   = $d['metadata']['source_url'] ?? $d['metadata']['file_url'] ?? '';
+                $excerpt  = mb_substr($d['excerpt'], 0, 1200);
+                $sourceTag = $source !== '' ? " [Fuente: {$source}]" : ' [Fuente: sin fuente pública — no cites URL]';
+                $parts[] = "— {$title} [{$type}]{$sourceTag}\n{$excerpt}";
             }
         }
 
@@ -645,11 +652,7 @@ class CivicAIService
     private function callAI(string $userMessage, string $context, array $history, array $segment,
                             ?array $attack, ChatSession $session, ?string $topic): string
     {
-        $providers = array_unique(array_filter([
-            $this->config->provider,
-            $this->config->fallback_provider,
-            $this->getLastResortProvider(),
-        ]));
+        $providers = $this->usableProviders();
 
         $systemPrompt = $this->buildSystemPrompt($context, $segment, $attack, $session, $topic);
 
@@ -731,7 +734,7 @@ class CivicAIService
             'claude' => $this->callClaude($userMessage, $systemPrompt, $history),
             'openai' => $this->callOpenCompatible(
                 $userMessage, $systemPrompt, $history,
-                'https://api.openai.com/v1/chat/completions',
+                config('services.ai.openai_url', 'https://api.openai.com/v1/chat/completions'),
                 $this->resolveApiKey('openai', config('services.ai.openai_key')),
                 config('services.ai.openai_model', 'gpt-4o-mini')
             ),
@@ -771,6 +774,58 @@ class CivicAIService
         $all = ['groq','claude','openai'];
         $used = array_filter([$this->config->provider, $this->config->fallback_provider]);
         return array_values(array_diff($all, $used))[0] ?? null;
+    }
+
+    /**
+     * FIX 2026-08-20 (bug "el bot devuelve propuestas crudas en vez de una
+     * respuesta redactada"): la cadena primario → fallback → último recurso se
+     * recorría COMPLETA aunque el provider no tuviera API key configurada. Con
+     * solo GROQ_API_KEY puesta en Render, cada vez que Groq devolvía 429 (tier
+     * gratis: 12k TPM, se satura con tráfico real de ciudadanos) el sistema
+     * disparaba dos requests HTTP condenados a 401 —hasta 30s de timeout cada
+     * uno— antes de rendirse con '__AI_RESTING__' y caer en
+     * buildRestingResponse(), que arma el mensaje leyendo Proposal directo de
+     * la BD, sin pasar por ningún LLM. Ese es el "chunk crudo" que ve el
+     * ciudadano. Ahora se descartan de entrada los providers sin key: el
+     * failover es instantáneo y los logs dicen la verdad sobre qué está
+     * configurado.
+     */
+    private function usableProviders(): array
+    {
+        $chain = array_unique(array_filter([
+            $this->config->provider,
+            $this->config->fallback_provider,
+            $this->getLastResortProvider(),
+        ]));
+
+        $usable = array_values(array_filter($chain, fn ($p) => $this->hasKeyFor($p)));
+
+        if (count($usable) < count($chain)) {
+            Log::warning('AI: providers descartados por falta de API key', [
+                'cadena_configurada' => array_values($chain),
+                'con_key'            => $usable,
+            ]);
+        }
+
+        if (count($usable) < 2) {
+            Log::warning('AI: sin redundancia real de proveedor — si este falla, el chat cae a respuesta de descanso', [
+                'con_key' => $usable,
+            ]);
+        }
+
+        return $usable;
+    }
+
+    /** ¿Hay API key (del tenant o global) para este provider? */
+    private function hasKeyFor(string $provider): bool
+    {
+        $globalKey = match ($provider) {
+            'claude' => config('services.ai.claude_key'),
+            'openai' => config('services.ai.openai_key'),
+            default  => config('services.ai.groq_key'),
+        };
+
+        return !empty($this->resolveApiKey($provider, $globalKey));
     }
 
     private function callOpenCompatible(string $userMessage, string $systemPrompt, array $history,
@@ -853,11 +908,7 @@ class CivicAIService
                                   array $segment, ?array $attack, ChatSession $session,
                                   ?string $topic, callable $onChunk): void
     {
-        $providers = array_unique(array_filter([
-            $this->config->provider,
-            $this->config->fallback_provider,
-            $this->getLastResortProvider(),
-        ]));
+        $providers = $this->usableProviders();
 
         $systemPrompt = $this->buildSystemPrompt($context, $segment, $attack, $session, $topic);
 
@@ -913,7 +964,7 @@ class CivicAIService
             'claude' => $this->streamClaude($userMessage, $systemPrompt, $history, $onChunk),
             'openai' => $this->streamOpenCompatible(
                 $userMessage, $systemPrompt, $history, $onChunk,
-                'https://api.openai.com/v1/chat/completions',
+                config('services.ai.openai_url', 'https://api.openai.com/v1/chat/completions'),
                 $this->resolveApiKey('openai', config('services.ai.openai_key')),
                 config('services.ai.openai_model', 'gpt-4o-mini')
             ),
