@@ -120,6 +120,17 @@ class PepaResponseParsingTest extends TestCase
         return $method->invoke($svc);
     }
 
+    private function truncateToTokenBudget(string $text, int $maxTokens): string
+    {
+        $svc = $this->service();
+        $ref = new ReflectionClass($svc);
+
+        $method = $ref->getMethod('truncateToTokenBudget');
+        $method->setAccessible(true);
+
+        return $method->invoke($svc, $text, $maxTokens);
+    }
+
     private function validJson(): string
     {
         return json_encode([
@@ -363,10 +374,22 @@ class PepaResponseParsingTest extends TestCase
         $this->assertSame(1200, $this->effectiveMaxTokens('pepa', 600));
     }
 
-    public function test_effective_max_tokens_respects_higher_admin_value_in_pepa(): void
+    /**
+     * feat/cuotas-ia — CAMBIO DE COMPORTAMIENTO respecto a la versión anterior
+     * de este test (que esperaba 2000, ver git blame). MIN_MAX_TOKENS (piso
+     * anti-truncamiento JSON, 1200) y QUOTA_MAX_OUTPUT_TOKENS (techo duro de
+     * cuota, 500) son matemáticamente incompatibles: 500 < 1200, así que
+     * max(min(configured, 500), 1200) SIEMPRE da 1200 sin importar qué
+     * configure el admin — ni 600, ni 2000, ni 8000. effectiveMaxTokens() dejó
+     * de ser "el piso, salvo que el admin pida más" y pasó a ser un valor fijo
+     * en la práctica. Es una consecuencia documentada y deliberada del límite
+     * de cuota pedido (ver comentario en CivicAIService::QUOTA_MAX_OUTPUT_TOKENS),
+     * no un bug — pero si algún día el negocio quiere que "2000" vuelva a
+     * respetarse, hay que resolver el conflicto ahí, no acá.
+     */
+    public function test_effective_max_tokens_higher_admin_value_ahora_queda_topado_por_la_cuota(): void
     {
-        // Si el admin configuró más que el piso, se respeta.
-        $this->assertSame(2000, $this->effectiveMaxTokens('pepa', 2000));
+        $this->assertSame(1200, $this->effectiveMaxTokens('pepa', 2000));
     }
 
     public function test_effective_max_tokens_floors_campaign_too(): void
@@ -377,9 +400,18 @@ class PepaResponseParsingTest extends TestCase
         $this->assertSame(1200, $this->effectiveMaxTokens('campaign', 600));
     }
 
-    public function test_effective_max_tokens_respects_higher_admin_value_in_campaign(): void
+    /** Ver docblock de test_effective_max_tokens_higher_admin_value_ahora_queda_topado_por_la_cuota(). */
+    public function test_effective_max_tokens_higher_admin_value_en_campaign_tambien_queda_topado(): void
     {
-        $this->assertSame(2000, $this->effectiveMaxTokens('campaign', 2000));
+        $this->assertSame(1200, $this->effectiveMaxTokens('campaign', 2000));
+    }
+
+    public function test_effective_max_tokens_nunca_baja_de_1200_aunque_lo_configurado_sea_menor_a_la_cuota(): void
+    {
+        // configured=300 < QUOTA_MAX_OUTPUT_TOKENS=500 < MIN_MAX_TOKENS=1200:
+        // el piso anti-truncamiento sigue ganando incluso cuando ni siquiera
+        // hace falta el paso por la cuota para explicarlo.
+        $this->assertSame(1200, $this->effectiveMaxTokens('pepa', 300));
     }
 
     /**
@@ -398,5 +430,37 @@ class PepaResponseParsingTest extends TestCase
                   'postura_actual', 'cambio_de_opinion', 'region_confirmada'] as $field) {
             $this->assertStringContainsString($field, $prompt);
         }
+    }
+
+    // ─── feat/cuotas-ia: truncateToTokenBudget() (límite duro de RAG) ──────
+
+    public function test_truncate_to_token_budget_no_toca_texto_corto(): void
+    {
+        $text = str_repeat('a', 100);
+
+        $this->assertSame($text, $this->truncateToTokenBudget($text, 4000));
+    }
+
+    public function test_truncate_to_token_budget_corta_texto_largo_y_avisa(): void
+    {
+        // ~4 chars/token (aproximación documentada en CivicAIService — no hay
+        // tokenizer real de Groq/Llama disponible en PHP): 4000 tokens ≈
+        // 16000 chars. Con 20000 chars debe cortar y agregar el aviso.
+        $text = str_repeat('a', 20000);
+
+        $result = $this->truncateToTokenBudget($text, 4000);
+
+        $this->assertLessThan(mb_strlen($text), mb_strlen($result));
+        $this->assertStringContainsString('[... contexto truncado por límite de cuota]', $result);
+        // El contenido real cortado (antes del "\n" + aviso) es exactamente
+        // maxTokens * 4 chars, ni uno más.
+        $this->assertStringStartsWith(mb_substr($text, 0, 16000) . "\n", $result);
+    }
+
+    public function test_truncate_to_token_budget_respeta_el_limite_exacto(): void
+    {
+        $text = str_repeat('a', 16000); // exactamente 4000 tokens aprox.
+
+        $this->assertSame($text, $this->truncateToTokenBudget($text, 4000));
     }
 }

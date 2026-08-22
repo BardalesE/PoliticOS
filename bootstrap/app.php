@@ -65,6 +65,9 @@ return Application::configure(basePath: dirname(__DIR__))
             'plan_feature' => \App\Http\Middleware\CheckPlanFeature::class,
             'ingest_key'   => \App\Http\Middleware\EnsureIngestKey::class,
             'scheduler_key' => \App\Http\Middleware\EnsureSchedulerKey::class,
+            // feat/cuotas-ia
+            'tenant_quota'   => \App\Http\Middleware\EnsureTenantQuota::class,
+            'chat_throttle'  => \App\Http\Middleware\ThrottleChatBySession::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

@@ -484,7 +484,33 @@ class CivicAIService
         $docs = $this->embeddings->search($userMessage, 3, $topic ? ['topic' => $topic] : []);
         $parts[] = $this->buildDocumentationSection($docs, ($this->config->mode ?? 'campaign') === 'pepa');
 
-        return implode("\n", $parts);
+        return $this->truncateToTokenBudget(implode("\n", $parts), self::RAG_CONTEXT_TOKEN_BUDGET);
+    }
+
+    /**
+     * feat/cuotas-ia — límite duro de cuota: el contexto RAG completo (esta
+     * sección del prompt: propuestas + FAQs + clusters + documentación
+     * citable — la que el propio código ya llama "CONTEXTO RAG", ver
+     * encabezado de buildContext()) no debería superar ~4000 tokens.
+     *
+     * No hay tokenizer real disponible en PHP para el modelo de Groq/Llama,
+     * así que se aproxima con ~4 caracteres/token (regla de dedo estándar
+     * para textos en inglés/español con BPE) — deliberadamente conservador:
+     * mejor cortar de más que exceder el presupuesto real y disparar un 429
+     * de Groq/OpenAI por exceso de tokens, que es justo lo que este límite
+     * busca evitar (ver comentario de TPM=12000 en buildContext()).
+     */
+    private const RAG_CONTEXT_TOKEN_BUDGET = 4000;
+    private const APPROX_CHARS_PER_TOKEN   = 4;
+
+    private function truncateToTokenBudget(string $text, int $maxTokens): string
+    {
+        $maxChars = $maxTokens * self::APPROX_CHARS_PER_TOKEN;
+        if (mb_strlen($text) <= $maxChars) {
+            return $text;
+        }
+
+        return mb_substr($text, 0, $maxChars) . "\n[... contexto truncado por límite de cuota]";
     }
 
     /**
@@ -788,11 +814,30 @@ class CivicAIService
      */
     private const MIN_MAX_TOKENS = 1200;
 
+    /**
+     * feat/cuotas-ia — límite duro de cuota: el output de cada llamada al LLM
+     * no debería superar 500 tokens.
+     *
+     * ⚠ CONFLICTO DOCUMENTADO con MIN_MAX_TOKENS de arriba (1200): ese piso
+     * existe específicamente para que el JSON de PEPA (respuesta_usuario +
+     * metadata_interna) no se trunque a medio generar — bajarlo reabre
+     * exactamente el bug que cubre PepaResponseParsingTest (fuga/truncamiento
+     * del contrato JSON, ver tests/Unit/PepaResponseParsingTest.php). Con los
+     * valores actuales, MIN_MAX_TOKENS sigue ganando en la práctica en AMBOS
+     * modos: el techo de cuota queda declarado y aplicado abajo, pero nunca
+     * empuja el resultado por debajo de 1200. Si 500 tiene que ser un límite
+     * real (no solo nominal), hay que bajar MIN_MAX_TOKENS explícitamente y
+     * aceptar el riesgo de truncamiento en PEPA — no es algo para resolver
+     * en silencio acá.
+     */
+    private const QUOTA_MAX_OUTPUT_TOKENS = 500;
+
     private function effectiveMaxTokens(): int
     {
-        $configured = (int) ($this->config->max_tokens ?? self::MIN_MAX_TOKENS);
+        $configured  = (int) ($this->config->max_tokens ?? self::MIN_MAX_TOKENS);
+        $quotaCapped = min($configured, self::QUOTA_MAX_OUTPUT_TOKENS);
 
-        return max($configured, self::MIN_MAX_TOKENS);
+        return max($quotaCapped, self::MIN_MAX_TOKENS);
     }
 
     private function callProvider(string $provider, string $userMessage, string $systemPrompt, array $history): string

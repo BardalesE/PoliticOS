@@ -27,7 +27,10 @@ class ChatController extends Controller
     public function send(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'message'     => ['required','string','min:1','max:2000'],
+            // feat/cuotas-ia: bajado de 2000 a 500 — límite duro de costo por
+            // mensaje (un mensaje largo infla tokens de entrada Y empuja al
+            // modelo a una respuesta más larga pese al techo de salida).
+            'message'     => ['required','string','min:1','max:500'],
             'session_id'  => ['nullable','string','max:64'],
             'consent'     => ['nullable','boolean'],
             'declared'    => ['nullable','array'],
@@ -139,6 +142,14 @@ class ChatController extends Controller
         $this->applyPepaMetaToSession($session, $response['pepa_metadata'] ?? null);
         $this->capturePotentialDeclaredData($session, $data['declared'] ?? []);
 
+        // feat/cuotas-ia: solo cuenta contra la cuota si el LLM realmente
+        // respondió — 'ai_resting' true significa que CivicAIService cayó al
+        // mensaje enlatado (todos los providers fallaron) y no se le cobra
+        // uso al tenant por un error de infraestructura, no suyo.
+        if ($tenant && !($response['ai_resting'] ?? false)) {
+            $tenant->recordSuccessfulMessage();
+        }
+
         // ->afterResponse() ya difiere la ejecución hasta después de enviar la
         // respuesta al cliente (Application::terminating()), sin bloquear al
         // usuario — funciona igual con QUEUE_CONNECTION=sync (corre inline en
@@ -159,7 +170,10 @@ class ChatController extends Controller
     public function stream(Request $request): StreamedResponse
     {
         $data = $request->validate([
-            'message'     => ['required','string','min:1','max:2000'],
+            // feat/cuotas-ia: bajado de 2000 a 500 — límite duro de costo por
+            // mensaje (un mensaje largo infla tokens de entrada Y empuja al
+            // modelo a una respuesta más larga pese al techo de salida).
+            'message'     => ['required','string','min:1','max:500'],
             'session_id'  => ['nullable','string','max:64'],
             'consent'     => ['nullable','boolean'],
             'declared'    => ['nullable','array'],
@@ -290,6 +304,14 @@ class ChatController extends Controller
                             'is_fallback'     => $meta['ai_resting'] ?? false,
                         ]);
                         $this->applyPepaMetaToSession($session, $meta['pepa_metadata'] ?? null);
+
+                        // feat/cuotas-ia: ver comentario equivalente en send() — solo
+                        // cuenta contra la cuota si el LLM realmente respondió.
+                        $streamTenant = app('tenant');
+                        if ($streamTenant && !($meta['ai_resting'] ?? false)) {
+                            $streamTenant->recordSuccessfulMessage();
+                        }
+
                         // Ver comentario equivalente en send() — afterResponse()
                         // difiere la ejecución sin necesitar un worker de colas.
                         AnalyzeMessageJob::dispatch($userMsg->id)->afterResponse();

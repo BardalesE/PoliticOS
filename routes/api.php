@@ -50,13 +50,20 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
         });
     });
 
-    // ─── Chat público (rate-limited + captura de contexto) ────────────
+    // ─── Chat público (captura de contexto) ────────────────────────────
+    // feat/cuotas-ia: el throttle:30,1,chat por IP (evadible, castiga NAT
+    // compartido) se reemplazó por 'chat_throttle' (por sesión, ver
+    // ThrottleChatBySession) + 'tenant_quota' (cuota mensual del tenant,
+    // ver EnsureTenantQuota) — SOLO en los 2 endpoints que consumen mensaje
+    // (send/stream). session/consent/location no gastan cuota ni cuentan
+    // como mensaje; les queda el throttle:60,1 global de bootstrap/app.php.
     Route::prefix('chat')->middleware([
-        'throttle:30,1,chat',
         \App\Http\Middleware\CaptureRequestContext::class,
     ])->group(function () {
-        Route::post('/',             [ChatController::class, 'send']);
-        Route::post('/stream',       [ChatController::class, 'stream']);
+        Route::post('/',       [ChatController::class, 'send'])
+            ->middleware(['chat_throttle', 'tenant_quota']);
+        Route::post('/stream', [ChatController::class, 'stream'])
+            ->middleware(['chat_throttle', 'tenant_quota']);
         Route::get('/session/{id}',  [ChatController::class, 'session']);
         Route::post('/consent',      [ChatController::class, 'consent']);
         Route::post('/location',     [ChatController::class, 'saveLocation']);

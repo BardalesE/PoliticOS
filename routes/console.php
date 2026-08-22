@@ -43,3 +43,13 @@ Schedule::command('livestreams:continue-merges')
     ->everyFiveMinutes()
     ->name('continue-livestream-merges')
     ->withoutOverlapping();
+
+// Diario: resetea la cuota mensual de IA de los tenants cuyo periodo venció
+// (feat/cuotas-ia). Diario y no mensual porque cada tenant tiene su propio
+// periodo_inicio (arranca en su fecha de alta o último reset, no un
+// calendario compartido) — hay que revisar todos los días cuál vence hoy.
+// Corre sobre la conexión 'central', no necesita TenantContext::forEachTenant.
+Schedule::command('tenant:reset-quota --force')
+    ->daily()
+    ->name('reset-tenant-ai-quota')
+    ->withoutOverlapping();
