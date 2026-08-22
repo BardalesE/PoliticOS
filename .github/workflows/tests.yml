@@ -1,0 +1,89 @@
+name: Tests (PHPUnit)
+
+# Corre la suite de PHPUnit en cada push/PR — hasta ahora los 93 tests del
+# repo (chat/RAG, cuota de IA, parseo PEPA, etc.) solo se ejecutaban si
+# alguien se acordaba de correr `php artisan test` a mano; nada impedía
+# mergear un PR con tests rotos. Ver ANALISIS_ARQUITECTURA.md, hallazgo #2.
+#
+# phpunit.xml deja DB_CONNECTION/DB_DATABASE sin override (usa lo que
+# resuelva el entorno) porque varios tests dependen de MySQL real — FULLTEXT
+# (MATCH ... AGAINST, ver MySQLFulltextEmbeddings) no existe en SQLite, así
+# que este workflow levanta un servicio mysql:8 real en vez de usar sqlite
+# en memoria. La misma BD sirve a la conexión 'mysql' y a 'central' (mismas
+# env vars DB_*, ver config/database.php) — igual que en local, no hace
+# falta provisionar una segunda base para los tests de Tenant/central.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: true
+          MYSQL_DATABASE: politicos_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: mbstring, pdo_mysql, intl, gd
+          coverage: none
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Preparar .env
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Esperar a que MySQL esté listo
+        run: |
+          for i in $(seq 1 30); do
+            mysqladmin ping -h 127.0.0.1 -P 3306 -u root --silent && break
+            sleep 2
+          done
+
+      - name: Migrar + sembrar
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: politicos_test
+          DB_USERNAME: root
+          DB_PASSWORD: ""
+        run: php artisan migrate --seed --force
+
+      - name: Correr la suite de tests
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: politicos_test
+          DB_USERNAME: root
+          DB_PASSWORD: ""
+        run: php artisan test
