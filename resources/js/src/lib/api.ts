@@ -745,6 +745,12 @@ export type Tenant = {
   plan: "starter" | "pro" | "elite";
   is_active: boolean;
   created_at: string;
+  // ── Cuota de IA (feat/cuotas-ia) ──────────────────────────────────────
+  mensajes_incluidos: number;
+  mensajes_usados: number;
+  periodo_inicio: string | null;
+  estado_cuota: "activo" | "agotado" | "suspendido";
+  quota_used_percent: number;
 };
 
 export type VisitedPlace = {

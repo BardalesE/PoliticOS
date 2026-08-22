@@ -60,6 +60,53 @@ function statusDot(active: boolean) {
     : <span className="inline-block w-2 h-2 rounded-full bg-gray-300" title="Inactivo" />;
 }
 
+// ── Cuota de IA (feat/cuotas-ia) ────────────────────────────────────────────
+// Alerta visual al 80%: verde <80%, ámbar >=80% (todavía activo, se acerca al
+// límite), rojo si ya no hay cuota disponible (agotado/suspendido) sin
+// importar el porcentaje numérico — el estado manda sobre el número.
+function quotaBadgeColor(tenant: Pick<Tenant, "estado_cuota" | "quota_used_percent">) {
+  if (tenant.estado_cuota !== "activo") return "text-red-600 bg-red-50 border-red-100";
+  if (tenant.quota_used_percent >= 80) return "text-amber-600 bg-amber-50 border-amber-100";
+  return "text-emerald-600 bg-emerald-50 border-emerald-100";
+}
+
+function quotaBadgeLabel(tenant: Pick<Tenant, "estado_cuota">) {
+  if (tenant.estado_cuota === "suspendido") return "Suspendido";
+  if (tenant.estado_cuota === "agotado") return "Agotado";
+  return null;
+}
+
+function QuotaBadge({ tenant }: { tenant: Tenant }) {
+  const colorClass = quotaBadgeColor(tenant);
+  const stateLabel = quotaBadgeLabel(tenant);
+
+  return (
+    <div className="flex flex-col gap-1 min-w-[120px]">
+      <div className="flex items-center justify-between gap-2">
+        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${colorClass}`}>
+          {tenant.quota_used_percent}%
+        </span>
+        <span className="text-[10px] text-gray-400 font-mono">
+          {tenant.mensajes_usados.toLocaleString()}/{tenant.mensajes_incluidos.toLocaleString()}
+        </span>
+      </div>
+      <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all ${
+            tenant.estado_cuota !== "activo" ? "bg-red-500"
+              : tenant.quota_used_percent >= 80 ? "bg-amber-500"
+              : "bg-emerald-500"
+          }`}
+          style={{ width: `${Math.min(100, tenant.quota_used_percent)}%` }}
+        />
+      </div>
+      {stateLabel && (
+        <span className="text-[10px] font-semibold text-red-600">{stateLabel}</span>
+      )}
+    </div>
+  );
+}
+
 // ─── Componentes UI menores ───────────────────────────────────────────────
 
 function Input({
@@ -893,6 +940,9 @@ function TenantRow({
         <td className="px-4 py-3 text-sm text-gray-700">{tenant.name}</td>
         <td className="px-4 py-3">{planBadge(tenant.plan)}</td>
         <td className="px-4 py-3">
+          <QuotaBadge tenant={tenant} />
+        </td>
+        <td className="px-4 py-3">
           <code className="text-[11px] text-gray-500 font-mono">{tenant.db_name}</code>
         </td>
         <td className="px-4 py-3 text-xs text-gray-500">
@@ -952,7 +1002,7 @@ function TenantRow({
       <AnimatePresence>
         {expanded && (
           <tr>
-            <td colSpan={6} className="px-4 pb-3 bg-white/60">
+            <td colSpan={7} className="px-4 pb-3 bg-white/60">
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
@@ -1073,6 +1123,9 @@ function TenantCard({
         </div>
         <div className="shrink-0">{planBadge(tenant.plan)}</div>
       </div>
+
+      {/* Cuota de IA */}
+      <QuotaBadge tenant={tenant} />
 
       {/* Meta: base de datos + fecha */}
       <div className="flex items-center justify-between gap-3 text-[11px]">
@@ -1609,7 +1662,7 @@ export default function SuperAdminPage() {
           <table className="w-full text-left">
             <thead className="bg-gray-100/60">
               <tr>
-                {["Slug", "Nombre", "Plan", "Base de datos", "Creado", "Acciones"].map((h) => (
+                {["Slug", "Nombre", "Plan", "Cuota IA", "Base de datos", "Creado", "Acciones"].map((h) => (
                   <th key={h} className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">
                     {h}
                   </th>
