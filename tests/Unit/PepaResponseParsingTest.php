@@ -67,6 +67,40 @@ class PepaResponseParsingTest extends TestCase
         return $method->invoke($svc, $citedUrls);
     }
 
+    /**
+     * Invoca buildDocumentationSection() vía reflexión — el filtro de docs con
+     * excerpt vacío y el guard "sin documentos" viven ahí, sin tocar Proposal/
+     * Faq/QuestionCluster ni la BD real (ver docblock de PepaResponseParsingTest).
+     * Devuelve tanto el texto como $retrievedDocUrls (misma instancia, para
+     * verificar que un doc filtrado tampoco deja su URL en la lista blanca de
+     * mediaFromSources()).
+     */
+    private function documentationSection(array $docs, bool $isPepa): array
+    {
+        $svc = $this->service();
+        $ref = new ReflectionClass($svc);
+
+        $method = $ref->getMethod('buildDocumentationSection');
+        $method->setAccessible(true);
+        $text = $method->invoke($svc, $docs, $isPepa);
+
+        $prop = $ref->getProperty('retrievedDocUrls');
+        $prop->setAccessible(true);
+
+        return ['text' => $text, 'retrievedDocUrls' => $prop->getValue($svc)];
+    }
+
+    private function docResult(string $excerpt, string $sourceUrl = ''): array
+    {
+        return [
+            'document_id' => 1,
+            'title'       => 'Plan de gobierno 2026-2030',
+            'excerpt'     => $excerpt,
+            'score'       => 1.0,
+            'metadata'    => ['source_url' => $sourceUrl ?: null, 'file_url' => null],
+        ];
+    }
+
     private function effectiveMaxTokens(?string $mode, ?int $maxTokens): int
     {
         $svc = $this->service();
@@ -252,6 +286,75 @@ class PepaResponseParsingTest extends TestCase
         $media = $this->mediaFromSources(['https://cualquier-cosa.example/doc.pdf'], []);
 
         $this->assertSame([], $media);
+    }
+
+    /**
+     * RAG_VACIO.md: caso real de bdpolitic — el único doc "encontrado" tiene
+     * excerpt vacío (KnowledgeDocument.content NULL, matcheó solo por título).
+     * Debe descartarse y aparecer el guard, no una sección vacía ni silencio.
+     */
+    public function test_documentation_section_drops_doc_with_empty_excerpt_and_shows_guard(): void
+    {
+        $result = $this->documentationSection(
+            [$this->docResult('', 'https://www.w3.org/dummy.pdf')],
+            true
+        );
+
+        $this->assertStringContainsString('no tengo información en los documentos del candidato', $result['text']);
+        $this->assertStringNotContainsString('DOCUMENTACIÓN VERIFICADA', $result['text']);
+        // El doc descartado tampoco puede dejar su URL en la lista blanca de mediaFromSources().
+        $this->assertSame([], $result['retrievedDocUrls']);
+    }
+
+    public function test_documentation_section_shows_guard_when_search_returns_nothing(): void
+    {
+        $result = $this->documentationSection([], true);
+
+        $this->assertStringContainsString('no tengo información en los documentos del candidato', $result['text']);
+        $this->assertSame([], $result['retrievedDocUrls']);
+    }
+
+    public function test_documentation_section_keeps_doc_with_real_excerpt_pepa_mode(): void
+    {
+        $result = $this->documentationSection(
+            [$this->docResult('Contenido real del plan de gobierno...', 'https://jne.gob.pe/plan.pdf')],
+            true
+        );
+
+        $this->assertStringContainsString('DOCUMENTACIÓN VERIFICADA POR CANDIDATO', $result['text']);
+        $this->assertStringContainsString('Contenido real del plan de gobierno', $result['text']);
+        $this->assertStringNotContainsString('no tengo información en los documentos', $result['text']);
+        $this->assertSame(['https://jne.gob.pe/plan.pdf'], $result['retrievedDocUrls']);
+    }
+
+    public function test_documentation_section_keeps_doc_with_real_excerpt_campaign_mode(): void
+    {
+        $result = $this->documentationSection(
+            [$this->docResult('Contenido real del plan de gobierno...', 'https://jne.gob.pe/plan.pdf')],
+            false
+        );
+
+        $this->assertStringContainsString('DOCUMENTACIÓN OFICIAL', $result['text']);
+        $this->assertStringContainsString('Contenido real del plan de gobierno', $result['text']);
+        $this->assertStringNotContainsString('no tengo información en los documentos', $result['text']);
+    }
+
+    /**
+     * Lote mixto: un doc real + uno vacío (título-only match). Se queda solo
+     * con el real — ni el guard aparece (sí hay algo utilizable) ni la URL del
+     * vacío se cuela en retrievedDocUrls.
+     */
+    public function test_documentation_section_filters_mixed_batch_keeping_only_real_doc(): void
+    {
+        $real  = $this->docResult('Contenido real y verificable.', 'https://jne.gob.pe/real.pdf');
+        $vacio = array_merge($this->docResult('', 'https://www.w3.org/dummy.pdf'), ['document_id' => 2, 'title' => 'Hoja de vida']);
+
+        $result = $this->documentationSection([$real, $vacio], true);
+
+        $this->assertStringContainsString('Contenido real y verificable', $result['text']);
+        $this->assertStringNotContainsString('Hoja de vida', $result['text']);
+        $this->assertStringNotContainsString('no tengo información en los documentos', $result['text']);
+        $this->assertSame(['https://jne.gob.pe/real.pdf'], $result['retrievedDocUrls']);
     }
 
     public function test_effective_max_tokens_floors_pepa_to_minimum(): void

@@ -482,23 +482,58 @@ class CivicAIService
         // (ver MySQLFulltextEmbeddings), así que menos texto no pierde la
         // parte que importa.
         $docs = $this->embeddings->search($userMessage, 3, $topic ? ['topic' => $topic] : []);
+        $parts[] = $this->buildDocumentationSection($docs, ($this->config->mode ?? 'campaign') === 'pepa');
+
+        return implode("\n", $parts);
+    }
+
+    /**
+     * Fix defensivo (RAG_VACIO.md): $docs puede traer resultados cuyo `excerpt`
+     * viene vacío — pasa cuando el índice FULLTEXT compuesto (title + content)
+     * matchea solo por el título de un KnowledgeDocument con `content` NULL/''
+     * (nunca se extrajo texto real del PDF, ej. filas sembradas directo en BD).
+     * Sin este filtro, el LLM recibía una cita "verificada" con URL real pero
+     * cero texto de respaldo — el molde perfecto para inventar contenido bajo
+     * una fuente que "existe" pero no dice nada.
+     *
+     * Se descartan esos documentos antes de construir tanto el bloque de
+     * texto para el LLM como $this->retrievedDocUrls (la lista blanca que usa
+     * mediaFromSources() — así una URL de un documento vacío tampoco se cuela
+     * ahí como "Fuente verificada").
+     *
+     * Si después de filtrar no queda ningún documento utilizable, en vez de
+     * omitir la sección en silencio (dejando al LLM libre de responder sobre
+     * "documentos" desde su conocimiento general/pretrained), se inyecta una
+     * instrucción explícita para que lo diga así al ciudadano.
+     */
+    private const NO_DOCS_GUARD =
+        'DOCUMENTOS DEL CANDIDATO: no hay documentos oficiales verificados disponibles '
+        . 'para esta consulta. Si el ciudadano pregunta por algo que debería estar en el '
+        . 'plan de gobierno, la hoja de vida u otro documento oficial del candidato, '
+        . 'responde exactamente que "no tengo información en los documentos del '
+        . 'candidato" — nunca completes ni inventes esa respuesta con conocimiento general.';
+
+    private function buildDocumentationSection(array $docs, bool $isPepa): string
+    {
+        $docs = array_values(array_filter($docs, fn ($d) => trim($d['excerpt'] ?? '') !== ''));
         $this->retrievedDocUrls = $this->extractDocUrls($docs);
 
-        if (!empty($docs)) {
-            if (($this->config->mode ?? 'campaign') === 'pepa') {
-                // Modo PEPA: agrupado por candidato con fuente citable
-                $parts[] = $this->formatDocsWithAttribution($docs);
-            } else {
-                // Modo campaña: lista plana (comportamiento original)
-                $parts[] = "\nDOCUMENTACIÓN OFICIAL (plan de gobierno, entrevistas, declaraciones):";
-                foreach ($docs as $d) {
-                    $title = $d['title'] ?: 'Documento';
-                    $excerpt = mb_substr($d['excerpt'], 0, 1200);
-                    $parts[] = "=== {$title} ===\n{$excerpt}";
-                }
-            }
+        if (empty($docs)) {
+            return "\n" . self::NO_DOCS_GUARD;
         }
 
+        if ($isPepa) {
+            // Modo PEPA: agrupado por candidato con fuente citable
+            return $this->formatDocsWithAttribution($docs);
+        }
+
+        // Modo campaña: lista plana (comportamiento original)
+        $parts = ["\nDOCUMENTACIÓN OFICIAL (plan de gobierno, entrevistas, declaraciones):"];
+        foreach ($docs as $d) {
+            $title = $d['title'] ?: 'Documento';
+            $excerpt = mb_substr($d['excerpt'], 0, 1200);
+            $parts[] = "=== {$title} ===\n{$excerpt}";
+        }
         return implode("\n", $parts);
     }
 
