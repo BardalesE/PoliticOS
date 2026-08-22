@@ -44,6 +44,29 @@ class PepaResponseParsingTest extends TestCase
         return $method->invoke($svc, $raw);
     }
 
+    /**
+     * Invoca mediaFromSources() vía reflexión, con $retrievedDocUrls precargado
+     * como si buildContext() ya hubiera corrido el RAG de este turno.
+     */
+    private function mediaFromSources(array $citedUrls, array $retrievedDocUrls): array
+    {
+        $svc = $this->service();
+        $ref = new ReflectionClass($svc);
+
+        $config = $ref->getProperty('config');
+        $config->setAccessible(true);
+        $config->setValue($svc, new AiSetting(['mode' => 'pepa']));
+
+        $retrieved = $ref->getProperty('retrievedDocUrls');
+        $retrieved->setAccessible(true);
+        $retrieved->setValue($svc, $retrievedDocUrls);
+
+        $method = $ref->getMethod('mediaFromSources');
+        $method->setAccessible(true);
+
+        return $method->invoke($svc, $citedUrls);
+    }
+
     private function effectiveMaxTokens(?string $mode, ?int $maxTokens): int
     {
         $svc = $this->service();
@@ -181,6 +204,54 @@ class PepaResponseParsingTest extends TestCase
         $this->assertGreaterThan(400, mb_strlen($r['reply']));
         $this->assertSame('seguridad', $r['pepa_metadata']['tema_dominante']);
         $this->assertCount(2, $r['pepa_metadata']['fuentes_citadas']);
+    }
+
+    /**
+     * DIAGNOSTICO_CHAT.md hallazgo #3: el LLM puede citar una URL bien formada
+     * que nunca vino de un documento del RAG. mediaFromSources() debe descartarla
+     * en vez de mostrarla como "Fuente verificada".
+     */
+    public function test_media_from_sources_drops_url_not_in_retrieved_docs(): void
+    {
+        $media = $this->mediaFromSources(
+            ['https://inventado-por-el-llm.example/plan.pdf'],
+            ['https://jne.gob.pe/plan-real.pdf'] // lo único que el RAG recuperó este turno
+        );
+
+        $this->assertSame([], $media);
+    }
+
+    public function test_media_from_sources_keeps_url_that_matches_retrieved_docs(): void
+    {
+        $media = $this->mediaFromSources(
+            ['https://jne.gob.pe/plan-real.pdf'],
+            ['https://jne.gob.pe/plan-real.pdf', 'https://jne.gob.pe/hoja-de-vida.pdf']
+        );
+
+        $this->assertCount(1, $media);
+        $this->assertSame('link', $media[0]['type']);
+        $this->assertSame('https://jne.gob.pe/plan-real.pdf', $media[0]['url']);
+        $this->assertSame('Fuente verificada', $media[0]['title']);
+    }
+
+    public function test_media_from_sources_filters_mixed_batch_keeping_only_trusted(): void
+    {
+        $media = $this->mediaFromSources(
+            ['https://jne.gob.pe/plan-real.pdf', 'https://inventado.example/x.pdf'],
+            ['https://jne.gob.pe/plan-real.pdf']
+        );
+
+        $this->assertCount(1, $media);
+        $this->assertSame('https://jne.gob.pe/plan-real.pdf', $media[0]['url']);
+    }
+
+    public function test_media_from_sources_drops_everything_when_rag_retrieved_nothing(): void
+    {
+        // Caso real detectado en el audit: KnowledgeDocument.content = NULL →
+        // buildContext() nunca llena retrievedDocUrls, pero el LLM igual citó algo.
+        $media = $this->mediaFromSources(['https://cualquier-cosa.example/doc.pdf'], []);
+
+        $this->assertSame([], $media);
     }
 
     public function test_effective_max_tokens_floors_pepa_to_minimum(): void
