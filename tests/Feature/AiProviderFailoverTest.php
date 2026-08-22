@@ -63,6 +63,16 @@ class AiProviderFailoverTest extends TestCase
 
     public function test_401_no_reintenta_y_salta_de_inmediato_al_siguiente_provider(): void
     {
+        // usableProviders() (fix 2026-08-20, ver CivicAIService.php:846-859)
+        // descarta de la cadena cualquier provider sin API key configurada —
+        // sin esto, claude nunca se intenta en un entorno sin
+        // ANTHROPIC_API_KEY real (como este, ver DIAGNOSTICO_CHAT.md) y el
+        // test fallaba probando algo que el propio código ya no hace a
+        // propósito. La key es falsa porque Http::fake() intercepta antes
+        // de que viaje a ningún lado; solo necesita no estar vacía para que
+        // hasKeyFor('claude') la cuente como "usable".
+        config(['services.ai.claude_key' => 'sk-ant-test-fake-key']);
+
         Http::fake([
             'api.groq.com/*'      => Http::response(['error' => ['message' => 'invalid api key']], 401),
             'api.anthropic.com/*' => Http::response(['content' => [['text' => 'Respuesta de Claude']]], 200),
@@ -78,6 +88,16 @@ class AiProviderFailoverTest extends TestCase
 
     public function test_todos_los_providers_fallan_devuelve_respuesta_de_descanso_marcada(): void
     {
+        // Mismo motivo que el test anterior: sin key configurada, claude/openai
+        // ni se intentan (usableProviders() los descarta) — con solo groq "en
+        // la cadena", este test no probaba de verdad "todos los providers
+        // fallan", solo "el único usable falla". Se les da key falsa a los 3
+        // para que la cadena completa se ejecute como dice el nombre del test.
+        config([
+            'services.ai.claude_key' => 'sk-ant-test-fake-key',
+            'services.ai.openai_key' => 'sk-test-fake-key',
+        ]);
+
         Http::fake([
             'api.groq.com/*'      => Http::response(['error' => 'x'], 500),
             'api.anthropic.com/*' => Http::response(['error' => 'x'], 500),
@@ -89,5 +109,6 @@ class AiProviderFailoverTest extends TestCase
 
         $this->assertTrue($result['ai_resting'] ?? false);
         $this->assertStringContainsString('cerebrito digital', $result['reply']);
+        Http::assertSentCount(3); // groq + claude + openai, los 3 con key configurada
     }
 }
