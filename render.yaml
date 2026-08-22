@@ -94,6 +94,19 @@ services:
       # El límite de tokens de salida NO se configura por env — vive en
       # AiSetting.max_tokens (BD del tenant, editable desde /admin/ai-settings).
 
+      # ── Fallback de IA (DIAGNOSTICO_CHAT.md, hallazgo #1) ───────────────
+      # AiSetting.fallback_provider = 'claude' por defecto (ver
+      # app/Models/AiSetting.php) y CivicAIService añade 'openai' como último
+      # recurso — pero sin estas dos keys esos dos intentos siempre devuelven
+      # 401 (confirmado en storage/logs/laravel.log), así que la cadena de 3
+      # proveedores es en realidad 1 sin redundancia real. Sin valor real
+      # pegado en el dashboard de Render, el fallback sigue sin funcionar
+      # aunque estas líneas ya existan — esto solo declara las variables.
+      - key: ANTHROPIC_API_KEY
+        sync: false               # pegar: tu key sk-ant-... de console.anthropic.com
+      - key: OPENAI_API_KEY
+        sync: false               # pegar: tu key sk-... de platform.openai.com (opcional)
+
       # ── RAG sin Qdrant: FULLTEXT de MySQL 8 ─────────────────────────────
       - key: AI_EMBEDDINGS_DRIVER
         value: mysql_fulltext
