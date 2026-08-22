@@ -69,12 +69,22 @@ se basa en la ruta real.
 
 ### 2.1 Variables de entorno
 
-**BLOQUEANTE.** `ANTHROPIC_API_KEY` y `OPENAI_API_KEY` no están configuradas — ni en el
-`.env` local (confirmado vía `config('services.ai.claude_key')` / `openai_key` → ambos
-vacíos) ni en el blueprint de producción `render.yaml` (solo declara `AI_PROVIDER`,
-`GROQ_API_KEY`, `GROQ_MODEL`; no hay entrada para `ANTHROPIC_API_KEY` ni `OPENAI_API_KEY`
-en absoluto, ni siquiera como `sync: false`). Nombres correctos, sin errores de tipeo —
-el problema es que las claves simplemente no existen en ningún entorno.
+**BLOQUEANTE — parcialmente cerrado (PR #5, `chore/declare-ai-fallback-keys`).**
+`ANTHROPIC_API_KEY` y `OPENAI_API_KEY` no están configuradas — ni en el `.env` local
+(confirmado vía `config('services.ai.claude_key')` / `openai_key` → ambos vacíos) ni en
+el blueprint de producción `render.yaml`, que hasta el PR #5 solo declaraba
+`AI_PROVIDER`, `GROQ_API_KEY`, `GROQ_MODEL` — sin entrada alguna para
+`ANTHROPIC_API_KEY`/`OPENAI_API_KEY`, ni siquiera como `sync: false`. Nombres correctos,
+sin errores de tipeo — el problema es que las claves simplemente no existen en ningún
+entorno.
+
+**Estado tras el PR #5:** `render.yaml` ya declara las dos variables (mismo patrón que
+`GROQ_API_KEY`: `sync: false`, sin valor), así que Render las va a pedir en el próximo
+deploy. **Esto no resuelve el fallback todavía** — sigue faltando pegar el valor real de
+cada key en el dashboard de Render (Environment del servicio) y, para probarlo en local,
+en el `.env`. Sin ese paso manual (fuera del alcance de este repo — son credenciales,
+nunca van a un commit), el comportamiento no cambia: Groq sigue siendo el único proveedor
+funcional.
 
 Consecuencia directa: `AiSetting::current()` (`app/Models/AiSetting.php:36`) fija
 `fallback_provider = 'claude'` por defecto para **todo tenant nuevo**, y
@@ -96,11 +106,11 @@ Esto no es un evento aislado de esa sesión de pruebas: la configuración que lo
 vigente hoy — se verificó en este mismo audit.
 
 **Fix propuesto:** cargar `ANTHROPIC_API_KEY` y/o `OPENAI_API_KEY` reales en `.env` y en
-`render.yaml` (agregar las dos entradas `sync: false` que faltan y pegar los valores en el
-dashboard de Render). Alternativa más barata si no se quiere pagar dos proveedores más:
-cambiar `fallback_provider` a `null`/mismo `groq` en el `AiSetting` del tenant para que el
-código no pierda ~2s por llamada intentando dos proveedores que siempre van a fallar con
-401 (no arregla la falta de redundancia, pero elimina la latencia muerta).
+el dashboard de Render (las entradas `sync: false` en `render.yaml` ya están —
+PR #5). Alternativa más barata si no se quiere pagar dos proveedores más: cambiar
+`fallback_provider` a `null`/mismo `groq` en el `AiSetting` del tenant para que el código
+no pierda ~2s por llamada intentando dos proveedores que siempre van a fallar con 401 (no
+arregla la falta de redundancia, pero elimina la latencia muerta).
 
 ---
 
@@ -235,28 +245,33 @@ una ruptura.
 
 ## 3. Resumen de hallazgos
 
-| # | Hallazgo | Archivo:línea | Severidad |
-|---|----------|----------------|-----------|
-| 1 | `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` ausentes en `.env` y en `render.yaml` → cadena de fallback de 3 proveedores es en realidad 1 proveedor sin redundancia; con el TPM=12000 gratuito de Groq, el chat cae a respuesta enlatada cada pocos mensajes | `render.yaml` (bloque IA), `config/services.php:38-51`, `app/Models/AiSetting.php:36` | **BLOQUEANTE** |
-| 2 | `KnowledgeDocument.content = NULL` en los 2 documentos activos del tenant (seed de demo nunca reemplazado) → RAG nunca encuentra nada que citar, pero el prompt PEPA exige citar con URL → el LLM improvisa | `database/seeders/DemoContentSeeder.php:294-307`, `app/Services/MySQLFulltextEmbeddings.php:71-77` | **BLOQUEANTE** |
-| 3 | `mediaFromSources()` no valida que las URLs citadas por el LLM vengan de un documento realmente recuperado — una URL inventada pero bien formada se muestra como "Fuente verificada" | `app/Services/CivicAIService.php:1483-1489` | **BLOQUEANTE** |
-| 4 | `candidatesWithDocs()` afirma "documentación verificada" del candidato activo aunque no exista ningún `KnowledgeDocument` con `candidate_id` asignado (fallback silencioso) | `app/Services/CivicAIService.php:608-611` | NO BLOQUEANTE (agrava #2, no es causa independiente) |
-| 5 | UI admin de Knowledge no distingue `content = NULL` de `content` con texto → un documento sin indexar puede pasar desapercibido | `resources/js/src/app/admin/knowledge/page.tsx:151-162` | NO BLOQUEANTE |
-| 6 | La fuga histórica de `metadata_interna`/JSON crudo (el "chunk crudo" original) ya está parcheada en el código actual (`parseAIResponse`, `extractJsonObject`, `looksLikeStructuredLeak`) — commit `da425a6` | `app/Services/CivicAIService.php:1348-1481` | Ya resuelto — mencionado solo para no reabrirlo por error |
+| # | Hallazgo | Archivo:línea | Severidad | Estado |
+|---|----------|----------------|-----------|--------|
+| 1 | `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` ausentes en `.env` y en `render.yaml` → cadena de fallback de 3 proveedores es en realidad 1 proveedor sin redundancia; con el TPM=12000 gratuito de Groq, el chat cae a respuesta enlatada cada pocos mensajes | `render.yaml` (bloque IA), `config/services.php:38-51`, `app/Models/AiSetting.php:36` | **BLOQUEANTE** | 🟡 Parcial — `render.yaml` ya declara las 2 vars (PR #5). Falta pegar los valores reales en Render/`.env` (fuera del repo, son credenciales) |
+| 2 | `KnowledgeDocument.content = NULL` en los 2 documentos activos del tenant (seed de demo nunca reemplazado) → RAG nunca encuentra nada que citar, pero el prompt PEPA exige citar con URL → el LLM improvisa | `database/seeders/DemoContentSeeder.php:294-307`, `app/Services/MySQLFulltextEmbeddings.php:71-77` | **BLOQUEANTE** | 🟡 Parcial — `buildDocumentationSection()` (PR #4) ya descarta estos docs y avisa en vez de improvisar (ver `RAG_VACIO.md`). Sigue faltando subir los PDFs reales (punto 3 de la lista de abajo) |
+| 3 | `mediaFromSources()` no valida que las URLs citadas por el LLM vengan de un documento realmente recuperado — una URL inventada pero bien formada se muestra como "Fuente verificada" | `app/Services/CivicAIService.php:1483-1489` | **BLOQUEANTE** | ✅ Resuelto — PR #4 (`fix/rag-content-vacio`) |
+| 4 | `candidatesWithDocs()` afirma "documentación verificada" del candidato activo aunque no exista ningún `KnowledgeDocument` con `candidate_id` asignado (fallback silencioso) | `app/Services/CivicAIService.php:608-611` | NO BLOQUEANTE (agrava #2, no es causa independiente) | Sin cambios |
+| 5 | UI admin de Knowledge no distingue `content = NULL` de `content` con texto → un documento sin indexar puede pasar desapercibido | `resources/js/src/app/admin/knowledge/page.tsx:151-162` | NO BLOQUEANTE | Sin cambios |
+| 6 | La fuga histórica de `metadata_interna`/JSON crudo (el "chunk crudo" original) ya está parcheada en el código actual (`parseAIResponse`, `extractJsonObject`, `looksLikeStructuredLeak`) — commit `da425a6` | `app/Services/CivicAIService.php:1348-1481` | Ya resuelto — mencionado solo para no reabrirlo por error | — |
 
 ---
 
 ## 4. BLOQUEANTES ordenados por esfuerzo (menor → mayor)
 
-1. **Cargar `ANTHROPIC_API_KEY` y/o `OPENAI_API_KEY` reales** en `.env` local y en
-   `render.yaml`/dashboard de Render (agregar las 2 líneas que faltan en el bloque IA de
-   `render.yaml`, junto a `GROQ_API_KEY`). — *Config pura, minutos.*
-2. **Blindar `mediaFromSources()`** (`CivicAIService.php:1483-1489`) para que solo acepte
-   URLs presentes en los `$docs` recuperados por `buildContext()`. — *Un método, unas
-   líneas, sin tocar el prompt ni el parseo JSON.*
+1. **Cargar `ANTHROPIC_API_KEY` y/o `OPENAI_API_KEY` reales** en `.env` local y en el
+   dashboard de Render. 🟡 Las 2 líneas `sync: false` en `render.yaml` ya están (PR #5,
+   `chore/declare-ai-fallback-keys`) — falta el valor real, que es una credencial y no
+   puede vivir en este repo. — *Config pura, minutos, pero requiere acción manual fuera
+   del código.*
+2. ~~**Blindar `mediaFromSources()`**~~ ✅ Hecho en PR #4 — descarta cualquier URL citada
+   por el LLM que no venga de un documento realmente recuperado por el RAG.
 3. **Subir los documentos reales** (plan de gobierno, hoja de vida) vía
    `/admin/knowledge` con `candidate_id` asignado, reemplazando los 2 placeholders del
    seeder. — *Operativo, no requiere código, pero requiere tener el PDF real a mano.*
+   Nota: con PR #4 ya mergeado, mientras no se suban los PDFs reales el chat va a
+   responder *"no tengo información en los documentos del candidato"* en vez de citar el
+   placeholder — más seguro que antes, pero sigue sin poder hablar del plan de gobierno
+   real hasta que se suba.
 
 (No se listan el punto 4 ni el 5 del resumen: son NO BLOQUEANTES — no impiden vender ni
 demostrar por sí solos, son agravantes/UX del punto 2 y 3 de esta lista.)
