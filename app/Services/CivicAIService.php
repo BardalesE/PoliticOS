@@ -43,6 +43,16 @@ class CivicAIService
     private EmbeddingsServiceInterface $embeddings;
     private ?string $systemPromptTemplate = null;
 
+    /**
+     * URLs de los documentos que buildContext() efectivamente recuperó del RAG en
+     * este turno (source_url/file_url de cada $doc de embeddings->search()). Se usa
+     * como lista blanca en mediaFromSources(): el LLM puede citar "fuentes_citadas"
+     * en su JSON de respuesta, pero si esa URL no vino de un documento real
+     * recuperado, no confiamos en ella — se descarta en vez de mostrarse como
+     * "Fuente verificada" (ver DIAGNOSTICO_CHAT.md, hallazgo #3).
+     */
+    private array $retrievedDocUrls = [];
+
     public function __construct(EmbeddingsServiceInterface $embeddings)
     {
         // DB queries are intentionally deferred to ensureInitialized().
@@ -407,6 +417,9 @@ class CivicAIService
     private function buildContext(?string $topic, ?string $district, string $userMessage, ?array $attack): string
     {
         $parts = [];
+        // Se recalcula en cada turno — evita que un turno sin RAG hereda la lista
+        // blanca de URLs del turno anterior (ver mediaFromSources()).
+        $this->retrievedDocUrls = [];
 
         // Si hay ataque, inyectamos la plantilla defensiva primero
         if ($attack) {
@@ -469,23 +482,77 @@ class CivicAIService
         // (ver MySQLFulltextEmbeddings), así que menos texto no pierde la
         // parte que importa.
         $docs = $this->embeddings->search($userMessage, 3, $topic ? ['topic' => $topic] : []);
-
-        if (!empty($docs)) {
-            if (($this->config->mode ?? 'campaign') === 'pepa') {
-                // Modo PEPA: agrupado por candidato con fuente citable
-                $parts[] = $this->formatDocsWithAttribution($docs);
-            } else {
-                // Modo campaña: lista plana (comportamiento original)
-                $parts[] = "\nDOCUMENTACIÓN OFICIAL (plan de gobierno, entrevistas, declaraciones):";
-                foreach ($docs as $d) {
-                    $title = $d['title'] ?: 'Documento';
-                    $excerpt = mb_substr($d['excerpt'], 0, 1200);
-                    $parts[] = "=== {$title} ===\n{$excerpt}";
-                }
-            }
-        }
+        $parts[] = $this->buildDocumentationSection($docs, ($this->config->mode ?? 'campaign') === 'pepa');
 
         return implode("\n", $parts);
+    }
+
+    /**
+     * Fix defensivo (RAG_VACIO.md): $docs puede traer resultados cuyo `excerpt`
+     * viene vacío — pasa cuando el índice FULLTEXT compuesto (title + content)
+     * matchea solo por el título de un KnowledgeDocument con `content` NULL/''
+     * (nunca se extrajo texto real del PDF, ej. filas sembradas directo en BD).
+     * Sin este filtro, el LLM recibía una cita "verificada" con URL real pero
+     * cero texto de respaldo — el molde perfecto para inventar contenido bajo
+     * una fuente que "existe" pero no dice nada.
+     *
+     * Se descartan esos documentos antes de construir tanto el bloque de
+     * texto para el LLM como $this->retrievedDocUrls (la lista blanca que usa
+     * mediaFromSources() — así una URL de un documento vacío tampoco se cuela
+     * ahí como "Fuente verificada").
+     *
+     * Si después de filtrar no queda ningún documento utilizable, en vez de
+     * omitir la sección en silencio (dejando al LLM libre de responder sobre
+     * "documentos" desde su conocimiento general/pretrained), se inyecta una
+     * instrucción explícita para que lo diga así al ciudadano.
+     */
+    private const NO_DOCS_GUARD =
+        'DOCUMENTOS DEL CANDIDATO: no hay documentos oficiales verificados disponibles '
+        . 'para esta consulta. Si el ciudadano pregunta por algo que debería estar en el '
+        . 'plan de gobierno, la hoja de vida u otro documento oficial del candidato, '
+        . 'responde exactamente que "no tengo información en los documentos del '
+        . 'candidato" — nunca completes ni inventes esa respuesta con conocimiento general.';
+
+    private function buildDocumentationSection(array $docs, bool $isPepa): string
+    {
+        $docs = array_values(array_filter($docs, fn ($d) => trim($d['excerpt'] ?? '') !== ''));
+        $this->retrievedDocUrls = $this->extractDocUrls($docs);
+
+        if (empty($docs)) {
+            return "\n" . self::NO_DOCS_GUARD;
+        }
+
+        if ($isPepa) {
+            // Modo PEPA: agrupado por candidato con fuente citable
+            return $this->formatDocsWithAttribution($docs);
+        }
+
+        // Modo campaña: lista plana (comportamiento original)
+        $parts = ["\nDOCUMENTACIÓN OFICIAL (plan de gobierno, entrevistas, declaraciones):"];
+        foreach ($docs as $d) {
+            $title = $d['title'] ?: 'Documento';
+            $excerpt = mb_substr($d['excerpt'], 0, 1200);
+            $parts[] = "=== {$title} ===\n{$excerpt}";
+        }
+        return implode("\n", $parts);
+    }
+
+    /**
+     * URLs "reales" de los documentos que el RAG recuperó para este turno —
+     * mismo campo (metadata.source_url / metadata.file_url) que ya usa
+     * formatDocsWithAttribution() para el texto "[Fuente: URL]" que ve el LLM.
+     * Alimenta la lista blanca de mediaFromSources(): si el LLM cita una URL
+     * que no está aquí, no vino de un documento real — se descarta.
+     */
+    private function extractDocUrls(array $docs): array
+    {
+        $urls = [];
+        foreach ($docs as $d) {
+            foreach ([$d['metadata']['source_url'] ?? null, $d['metadata']['file_url'] ?? null] as $url) {
+                if ($url) $urls[] = $url;
+            }
+        }
+        return array_values(array_unique($urls));
     }
 
     /**
@@ -1531,10 +1598,28 @@ class CivicAIService
             && str_contains($raw, 'metadata_interna');
     }
 
+    /**
+     * Convierte "fuentes_citadas" (URLs que el LLM devolvió en metadata_interna)
+     * en media tipo "link". Antes de mostrarlas como "Fuente verificada" exige
+     * que la URL sea EXACTAMENTE una de las que buildContext() recuperó del RAG
+     * en este mismo turno ($this->retrievedDocUrls) — el prompt le pide al LLM
+     * citar solo URLs del contexto, pero no hay garantía de que las respete
+     * (modelos como Llama vía Groq pueden inventar una URL bien formada para
+     * cumplir el formato exigido). Sin esta lista blanca, esa URL inventada
+     * pasaba el único filtro que había (filter_var FILTER_VALIDATE_URL, que
+     * solo valida sintaxis) y se mostraba al ciudadano como fuente verificada
+     * sin serlo. Ver DIAGNOSTICO_CHAT.md, hallazgo #3.
+     */
     private function mediaFromSources(array $urls): array
     {
         return array_values(array_filter(array_map(function (string $url) {
             if (!filter_var($url, FILTER_VALIDATE_URL)) return null;
+            if (!in_array($url, $this->retrievedDocUrls, true)) {
+                Log::warning('PEPA: fuente citada por el LLM no vino del RAG recuperado — descartada', [
+                    'url_descartada' => $url,
+                ]);
+                return null;
+            }
             return ['type' => 'link', 'url' => $url, 'title' => 'Fuente verificada'];
         }, $urls)));
     }
