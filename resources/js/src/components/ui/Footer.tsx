@@ -23,7 +23,6 @@ const contentLinks = [
 const participaLinks = [
   { href: "/?seccion=eventos",  label: "Agenda" },
   { href: "/en-vivo",           label: "En vivo" },
-  { href: "/chat",              label: "Chatbot IA" },
 ];
 
 export function Footer() {
