@@ -445,7 +445,7 @@ export function EventsSection({
                       </a>
                     )}
                     <TenantLink
-                      href="/chat"
+                      href="/?seccion=eventos"
                       className="inline-flex items-center gap-2 text-sm text-ink-400 hover:text-brand-700 font-semibold transition-colors"
                     >
                       Más información <ArrowRight size={14} />
