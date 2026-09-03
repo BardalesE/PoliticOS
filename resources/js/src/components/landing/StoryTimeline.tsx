@@ -148,7 +148,7 @@ export function StoryTimeline({ milestones }: { milestones: BioMilestone[] }) {
           La historia continúa contigo.
         </p>
         <TenantLink
-          href="/chat"
+          href="#participa"
           className="inline-flex items-center gap-1.5 text-sm font-bold pb-0.5"
           style={{ color: "rgb(var(--brand-primary-rgb))", borderBottom: "2px solid rgb(var(--brand-primary-rgb))" }}
         >
