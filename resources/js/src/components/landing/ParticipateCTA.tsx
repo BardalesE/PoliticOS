@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  MessageCircle, Send, CheckCircle2, HandHeart, Lightbulb, Users2, Megaphone,
+  Send, CheckCircle2, HandHeart, Lightbulb, Users2, Megaphone,
   User, MapPin, ChevronDown, type LucideIcon,
 } from "lucide-react";
 import { TenantLink } from "@/components/ui/TenantLink";
@@ -280,36 +280,8 @@ export function ParticipateCTA() {
             </AnimatePresence>
           </motion.div>
 
-          {/* ── Columna lateral: chat directo + lo que más preguntan ── */}
+          {/* ── Columna lateral: lo que más preguntan ── */}
           <div className="lg:col-span-2 space-y-4">
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-            >
-              <TenantLink
-                href="/chat"
-                className="flex items-center gap-3 w-full bg-white rounded-2xl p-4 transition-colors duration-150"
-                style={{ border: "1px solid var(--page-line)" }}
-              >
-                <div
-                  className="w-11 h-11 rounded-xl grid place-items-center shrink-0"
-                  style={{ background: "color-mix(in srgb, rgb(var(--brand-primary-rgb)) 10%, transparent)" }}
-                >
-                  <MessageCircle size={19} style={{ color: "rgb(var(--brand-primary-rgb))" }} />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-bold leading-tight truncate" style={{ color: "var(--page-ink)" }}>
-                    Pregúntale a {shortName}
-                  </p>
-                  <p className="text-[11px] mt-0.5" style={{ color: "var(--page-ink-soft)" }}>
-                    Respuesta al toque, por IA
-                  </p>
-                </div>
-              </TenantLink>
-            </motion.div>
-
             <ConcernsWidget />
           </div>
         </div>
