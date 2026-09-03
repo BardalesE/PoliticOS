@@ -11,6 +11,10 @@ import { useCountdown } from "@/hooks/useCountdown";
 // TODO: mover a config del tenant (backend) — hoy el default vive en el frontend.
 const DEFAULT_ELECTION_ISO = "2026-10-04";
 
+// Cuántos eventos de "También próximamente" se muestran antes de pedir "Ver más".
+// Sin cortar la lista: el resto se expande con el botón, nunca se descarta.
+const UPCOMING_PREVIEW_COUNT = 4;
+
 function sameCalendarDay(a: Date, b: Date): boolean {
   return (
     a.getFullYear() === b.getFullYear() &&
@@ -177,6 +181,7 @@ export function EventsSection({
 
   const [events,   setEvents]   = useState<CampaignEvent[]>(initialEvents);
   const [featured, setFeatured] = useState<CampaignEvent | null>(initialFeatured);
+  const [showAllUpcoming, setShowAllUpcoming] = useState(false);
 
   useEffect(() => {
     if (initialEvents.length || initialFeatured) return;
@@ -196,7 +201,13 @@ export function EventsSection({
   const displayEvent = validFeatured ?? futureEvents[0] ?? null;
   // Comparación por id: featured viene de otro endpoint, así que el mismo
   // evento llega como otro objeto y la comparación por referencia lo duplicaba.
-  const upcomingEvents = futureEvents.filter((e) => e.id !== displayEvent?.id).slice(0, 3);
+  // Se muestran TODOS los eventos futuros activos: el preview limita la altura
+  // inicial, pero el resto se expande con "Ver más" (nunca se descarta).
+  const allUpcomingEvents = futureEvents.filter((e) => e.id !== displayEvent?.id);
+  const upcomingEvents = showAllUpcoming
+    ? allUpcomingEvents
+    : allUpcomingEvents.slice(0, UPCOMING_PREVIEW_COUNT);
+  const hiddenUpcomingCount = allUpcomingEvents.length - upcomingEvents.length;
 
   const countdownTarget = useMemo(() => {
     if (displayEvent) {
@@ -476,6 +487,17 @@ export function EventsSection({
                 {upcomingEvents.map((ev, i) => (
                   <EventMiniCard key={ev.id} event={ev} index={i} />
                 ))}
+                {hiddenUpcomingCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllUpcoming(true)}
+                    className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-2xl border border-dashed text-sm font-bold text-brand-700 hover:text-brand-900 hover:border-brand-300 transition-colors"
+                    style={{ borderColor: "var(--page-line)" }}
+                  >
+                    Ver {hiddenUpcomingCount} evento{hiddenUpcomingCount > 1 ? "s" : ""} más
+                    <ArrowRight size={14} />
+                  </button>
+                )}
               </div>
             )}
           </motion.div>
