@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Droplets, GraduationCap, HardHat, HeartPulse, Landmark, ShieldCheck,
   TrendingUp, ArrowRight, type LucideIcon,
 } from "lucide-react";
 import { TenantLink } from "@/components/ui/TenantLink";
+import { ProposalModal } from "@/components/landing/Proposals";
 import { api, type Proposal } from "@/lib/api";
 
 const TOPIC_ICONS: Array<[RegExp, LucideIcon]> = [
@@ -39,6 +40,7 @@ const MAX_GOALS = 5;
 export function GoalCards() {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [active, setActive] = useState<Proposal | null>(null);
 
   useEffect(() => {
     api.proposals.list()
@@ -90,8 +92,18 @@ export function GoalCards() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-40px" }}
                 transition={{ duration: 0.4, delay: i * 0.07, type: "spring", stiffness: 90 }}
-                className="bg-white rounded-[20px] p-5 sm:p-6"
+                className="bg-white rounded-[20px] p-5 sm:p-6 cursor-pointer"
                 style={{ border: "1px solid var(--page-line)" }}
+                role="button"
+                tabIndex={0}
+                aria-label={`Ver detalle: ${p.title}`}
+                onClick={() => setActive(p)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setActive(p);
+                  }
+                }}
               >
                 <div
                   className="w-12 h-12 rounded-[14px] grid place-items-center mb-4"
@@ -129,6 +141,11 @@ export function GoalCards() {
           </TenantLink>
         </motion.div>
       </div>
+
+      {/* Modal de detalle — el mismo componente que usa Proposals.tsx */}
+      <AnimatePresence>
+        {active && <ProposalModal proposal={active} onClose={() => setActive(null)} />}
+      </AnimatePresence>
     </section>
   );
 }

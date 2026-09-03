@@ -51,7 +51,9 @@ const STATUS_LABEL: Record<ProposalExtended["status"], string> = {
 };
 
 // ── Modal de detalle de propuesta ─────────────────────────────────────────────
-function ProposalModal({
+// Exportado para que GoalCards.tsx ("Objetivos de gobierno") reutilice el mismo
+// modal sin duplicar la vista de detalle.
+export function ProposalModal({
   proposal,
   onClose,
 }: {
