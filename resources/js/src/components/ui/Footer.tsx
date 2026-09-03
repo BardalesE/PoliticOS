@@ -23,12 +23,10 @@ const contentLinks = [
 const participaLinks = [
   { href: "/?seccion=eventos",  label: "Agenda" },
   { href: "/en-vivo",           label: "En vivo" },
-  { href: "/chat",              label: "Chatbot IA" },
 ];
 
 export function Footer() {
   const { profile } = useCandidate();
-  const shortName = profile.name.split(" ")[0];
 
   return (
     <footer
@@ -163,7 +161,7 @@ export function Footer() {
             ))}
           </motion.div>
 
-          {/* Columna 4: Elecciones + CTA */}
+          {/* Columna 4: Elecciones */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -180,34 +178,9 @@ export function Footer() {
             <p className="text-sm mb-1" style={{ color: "#b5afa3" }}>
               {profile.party || "Campaña Electoral"}
             </p>
-            <p className="text-sm font-semibold text-white mb-5">
+            <p className="text-sm font-semibold text-white">
               {profile.election_date ?? "2026"}
             </p>
-
-            <motion.div whileHover={{ scale: 1.03, y: -1 }} whileTap={{ scale: 0.97 }}>
-              <TenantLink
-                href="/chat"
-                className="inline-flex items-center gap-2 bg-white hover:bg-gray-100 font-bold text-sm rounded-full transition-all duration-200"
-                style={{
-                  color: "var(--page-ink, #0f1a12)",
-                  padding: "11px 18px",
-                }}
-              >
-                <span
-                  className="relative flex h-2 w-2"
-                >
-                  <span
-                    className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
-                    style={{ background: "rgb(var(--brand-primary-rgb))" }}
-                  />
-                  <span
-                    className="relative inline-flex rounded-full h-2 w-2"
-                    style={{ background: "rgb(var(--brand-primary-rgb))" }}
-                  />
-                </span>
-                Chatear con {shortName}
-              </TenantLink>
-            </motion.div>
           </motion.div>
         </div>
       </div>

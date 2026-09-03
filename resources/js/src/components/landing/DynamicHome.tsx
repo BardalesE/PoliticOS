@@ -26,7 +26,6 @@ const HomeTabs            = dynamic(() => import("@/components/landing/HomeTabs"
 const Footer              = dynamic(() => import("@/components/ui/Footer").then(m => ({ default: m.Footer })));
 const ChatFAB             = dynamic(() => import("@/components/ui/ChatFAB").then(m => ({ default: m.ChatFAB })));
 const SocialFAB           = dynamic(() => import("@/components/ui/SocialFAB").then(m => ({ default: m.SocialFAB })));
-const StickyCampaignBar   = dynamic(() => import("@/components/ui/StickyCampaignBar").then(m => ({ default: m.StickyCampaignBar })));
 const MobileBottomNav     = dynamic(() => import("@/components/ui/MobileBottomNav").then(m => ({ default: m.MobileBottomNav })));
 const ScrollToTopFab      = dynamic(() => import("@/components/ui/ScrollToTopFab").then(m => ({ default: m.ScrollToTopFab })));
 
@@ -139,7 +138,6 @@ export default function DynamicHome({
       <Footer />
       <ChatFAB />
       {on(settings, "show_connection") && <SocialFAB />}
-      <StickyCampaignBar />
       <MobileBottomNav />
       <ScrollToTopFab />
     </main>

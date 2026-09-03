@@ -17,7 +17,6 @@ const NAV_DEFS = [
   { href: "/videos",     label: "Videos" },
   { href: "/en-vivo",    label: "En vivo", live: true },
   { href: "/distritos",  label: "Mi Comunidad" },
-  { href: "/chat",       label: "Chat IA" },
 ];
 
 export function Navbar() {
@@ -145,24 +144,8 @@ export function Navbar() {
                 })}
               </nav>
 
-              {/* CTA desktop + hamburger */}
+              {/* Hamburguesa (solo móvil) */}
               <div className="flex items-center gap-3">
-                <motion.div
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.97 }}
-                  className="hidden lg:block"
-                >
-                  <TenantLink
-                    href="/chat"
-                    className="inline-flex items-center gap-2 bg-brand-700 hover:bg-brand-900 text-white
-                               px-5 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wide
-                               transition-colors duration-150"
-                  >
-                    <span className="inline-flex rounded-full h-2 w-2 bg-white" />
-                    Chatear
-                  </TenantLink>
-                </motion.div>
-
                 <button
                   onClick={() => setOpen(!open)}
                   className="lg:hidden p-2.5 rounded-xl text-ink-600 hover:text-brand-700 hover:bg-brand-50 transition-colors"
@@ -266,29 +249,6 @@ export function Navbar() {
                   );
                 })}
               </nav>
-
-              {/* CTA fijo */}
-              <div className="px-4 pb-8 pt-4 shrink-0 border-t border-ink-100">
-                <motion.div
-                  initial={{ y: 12, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.35, duration: 0.3 }}
-                >
-                  <TenantLink
-                    href="/chat"
-                    onClick={() => setOpen(false)}
-                    className="flex items-center justify-center gap-2 w-full bg-brand-700 hover:bg-brand-900
-                               text-white py-4 rounded-xl text-base font-bold uppercase tracking-wide
-                               transition-colors duration-150"
-                  >
-                    <span className="inline-flex rounded-full h-2 w-2 bg-white" />
-                    Conversar con {shortName}
-                  </TenantLink>
-                  <p className="text-center text-xs text-ink-400 mt-3 font-medium">
-                    {profile.party} · {profile.location} 2026
-                  </p>
-                </motion.div>
-              </div>
             </motion.div>
           </>
         )}
