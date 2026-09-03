@@ -3,11 +3,12 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Droplets, GraduationCap, HardHat, HeartPulse, Landmark, ShieldCheck,
-  TrendingUp, ArrowRight, type LucideIcon,
+  TrendingUp, ArrowRight, Wallet, type LucideIcon,
 } from "lucide-react";
 import { TenantLink } from "@/components/ui/TenantLink";
 import { ProposalModal } from "@/components/landing/Proposals";
 import { api, type Proposal } from "@/lib/api";
+import { formatBudget } from "@/lib/utils";
 
 const TOPIC_ICONS: Array<[RegExp, LucideIcon]> = [
   [/agua|saneamiento/i, Droplets],
@@ -21,12 +22,6 @@ const TOPIC_ICONS: Array<[RegExp, LucideIcon]> = [
 function topicIcon(topic?: string | null): LucideIcon {
   if (topic) for (const [re, icon] of TOPIC_ICONS) if (re.test(topic)) return icon;
   return Landmark;
-}
-
-// Primer beneficio en una línea corta — la propuesta completa vive en /propuestas.
-function shortBenefit(description: string): string {
-  const firstSentence = description.split(/(?<=[.!?])\s/)[0] ?? description;
-  return firstSentence.length > 100 ? `${firstSentence.slice(0, 100)}…` : firstSentence;
 }
 
 const MAX_GOALS = 5;
@@ -115,10 +110,14 @@ export function GoalCards() {
                   {p.title}
                 </h3>
                 {p.description && (
-                  <p className="text-sm leading-relaxed" style={{ color: "var(--page-ink-soft)" }}>
-                    {shortBenefit(p.description)}
+                  <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: "var(--page-ink-soft)" }}>
+                    {p.description}
                   </p>
                 )}
+                <p className="flex items-center gap-1.5 text-[11px] font-bold mt-3" style={{ color: "rgb(var(--brand-primary-rgb))" }}>
+                  <Wallet size={12} aria-hidden />
+                  {formatBudget(p.budget)}
+                </p>
               </motion.div>
             );
           })}
