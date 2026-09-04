@@ -16,3 +16,20 @@ export function tenantStorageKey(base: string): string {
   const slug = resolveTenantSlug() || "default";
   return `${base}_${slug}`;
 }
+
+/**
+ * Presupuesto de una propuesta como monto en soles sin decimales
+ * (S/ 1,250,000). Laravel serializa el cast `decimal:2` como string, así que
+ * se normaliza con Number(). Sin cifra cargada (null / 0 / vacío) devuelve
+ * "Presupuesto por definir" — el candidato aún no lo publicó, no que la
+ * propuesta no cueste.
+ */
+export function formatBudget(budget?: number | string | null): string {
+  const n = Number(budget);
+  if (!Number.isFinite(n) || n <= 0) return "Presupuesto por definir";
+  return new Intl.NumberFormat("es-PE", {
+    style: "currency",
+    currency: "PEN",
+    maximumFractionDigits: 0,
+  }).format(n);
+}

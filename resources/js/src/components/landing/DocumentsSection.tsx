@@ -47,11 +47,11 @@ function PdfModal({
                 <FileText size={18} className="text-white" />
               </div>
               <div className="min-w-0">
-                <h3 className="font-serif font-bold text-ink-800 text-base leading-snug truncate">
+                <h3 className="font-serif font-bold text-ink-800 text-base leading-snug">
                   {doc.title}
                 </h3>
                 {doc.description && (
-                  <p className="text-xs text-ink-400 mt-0.5 line-clamp-1">{doc.description}</p>
+                  <p className="text-xs text-ink-400 mt-0.5">{doc.description}</p>
                 )}
                 <div className="flex items-center gap-3 mt-1">
                   {doc.topic && (
@@ -159,11 +159,11 @@ function DocCard({
                 {doc.topic}
               </span>
             )}
-            <h3 className="font-serif font-bold text-ink-800 text-sm leading-snug group-hover:text-brand-800 transition-colors line-clamp-2">
+            <h3 className="font-serif font-bold text-ink-800 text-sm leading-snug group-hover:text-brand-800 transition-colors">
               {doc.title}
             </h3>
             {doc.description && (
-              <p className="text-ink-400 text-xs mt-1 line-clamp-2 leading-relaxed font-medium">
+              <p className="text-ink-400 text-xs mt-1 leading-relaxed font-medium">
                 {doc.description}
               </p>
             )}

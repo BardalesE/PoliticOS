@@ -6,9 +6,10 @@ import { TenantLink } from "@/components/ui/TenantLink";
 import { Modal } from "@/components/ui/Modal";
 import {
   ArrowRight, Droplets, FileText, GraduationCap, HardHat, HeartPulse,
-  Landmark, MapPin, ShieldCheck, TrendingUp, X, type LucideIcon,
+  Landmark, MapPin, ShieldCheck, TrendingUp, Wallet, X, type LucideIcon,
 } from "lucide-react";
 import { api, type Proposal } from "@/lib/api";
+import { formatBudget } from "@/lib/utils";
 
 // Icono por topic (pilar) — matching flexible sobre el nombre libre del topic
 const TOPIC_ICONS: Array<[RegExp, LucideIcon]> = [
@@ -118,6 +119,14 @@ export function ProposalModal({
               {proposal.district}
             </p>
           )}
+
+          <p className="flex items-center gap-1.5 text-sm font-bold mt-2" style={{ color: "var(--page-ink)" }}>
+            <Wallet size={14} aria-hidden style={{ color: "rgb(var(--brand-primary-rgb))" }} />
+            <span>
+              Presupuesto:{" "}
+              <span style={{ color: "rgb(var(--brand-dark-rgb))" }}>{formatBudget(proposal.budget)}</span>
+            </span>
+          </p>
 
           <p className="text-[15px] leading-relaxed mt-4 whitespace-pre-line" style={{ color: "var(--page-ink-soft)" }}>
             {proposal.description}
@@ -287,12 +296,18 @@ export function Proposals({ initialData }: { initialData?: ProposalExtended[] })
                   {p.title}
                 </h3>
 
-                {/* Descripción */}
+                {/* Descripción completa — sin recortes */}
                 {p.description && (
-                  <p className="text-xs sm:text-sm leading-relaxed line-clamp-3" style={{ color: "var(--page-ink-soft)" }}>
-                    {p.description.slice(0, 140)}{p.description.length > 140 ? "…" : ""}
+                  <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-line" style={{ color: "var(--page-ink-soft)" }}>
+                    {p.description}
                   </p>
                 )}
+
+                {/* Presupuesto */}
+                <p className="flex items-center gap-1.5 text-[11px] font-bold mt-3" style={{ color: "rgb(var(--brand-primary-rgb))" }}>
+                  <Wallet size={12} aria-hidden />
+                  {formatBudget(p.budget)}
+                </p>
 
                 {/* Línea animada inferior */}
                 <div
