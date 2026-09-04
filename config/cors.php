@@ -15,6 +15,15 @@ return [
         env('CORS_ALLOWED_PATTERN', ''),
         env('APP_ENV') === 'local' ? '#^http://localhost:\d+$#' : '',
         env('APP_ENV') === 'local' ? '#^http://127\.0\.0\.1:\d+$#' : '',
+        // Previews de Vercel del proyecto (rama actual y cualquier futura):
+        // politic-os-git-<rama>-hbardales2020-gmailcoms-projects.vercel.app,
+        // el alias de proyecto sin "-git-…" y las URLs inmutables por deploy
+        // (Vercel a veces acorta "politic-os" a "politic" en esas últimas).
+        // Ancla en el subdominio exacto de ESTE team de Vercel — no abre CORS
+        // a ningún otro dominio. Rutas de este grupo son GET públicas de solo
+        // lectura (propuestas, candidato, galería…), sin credenciales de por
+        // medio, así que ampliar el origen no expone nada sensible.
+        '#^https://politic(-os)?(-[a-z0-9]+)*-hbardales2020-gmailcoms-projects\.vercel\.app$#',
     ]),
 
     'allowed_headers' => ['*'],
