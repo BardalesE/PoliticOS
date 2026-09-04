@@ -91,7 +91,7 @@ const MediaItem = ({
     <img
       src={item.url}
       alt={item.title}
-      className={`${className} object-cover object-top cursor-pointer`}
+      className={`${className} cursor-pointer`}
       onClick={onClick}
       loading="lazy"
       decoding="async"
@@ -192,7 +192,7 @@ const GalleryModal = ({
                 whileHover={{ scale: 1.3, rotate: 0, y: -10,
                               transition: { type: "spring", stiffness: 400, damping: 25 } }}
               >
-                <MediaItem item={item} className="w-full h-full" onClick={() => setSelectedItem(item)} />
+                <MediaItem item={item} className="w-full h-full object-cover" onClick={() => setSelectedItem(item)} />
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/5 to-white/20" />
                 {selectedItem.id === item.id && (
                   <motion.div layoutId="activeGlow"
@@ -219,8 +219,6 @@ const InteractiveBentoGallery: React.FC<InteractiveBentoGalleryProps> = ({
   mediaItems, title, description,
 }) => {
   const [selectedItem, setSelectedItem] = useState<MediaItemType | null>(null);
-  const [items, setItems] = useState(mediaItems);
-  const [isDragging, setIsDragging] = useState(false);
 
   return (
     <div className="w-full">
@@ -252,68 +250,52 @@ const InteractiveBentoGallery: React.FC<InteractiveBentoGalleryProps> = ({
           <GalleryModal
             selectedItem={selectedItem} isOpen={true}
             onClose={() => setSelectedItem(null)}
-            setSelectedItem={setSelectedItem} mediaItems={items}
+            setSelectedItem={setSelectedItem} mediaItems={mediaItems}
           />
         ) : (
+          // Masonry real con CSS columns: cada imagen conserva su aspect-ratio
+          // natural (width:100% / height:auto), sin recortes. 2 columnas en
+          // móvil, 3 en sm, 4 en md+. column-gap 0.75rem == mb-3 → espaciado
+          // uniforme horizontal y vertical.
           <motion.div
-            className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 gap-3 auto-rows-[110px] [grid-auto-flow:dense]"
+            className="[column-gap:0.75rem] [column-count:2] sm:[column-count:3] md:[column-count:4]"
             initial="hidden" animate="visible" exit="hidden"
             variants={{
               hidden: { opacity: 0 },
-              visible: { opacity: 1, transition: { staggerChildren: 0.1 } },
+              visible: { opacity: 1, transition: { staggerChildren: 0.06 } },
             }}
           >
-            {items.map((item, index) => (
+            {mediaItems.map((item, index) => (
               <motion.div
                 key={item.id}
                 layoutId={`media-${item.id}`}
-                className={`relative overflow-hidden rounded-xl cursor-move ${item.span}`}
-                onClick={() => !isDragging && setSelectedItem(item)}
+                className="group relative overflow-hidden rounded-xl cursor-pointer mb-3 break-inside-avoid"
+                onClick={() => setSelectedItem(item)}
                 variants={{
-                  hidden: { y: 50, scale: 0.9, opacity: 0 },
+                  hidden: { y: 40, scale: 0.94, opacity: 0 },
                   visible: {
                     y: 0, scale: 1, opacity: 1,
-                    transition: { type: "spring", stiffness: 350, damping: 25, delay: index * 0.05 },
+                    transition: { type: "spring", stiffness: 350, damping: 25, delay: index * 0.04 },
                   },
                 }}
-                whileHover={{ scale: 1.02 }}
-                drag dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }} dragElastic={1}
-                onDragStart={() => setIsDragging(true)}
-                onDragEnd={(_, info) => {
-                  setIsDragging(false);
-                  const dist = info.offset.x + info.offset.y;
-                  if (Math.abs(dist) > 50) {
-                    const newItems = [...items];
-                    const dragged = newItems[index];
-                    const target = dist > 0
-                      ? Math.min(index + 1, items.length - 1)
-                      : Math.max(index - 1, 0);
-                    newItems.splice(index, 1);
-                    newItems.splice(target, 0, dragged);
-                    setItems(newItems);
-                  }
-                }}
+                whileHover={{ scale: 1.01 }}
               >
                 <MediaItem
-                  item={item} className="absolute inset-0 w-full h-full"
-                  onClick={() => !isDragging && setSelectedItem(item)}
+                  item={item}
+                  className={item.type === "video" ? "w-full aspect-video block" : "w-full h-auto block"}
+                  onClick={() => setSelectedItem(item)}
                 />
-                <motion.div
-                  className="absolute inset-0 flex flex-col justify-end p-2 sm:p-3 md:p-4"
-                  initial={{ opacity: 0 }} whileHover={{ opacity: 1 }} transition={{ duration: 0.2 }}
-                >
-                  <div className="absolute inset-0 flex flex-col justify-end p-2 sm:p-3 md:p-4">
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-                    <h3 className="relative text-white text-xs sm:text-sm md:text-base font-medium line-clamp-1">
-                      {item.title}
-                    </h3>
-                    {item.desc && (
-                      <p className="relative text-white/70 text-[10px] sm:text-xs md:text-sm mt-0.5 line-clamp-2">
-                        {item.desc}
-                      </p>
-                    )}
-                  </div>
-                </motion.div>
+                <div className="pointer-events-none absolute inset-0 flex flex-col justify-end p-2 sm:p-3 md:p-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+                  <h3 className="relative text-white text-xs sm:text-sm md:text-base font-medium line-clamp-1">
+                    {item.title}
+                  </h3>
+                  {item.desc && (
+                    <p className="relative text-white/70 text-[10px] sm:text-xs md:text-sm mt-0.5 line-clamp-2">
+                      {item.desc}
+                    </p>
+                  )}
+                </div>
               </motion.div>
             ))}
           </motion.div>
