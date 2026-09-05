@@ -135,6 +135,10 @@ function HomeTabsInner(props: HomeTabsProps) {
   const searchParams = useSearchParams();
   const barRef       = useRef<HTMLDivElement>(null);
   const firstRender  = useRef(true);
+  // Handle activo del "freno de seguridad" del deep-link en frío (ver abajo).
+  // Empieza en no-op: selectTab puede llamarlo en cualquier render, incluso
+  // antes de que el efecto de deep-link haya corrido o si ya se soltó solo.
+  const releaseDeepLinkRef = useRef<() => void>(() => {});
 
   const visibleTabs = TABS.filter((t) => flagOn(settings, t.flag));
   const param       = searchParams.get("seccion");
@@ -146,15 +150,78 @@ function HomeTabsInner(props: HomeTabsProps) {
   // Deep-link: si la página cargó con ?seccion= (o el param cambió por
   // navegación externa, ej. "Mi zona" del Hero), lleva las pestañas a la
   // vista. block:"nearest" no mueve nada si ya son visibles.
+  //
+  // En una carga en frío, HomeTabsInner solo se resuelve en cliente
+  // (useSearchParams exige <Suspense>) — para cuando este efecto corre, los
+  // ~10 hermanos dynamic() de arriba (DynamicHome.tsx) pueden seguir
+  // cargando su chunk o su propio fetch, y siguen empujando el layout hacia
+  // abajo después de este commit. Un solo scrollIntoView() calcularía una
+  // posición que queda obsoleta apenas ese hermano termine de asentar su
+  // altura. Se autocorrige con un ResizeObserver sobre document.body —
+  // agnóstico a cuál hermano es el lento, no requiere tocarlos ni exponer
+  // ninguna señal de montaje — reintentando con debounce (~150ms sin más
+  // resizes) hasta que el layout se asiente o venza un tope duro (2.5s).
+  //
+  // Freno de seguridad: en cuanto el usuario interactúa (wheel, touch, o
+  // cambia de pestaña vía selectTab) se suelta el control de inmediato — no
+  // debe jalar el scroll de vuelta si el usuario ya se movió por su cuenta.
+  // Los clicks internos en pestañas (después del primer render, o en toda
+  // navegación que no sea la carga fría) no pasan por este mecanismo: solo
+  // aplica al primer deep-link de la carga fría, un solo scrollIntoView
+  // igual que antes para esos otros casos.
   useEffect(() => {
-    if (firstRender.current) {
-      firstRender.current = false;
-      if (!param) return; // carga normal de la home: no saltar el hero
+    const isColdDeepLink = firstRender.current && !!param;
+    firstRender.current = false;
+
+    if (!param) return; // carga normal de la home: no saltar el hero
+
+    if (!isColdDeepLink) {
+      barRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      return;
     }
-    barRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+    let settled = false;
+    let debounceId: ReturnType<typeof setTimeout> | null = null;
+    let hardCapId: ReturnType<typeof setTimeout>;
+
+    const scrollToBar = () => {
+      barRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    };
+
+    const release = () => {
+      if (settled) return;
+      settled = true;
+      if (debounceId) clearTimeout(debounceId);
+      clearTimeout(hardCapId);
+      ro.disconnect();
+      window.removeEventListener("wheel", release);
+      window.removeEventListener("touchstart", release);
+    };
+    releaseDeepLinkRef.current = release;
+
+    const ro = new ResizeObserver(() => {
+      if (settled) return;
+      if (debounceId) clearTimeout(debounceId);
+      debounceId = setTimeout(() => {
+        if (!settled) scrollToBar();
+      }, 150);
+    });
+
+    scrollToBar();
+    ro.observe(document.body);
+    hardCapId = setTimeout(release, 2500);
+    window.addEventListener("wheel", release, { passive: true });
+    window.addEventListener("touchstart", release, { passive: true });
+
+    return release;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [param]);
 
   const selectTab = (slug: TabSlug) => {
+    // El usuario está tomando el control explícitamente: si el deep-link en
+    // frío seguía reintentando el scroll, se suelta aquí mismo, no espera a
+    // que el cambio de ?seccion= dispare la limpieza del efecto.
+    releaseDeepLinkRef.current();
     const sp = new URLSearchParams(searchParams.toString());
     sp.set("seccion", slug);
     router.replace(`/?${sp.toString()}`, { scroll: false });
