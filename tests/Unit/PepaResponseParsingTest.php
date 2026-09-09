@@ -44,6 +44,48 @@ class PepaResponseParsingTest extends TestCase
         return $method->invoke($svc, $raw);
     }
 
+    private function parseWithContext(string $raw, string $mode, string $context): array
+    {
+        $svc = $this->service();
+        $ref = new ReflectionClass($svc);
+
+        $config = $ref->getProperty('config');
+        $config->setAccessible(true);
+        $config->setValue($svc, new AiSetting(['mode' => $mode]));
+
+        $method = $ref->getMethod('parseAIResponse');
+        $method->setAccessible(true);
+
+        return $method->invoke($svc, $raw, $context);
+    }
+
+    /** Invoca el heurístico privado looksLikeRawContextLeak() vía reflexión. */
+    private function rawContextLeak(string $text, string $context, ?int $min = null): bool
+    {
+        $svc = $this->service();
+        $method = (new ReflectionClass($svc))->getMethod('looksLikeRawContextLeak');
+        $method->setAccessible(true);
+
+        return $min === null
+            ? $method->invoke($svc, $text, $context)
+            : $method->invoke($svc, $text, $context, $min);
+    }
+
+    /** Excerpt contiguo de documento, como el que buildDocumentationSection() inyecta. */
+    private function ragExcerpt(): string
+    {
+        return 'El eje de seguridad ciudadana contempla la creacion de 12 bases de serenazgo '
+            . 'interconectadas con camaras de videovigilancia con analitica de video, un '
+            . 'presupuesto de S/ 8.5 millones para el primer ano y convenios con la Policia '
+            . 'Nacional para patrullaje integrado en los 10 sectores del distrito.';
+    }
+
+    private function contextBlock(): string
+    {
+        return "\nDOCUMENTACIÓN OFICIAL (plan de gobierno, entrevistas, declaraciones):\n"
+            . "=== Plan de gobierno 2026-2030 ===\n" . $this->ragExcerpt();
+    }
+
     /**
      * Invoca mediaFromSources() vía reflexión, con $retrievedDocUrls precargado
      * como si buildContext() ya hubiera corrido el RAG de este turno.
@@ -379,6 +421,96 @@ class PepaResponseParsingTest extends TestCase
 
         $this->assertArrayNotHasKey('fuentes_citadas', $payload);
         $this->assertSame('salud', $payload['tema_dominante']);
+    }
+
+    // ─── COMMIT 2 — guard de fuga de contexto crudo (modo campaña) ────────
+
+    /**
+     * No-streaming: el modelo devuelve un trozo verbatim del contexto RAG en vez
+     * de sintetizar → fallback, nunca el volcado.
+     */
+    public function test_campaign_raw_context_dump_triggers_fallback(): void
+    {
+        $dump = mb_substr($this->ragExcerpt(), 0, 210); // >180 chars, contiguo del contexto
+
+        $r = $this->parseWithContext($dump, 'campaign', $this->contextBlock());
+
+        $this->assertStringNotContainsString('12 bases de serenazgo', $r['reply']);
+        $this->assertStringContainsString('no pude formular bien mi respuesta', $r['reply']);
+        $this->assertNull($r['pepa_metadata']);
+    }
+
+    /**
+     * No-streaming: una respuesta redactada que cita frases cortas del contexto
+     * NO debe activar el fallback (cuidado con falsos positivos).
+     */
+    public function test_campaign_synthesized_reply_quoting_short_phrases_passes_through(): void
+    {
+        $reply = 'Claro, paisano. En seguridad mi prioridad es mas serenazgo con camaras en los '
+            . '10 sectores del distrito y patrullaje junto a la Policia Nacional. La inversion '
+            . 'arranca este ano. Cuentame de que zona eres para darte el detalle.';
+
+        $r = $this->parseWithContext($reply, 'campaign', $this->contextBlock());
+
+        $this->assertSame(trim($reply), $r['reply']);
+        $this->assertNull($r['pepa_metadata']);
+    }
+
+    /**
+     * Regresión: sin contexto (firma nueva $context=''), el texto plano de
+     * campaña pasa igual que antes — el guard solo corre cuando respond() pasa
+     * el contexto.
+     */
+    public function test_campaign_leak_check_is_skipped_when_no_context_passed(): void
+    {
+        $raw = mb_substr($this->ragExcerpt(), 0, 210); // sería un volcado, pero sin contexto no se evalúa
+
+        $r = $this->parse($raw, 'campaign');
+
+        $this->assertSame(trim($raw), $r['reply']);
+    }
+
+    /** El umbral de 180 chars contiguos es exacto y conservador. */
+    public function test_context_leak_helper_threshold_is_exact(): void
+    {
+        $shared  = str_repeat('x', 220);
+        $context = 'QQQ' . $shared . 'ZZZ'; // sin espacios: el tramo compartido son solo las 'x'
+
+        $this->assertFalse($this->rawContextLeak('PPP' . substr($shared, 0, 179) . 'PPP', $context));
+        $this->assertTrue($this->rawContextLeak('PPP' . substr($shared, 0, 180) . 'PPP', $context));
+    }
+
+    /** Reflow de espacios/saltos al re-ensamblar chunks SSE no esconde el volcado. */
+    public function test_context_leak_helper_ignores_whitespace_reflow(): void
+    {
+        $context  = $this->ragExcerpt();
+        $reflowed = preg_replace('/\s+/', "\n", $context); // mismo texto, saltos en vez de espacios
+
+        $this->assertTrue($this->rawContextLeak($reflowed, $context));
+    }
+
+    /**
+     * Streaming (buffer de arranque simulado): los primeros ~300 chars que
+     * llegarían por SSE. Un volcado con preámbulo corto se marca; una respuesta
+     * sintetizada no.
+     */
+    public function test_stream_start_buffer_dump_is_flagged(): void
+    {
+        $startBuffer = mb_substr('Claro, aqui va: ' . $this->ragExcerpt(), 0, 300);
+
+        $this->assertTrue($this->rawContextLeak($startBuffer, $this->contextBlock()));
+    }
+
+    public function test_stream_start_buffer_synthesized_reply_is_not_flagged(): void
+    {
+        $startBuffer = mb_substr(
+            '¡Claro, paisano! En seguridad mi prioridad es mas serenazgo con camaras en los '
+            . '10 sectores del distrito y trabajo coordinado con la Policia. La inversion '
+            . 'arranca este ano y la vamos a sostener. ¿De que zona eres para darte el detalle?',
+            0, 300
+        );
+
+        $this->assertFalse($this->rawContextLeak($startBuffer, $this->contextBlock()));
     }
 
     /**

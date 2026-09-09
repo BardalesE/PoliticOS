@@ -114,7 +114,7 @@ class CivicAIService
             return $this->buildRestingResponse($topic, $district);
         }
 
-        $parsed = $this->parseAIResponse($rawReply);
+        $parsed = $this->parseAIResponse($rawReply, $context);
 
         if ($this->looksLikeJailbreakAcceptance($parsed['reply'])) {
             Log::warning('AI response looked like a jailbreak acceptance — discarded', [
@@ -188,17 +188,94 @@ class CivicAIService
         // En PEPA el modelo devuelve JSON: hay que bufferizar todo y parsear antes de
         // enviar. En campaña devuelve texto plano: streameamos cada token en tiempo real.
         // En ambos modos acumulamos en $rawBuffer para construir el retorno.
-        $rawBuffer = '';
+        //
+        // Guard de "fuga de contexto crudo" para campaña: como en campaña los
+        // chunks salen en vivo, no hay un punto donde revisar la respuesta
+        // completa antes de que el ciudadano la vea. Como mínimo validamos el
+        // ARRANQUE — acumulamos los primeros ~300 chars, comprobamos que no sean
+        // un volcado verbatim del contexto RAG y recién ahí soltamos el buffer y
+        // seguimos streameando sin más chequeos (no se valida chunk por chunk:
+        // eso mantiene la latencia baja). Un volcado que empiece después del
+        // arranque no queda cubierto — trade-off aceptado en el diseño.
+        $rawBuffer           = '';
+        $campaignStart       = '';
+        $campaignStartGated  = false; // ¿ya validamos y soltamos el arranque?
+        $campaignLeakAborted = false; // ¿cortamos el stream por fuga?
+        $startGateChars      = self::CONTEXT_LEAK_MIN_OVERLAP + 120;
+
         $this->callAIStream($userMessage, $context, $history, $segment, $attack, $session, $topic,
-            function (string $chunk) use (&$rawBuffer, $onChunk, $isPepa) {
+            function (string $chunk) use (
+                &$rawBuffer, &$campaignStart, &$campaignStartGated, &$campaignLeakAborted,
+                $onChunk, $isPepa, $context, $startGateChars
+            ) {
                 $rawBuffer .= $chunk;
-                // Stream directo al cliente en modo campaña. No reenviamos el centinela
-                // de descanso: se maneja abajo con la respuesta adecuada.
-                if (!$isPepa && $chunk !== '__AI_RESTING__') {
-                    $onChunk($chunk);
+
+                // PEPA: se maneja bufferizado más abajo. Centinela de descanso:
+                // nunca se reenvía crudo.
+                if ($isPepa || $chunk === '__AI_RESTING__') {
+                    return;
                 }
+
+                if ($campaignLeakAborted) {
+                    return; // fuga ya detectada en el arranque → no emitir nada más
+                }
+
+                if ($campaignStartGated) {
+                    $onChunk($chunk); // arranque ya validado → passthrough normal
+                    return;
+                }
+
+                // Acumula el arranque; valida una sola vez antes de emitir nada.
+                $campaignStart .= $chunk;
+                if (mb_strlen($campaignStart) < $startGateChars) {
+                    return;
+                }
+
+                $campaignStartGated = true;
+                if ($this->looksLikeRawContextLeak($campaignStart, $context)) {
+                    Log::warning('Campaign (stream): fuga de contexto crudo en el arranque — fallback aplicado', [
+                        'raw_snippet' => mb_substr($campaignStart, 0, 800),
+                    ]);
+                    $campaignLeakAborted = true;
+                    return;
+                }
+
+                $onChunk($campaignStart); // arranque validado → emitir de una vez
             }
         );
+
+        // El stream terminó antes de que el arranque llegara al umbral (respuesta
+        // corta sin fuga aparente): validar y emitir lo que quedó buffereado.
+        if (!$isPepa && !$campaignStartGated && !$campaignLeakAborted && $campaignStart !== '') {
+            $campaignStartGated = true;
+            if ($this->looksLikeRawContextLeak($campaignStart, $context)) {
+                Log::warning('Campaign (stream): fuga de contexto crudo en el arranque — fallback aplicado', [
+                    'raw_snippet' => mb_substr($campaignStart, 0, 800),
+                ]);
+                $campaignLeakAborted = true;
+            } else {
+                $onChunk($campaignStart);
+            }
+        }
+
+        // Fuga detectada: no se emitió nada de lo buffereado. Servimos el mismo
+        // texto canned que ChatController usa para $fullReply vacío y devolvemos
+        // meta marcada como fallback (is_fallback) para que no realimente el
+        // historial del LLM.
+        if ($campaignLeakAborted) {
+            $onChunk(self::TECH_DIFFICULTY_REPLY);
+            return [
+                'topic'           => $topic,
+                'media'           => [],
+                'attack_detected' => false,
+                'attack_category' => null,
+                'pepa_metadata'   => null,
+                'nonsense'        => false,
+                'blocked'         => false,
+                'ai_resting'      => true,
+                'quickReplies'    => [],
+            ];
+        }
 
         // IA sin tokens / todos los providers fallaron → respuesta de descanso
         if (trim($rawBuffer) === '__AI_RESTING__') {
@@ -209,6 +286,9 @@ class CivicAIService
             return $resting;
         }
 
+        // Streaming: el arranque campaña ya se validó arriba; no re-pasamos el
+        // contexto a parseAIResponse (evita un segundo veredicto sobre texto ya
+        // emitido).
         $parsed = $this->parseAIResponse($rawBuffer);
 
         // Solo en PEPA podemos revisar el texto completo antes de emitir nada — está
@@ -1463,7 +1543,11 @@ class CivicAIService
     }
 
     // ─── PARSEO DEL OUTPUT ESTRUCTURADO (Pepa JSON) ──────────────────────
-    private function parseAIResponse(string $raw): array
+    // $context: el bloque RAG que se le inyectó al modelo. Solo lo pasa el path
+    // no-streaming (respond()); sirve para detectar en modo campaña que el
+    // modelo devolvió un trozo del contexto verbatim en vez de sintetizar. El
+    // path de streaming valida el arranque por su cuenta y llama sin contexto.
+    private function parseAIResponse(string $raw, string $context = ''): array
     {
         $isPepa  = ($this->config->mode ?? 'campaign') === 'pepa';
         $decoded = $this->extractJsonObject($raw);
@@ -1499,6 +1583,17 @@ class CivicAIService
         // texto contiene el contrato JSON de PEPA, tampoco lo mostramos crudo.
         if ($this->looksLikeStructuredLeak($raw)) {
             Log::warning('Campaign: output contiene estructura JSON inesperada — fallback aplicado', [
+                'raw_snippet' => mb_substr($raw, 0, 800),
+            ]);
+            return ['reply' => $this->parseFallbackReply(), 'pepa_metadata' => null];
+        }
+
+        // Modo campaña: el modelo puede, en vez de sintetizar, devolver un
+        // fragmento del contexto RAG (el excerpt del documento) verbatim. No hay
+        // contrato JSON que lo delate, así que lo detectamos por solape de texto
+        // contiguo con el contexto que se le pasó.
+        if ($context !== '' && $this->looksLikeRawContextLeak($raw, $context)) {
+            Log::warning('Campaign: output reproduce el contexto RAG sin sintetizar (fuga de contexto crudo) — fallback aplicado', [
                 'raw_snippet' => mb_substr($raw, 0, 800),
             ]);
             return ['reply' => $this->parseFallbackReply(), 'pepa_metadata' => null];
@@ -1584,6 +1679,15 @@ class CivicAIService
         return null; // JSON sin cerrar (truncado)
     }
 
+    /**
+     * Texto canned de "inconveniente técnico". Igual al que ChatController::stream()
+     * emite cuando el stream no produjo ningún reply; se expone acá para que el
+     * guard de fuga de contexto (respondStream, modo campaña) sirva el mismo
+     * mensaje sin duplicar el string.
+     */
+    public const TECH_DIFFICULTY_REPLY =
+        'Disculpa, tengo un inconveniente técnico en este momento. Por favor intenta de nuevo en unos minutos.';
+
     /** Mensaje seguro cuando el output del LLM no se pudo parsear. */
     private function parseFallbackReply(): string
     {
@@ -1596,6 +1700,47 @@ class CivicAIService
     {
         return str_contains($raw, 'respuesta_usuario')
             && str_contains($raw, 'metadata_interna');
+    }
+
+    /**
+     * Solape de texto contiguo, en caracteres, a partir del cual asumimos que el
+     * modelo copió del contexto RAG en vez de sintetizar. Deliberadamente alto:
+     * una respuesta bien redactada casi nunca reproduce 180+ caracteres seguidos
+     * del material de origen; un volcado de documento sí. Ver reporte del
+     * pipeline chat/RAG.
+     */
+    private const CONTEXT_LEAK_MIN_OVERLAP = 180;
+
+    /**
+     * ¿$text contiene algún tramo contiguo de >= $minOverlapChars caracteres que
+     * también aparece verbatim en $context? Es la señal de "fuga de contexto
+     * crudo" en modo campaña (el modelo devuelve el excerpt del documento en vez
+     * de una respuesta redactada).
+     *
+     * Normaliza espacios en blanco en ambos lados (una reflow de saltos/espacios
+     * al re-ensamblar chunks SSE no debe esconder el volcado). Ventana
+     * deslizante en unidades multibyte para no cortar UTF-8. Costo: O(len) con
+     * mb_strpos nativo — para el arranque del stream (~300 chars) es <1ms; para
+     * una respuesta completa no-streaming, pocos ms.
+     */
+    private function looksLikeRawContextLeak(string $text, string $context, int $minOverlapChars = self::CONTEXT_LEAK_MIN_OVERLAP): bool
+    {
+        $normalize = static fn (string $s): string => trim((string) preg_replace('/\s+/u', ' ', $s));
+        $t = $normalize($text);
+        $c = $normalize($context);
+
+        if ($minOverlapChars <= 0 || mb_strlen($t) < $minOverlapChars || mb_strlen($c) < $minOverlapChars) {
+            return false;
+        }
+
+        $limit = mb_strlen($t) - $minOverlapChars;
+        for ($i = 0; $i <= $limit; $i++) {
+            if (mb_strpos($c, mb_substr($t, $i, $minOverlapChars)) !== false) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

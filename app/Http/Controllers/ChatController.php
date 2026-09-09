@@ -270,7 +270,7 @@ class ChatController extends Controller
                     );
 
                     if (empty($fullReply)) {
-                        $fallback = 'Disculpa, tengo un inconveniente técnico en este momento. Por favor intenta de nuevo en unos minutos.';
+                        $fallback = CivicAIService::TECH_DIFFICULTY_REPLY;
                         echo 'data: '.json_encode(['chunk' => $fallback])."\n\n";
                         flush();
                         $fullReply = $fallback;
