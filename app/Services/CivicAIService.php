@@ -185,28 +185,31 @@ class CivicAIService
 
         $isPepa = ($this->config->mode ?? 'campaign') === 'pepa';
 
-        // En PEPA el modelo devuelve JSON: hay que bufferizar todo y parsear antes de
-        // enviar. En campaña devuelve texto plano: streameamos cada token en tiempo real.
-        // En ambos modos acumulamos en $rawBuffer para construir el retorno.
+        // En PEPA el modelo devuelve JSON: hay que bufferizar todo y parsear antes
+        // de enviar. En campaña devuelve texto plano y se streamea cada token EN
+        // VIVO, sin retención — el "escribiendo…" es lo primero que ve el
+        // ciudadano (y el candidato al probar el chat).
         //
-        // Guard de "fuga de contexto crudo" para campaña: como en campaña los
-        // chunks salen en vivo, no hay un punto donde revisar la respuesta
-        // completa antes de que el ciudadano la vea. Como mínimo validamos el
-        // ARRANQUE — acumulamos los primeros ~300 chars, comprobamos que no sean
-        // un volcado verbatim del contexto RAG y recién ahí soltamos el buffer y
-        // seguimos streameando sin más chequeos (no se valida chunk por chunk:
-        // eso mantiene la latencia baja). Un volcado que empiece después del
-        // arranque no queda cubierto — trade-off aceptado en el diseño.
+        // Guard de "fuga de contexto crudo" (solo campaña): EN PARALELO al
+        // streaming se acumula un buffer de cola y se corre looksLikeRawContextLeak()
+        // cada CONTEXT_LEAK_SCAN_STEP chars nuevos. Si en algún punto el texto ya
+        // emitido resulta ser un volcado verbatim del contexto RAG, se corta el
+        // stream ahí (no se emiten más chunks del modelo) y se agrega el mensaje
+        // canned. Lo ya emitido no se puede deshacer: trade-off consciente — el
+        // ciudadano pudo ver hasta ~180 chars del volcado antes del corte, a
+        // cambio de que NINGUNA respuesta normal (incluidas todas las cortas)
+        // sufra retraso. Pasada CONTEXT_LEAK_SCAN_CAP se deja de escanear: tanto
+        // texto coherente sin match = el modelo está sintetizando, no volcando.
         $rawBuffer           = '';
-        $campaignStart       = '';
-        $campaignStartGated  = false; // ¿ya validamos y soltamos el arranque?
-        $campaignLeakAborted = false; // ¿cortamos el stream por fuga?
-        $startGateChars      = self::CONTEXT_LEAK_MIN_OVERLAP + 120;
+        $campaignBuf         = '';    // cola acumulada para el chequeo
+        $campaignLastScan    = 0;     // longitud del buffer en el último escaneo
+        $campaignScanDone    = false; // dejamos de escanear (cap alcanzado sin fuga)
+        $campaignLeakAborted = false; // fuga detectada → stream cortado
 
         $this->callAIStream($userMessage, $context, $history, $segment, $attack, $session, $topic,
             function (string $chunk) use (
-                &$rawBuffer, &$campaignStart, &$campaignStartGated, &$campaignLeakAborted,
-                $onChunk, $isPepa, $context, $startGateChars
+                &$rawBuffer, &$campaignBuf, &$campaignLastScan, &$campaignScanDone, &$campaignLeakAborted,
+                $onChunk, $isPepa, $context
             ) {
                 $rawBuffer .= $chunk;
 
@@ -217,51 +220,42 @@ class CivicAIService
                 }
 
                 if ($campaignLeakAborted) {
-                    return; // fuga ya detectada en el arranque → no emitir nada más
+                    return; // fuga ya detectada → no emitir más chunks del modelo
                 }
 
-                if ($campaignStartGated) {
-                    $onChunk($chunk); // arranque ya validado → passthrough normal
+                $onChunk($chunk); // streaming en vivo, inmediato
+
+                if ($campaignScanDone) {
                     return;
                 }
 
-                // Acumula el arranque; valida una sola vez antes de emitir nada.
-                $campaignStart .= $chunk;
-                if (mb_strlen($campaignStart) < $startGateChars) {
-                    return;
+                $campaignBuf .= $chunk;
+                $len = mb_strlen($campaignBuf);
+
+                if ($len < self::CONTEXT_LEAK_MIN_OVERLAP
+                    || $len - $campaignLastScan < self::CONTEXT_LEAK_SCAN_STEP) {
+                    return; // aún no hay bastante texto, o no creció lo suficiente
                 }
 
-                $campaignStartGated = true;
-                if ($this->looksLikeRawContextLeak($campaignStart, $context)) {
-                    Log::warning('Campaign (stream): fuga de contexto crudo en el arranque — fallback aplicado', [
-                        'raw_snippet' => mb_substr($campaignStart, 0, 800),
+                $campaignLastScan = $len;
+                if ($this->looksLikeRawContextLeak($campaignBuf, $context)) {
+                    Log::warning('Campaign (stream): fuga de contexto crudo detectada — stream cortado', [
+                        'raw_snippet' => mb_substr($campaignBuf, 0, 800),
                     ]);
                     $campaignLeakAborted = true;
                     return;
                 }
 
-                $onChunk($campaignStart); // arranque validado → emitir de una vez
+                if ($len >= self::CONTEXT_LEAK_SCAN_CAP) {
+                    $campaignScanDone = true; // suficiente texto coherente sin fuga
+                }
             }
         );
 
-        // El stream terminó antes de que el arranque llegara al umbral (respuesta
-        // corta sin fuga aparente): validar y emitir lo que quedó buffereado.
-        if (!$isPepa && !$campaignStartGated && !$campaignLeakAborted && $campaignStart !== '') {
-            $campaignStartGated = true;
-            if ($this->looksLikeRawContextLeak($campaignStart, $context)) {
-                Log::warning('Campaign (stream): fuga de contexto crudo en el arranque — fallback aplicado', [
-                    'raw_snippet' => mb_substr($campaignStart, 0, 800),
-                ]);
-                $campaignLeakAborted = true;
-            } else {
-                $onChunk($campaignStart);
-            }
-        }
-
-        // Fuga detectada: no se emitió nada de lo buffereado. Servimos el mismo
-        // texto canned que ChatController usa para $fullReply vacío y devolvemos
-        // meta marcada como fallback (is_fallback) para que no realimente el
-        // historial del LLM.
+        // Fuga detectada a mitad de stream: lo ya emitido no se puede deshacer,
+        // así que se agrega el mismo texto canned que ChatController usa para
+        // $fullReply vacío y se marca la respuesta como fallback (is_fallback)
+        // para que no realimente el historial del LLM.
         if ($campaignLeakAborted) {
             $onChunk(self::TECH_DIFFICULTY_REPLY);
             return [
@@ -286,9 +280,9 @@ class CivicAIService
             return $resting;
         }
 
-        // Streaming: el arranque campaña ya se validó arriba; no re-pasamos el
-        // contexto a parseAIResponse (evita un segundo veredicto sobre texto ya
-        // emitido).
+        // Streaming: los chunks campaña ya salieron en vivo y el guard de fuga
+        // corrió en paralelo; no re-pasamos el contexto a parseAIResponse (no
+        // tiene sentido un segundo veredicto sobre texto ya emitido).
         $parsed = $this->parseAIResponse($rawBuffer);
 
         // Solo en PEPA podemos revisar el texto completo antes de emitir nada — está
@@ -1051,9 +1045,12 @@ class CivicAIService
     }
 
     // ─── STREAMING ───────────────────────────────────────────────────────
-    private function callAIStream(string $userMessage, string $context, array $history,
-                                  array $segment, ?array $attack, ChatSession $session,
-                                  ?string $topic, callable $onChunk): void
+    // protected (no private) para poder sustituir la capa de red en tests de
+    // respondStream() sin tocar Guzzle/HTTP — el streaming usa un GuzzleClient
+    // directo que Http::fake() no intercepta.
+    protected function callAIStream(string $userMessage, string $context, array $history,
+                                    array $segment, ?array $attack, ChatSession $session,
+                                    ?string $topic, callable $onChunk): void
     {
         $providers = $this->usableProviders();
 
@@ -1710,6 +1707,16 @@ class CivicAIService
      * pipeline chat/RAG.
      */
     private const CONTEXT_LEAK_MIN_OVERLAP = 180;
+
+    /**
+     * Streaming en modo campaña: cada cuántos caracteres nuevos se vuelve a
+     * correr el chequeo de fuga sobre el buffer acumulado (throttle), y a partir
+     * de qué longitud de texto sin match se deja de escanear (si el modelo
+     * produjo tanto texto coherente que no aparece en el contexto, está
+     * sintetizando). Acotan el costo del chequeo continuo a ~12 pasadas.
+     */
+    private const CONTEXT_LEAK_SCAN_STEP = 60;
+    private const CONTEXT_LEAK_SCAN_CAP  = 800;
 
     /**
      * ¿$text contiene algún tramo contiguo de >= $minOverlapChars caracteres que
