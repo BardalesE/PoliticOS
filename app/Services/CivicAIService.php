@@ -1599,29 +1599,44 @@ class CivicAIService
     }
 
     /**
-     * Convierte "fuentes_citadas" (URLs que el LLM devolvió en metadata_interna)
-     * en media tipo "link". Antes de mostrarlas como "Fuente verificada" exige
-     * que la URL sea EXACTAMENTE una de las que buildContext() recuperó del RAG
-     * en este mismo turno ($this->retrievedDocUrls) — el prompt le pide al LLM
-     * citar solo URLs del contexto, pero no hay garantía de que las respete
-     * (modelos como Llama vía Groq pueden inventar una URL bien formada para
-     * cumplir el formato exigido). Sin esta lista blanca, esa URL inventada
-     * pasaba el único filtro que había (filter_var FILTER_VALIDATE_URL, que
-     * solo valida sintaxis) y se mostraba al ciudadano como fuente verificada
-     * sin serlo. Ver DIAGNOSTICO_CHAT.md, hallazgo #3.
+     * Lista blanca de URLs citadas por el LLM ("fuentes_citadas" de
+     * metadata_interna). Devuelve solo las que (a) son sintácticamente una URL
+     * (filter_var FILTER_VALIDATE_URL) y (b) provienen EXACTAMENTE de un
+     * documento que buildContext() recuperó del RAG en este mismo turno
+     * ($this->retrievedDocUrls). El prompt le pide al LLM citar solo URLs del
+     * contexto, pero no hay garantía de que lo respete (Llama vía Groq puede
+     * inventar una URL bien formada para cumplir el formato). Las descartadas se
+     * loguean. Ver DIAGNOSTICO_CHAT.md, hallazgo #3.
+     *
+     * Público a propósito: además de mediaFromSources() (array media[]), lo
+     * reutiliza ChatController::pepaPayload() para no mandar al frontend las
+     * URLs crudas del LLM en `pepa.fuentes_citadas` — antes ese era un camino
+     * paralelo sin este filtro.
      */
-    private function mediaFromSources(array $urls): array
+    public function filterVerifiedUrls(array $urls): array
     {
-        return array_values(array_filter(array_map(function (string $url) {
-            if (!filter_var($url, FILTER_VALIDATE_URL)) return null;
+        return array_values(array_filter(array_map(function ($url) {
+            if (!is_string($url) || !filter_var($url, FILTER_VALIDATE_URL)) return null;
             if (!in_array($url, $this->retrievedDocUrls, true)) {
                 Log::warning('PEPA: fuente citada por el LLM no vino del RAG recuperado — descartada', [
                     'url_descartada' => $url,
                 ]);
                 return null;
             }
-            return ['type' => 'link', 'url' => $url, 'title' => 'Fuente verificada'];
+            return $url;
         }, $urls)));
+    }
+
+    /**
+     * Convierte "fuentes_citadas" en media tipo "link" ("Fuente verificada"),
+     * aplicando la misma lista blanca que filterVerifiedUrls().
+     */
+    private function mediaFromSources(array $urls): array
+    {
+        return array_map(
+            fn (string $url) => ['type' => 'link', 'url' => $url, 'title' => 'Fuente verificada'],
+            $this->filterVerifiedUrls($urls)
+        );
     }
 
     // ─── BIENVENIDA (primer mensaje de la sesión) ────────────────────────

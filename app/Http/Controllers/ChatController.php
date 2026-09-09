@@ -449,6 +449,11 @@ class ChatController extends Controller
      * Subconjunto de pepa_metadata que sí viaja al navegador: fuentes citadas
      * y tema. La metadata interna completa (postura_actual, cambio_de_opinion)
      * es analítica del tenant y se queda en el backend.
+     *
+     * `fuentes_citadas` pasa por el MISMO whitelist que ya aplica
+     * CivicAIService::mediaFromSources() al array media[] — una URL que el LLM
+     * inventó (no vino de un documento realmente recuperado por el RAG este
+     * turno) tampoco puede llegar al frontend por este camino.
      */
     private function pepaPayload(?array $meta): ?array
     {
@@ -456,8 +461,10 @@ class ChatController extends Controller
             return null;
         }
 
+        $fuentes = $this->ai->filterVerifiedUrls((array) ($meta['fuentes_citadas'] ?? []));
+
         $payload = array_filter([
-            'fuentes_citadas' => $meta['fuentes_citadas'] ?? null,
+            'fuentes_citadas' => $fuentes ?: null,
             'tema_dominante'  => $meta['tema_dominante'] ?? null,
         ]);
 

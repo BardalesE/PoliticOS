@@ -289,6 +289,99 @@ class PepaResponseParsingTest extends TestCase
     }
 
     /**
+     * Invoca el whitelist público filterVerifiedUrls() con $retrievedDocUrls
+     * precargado, como si buildContext() ya hubiera corrido el RAG.
+     */
+    private function filterVerifiedUrls(array $citedUrls, array $retrievedDocUrls): array
+    {
+        $svc = $this->service();
+        $ref = new ReflectionClass($svc);
+
+        $retrieved = $ref->getProperty('retrievedDocUrls');
+        $retrieved->setAccessible(true);
+        $retrieved->setValue($svc, $retrievedDocUrls);
+
+        return $svc->filterVerifiedUrls($citedUrls);
+    }
+
+    /**
+     * COMMIT 1 — el whitelist compartido descarta URLs inventadas y sintaxis inválida.
+     */
+    public function test_filter_verified_urls_drops_url_not_in_retrieved_docs(): void
+    {
+        $this->assertSame(
+            [],
+            $this->filterVerifiedUrls(
+                ['https://inventado-por-el-llm.example/plan.pdf'],
+                ['https://jne.gob.pe/plan-real.pdf']
+            )
+        );
+    }
+
+    public function test_filter_verified_urls_keeps_only_trusted_and_valid(): void
+    {
+        $this->assertSame(
+            ['https://jne.gob.pe/plan-real.pdf'],
+            $this->filterVerifiedUrls(
+                ['https://jne.gob.pe/plan-real.pdf', 'no-es-una-url', 'https://inventado.example/x.pdf'],
+                ['https://jne.gob.pe/plan-real.pdf', 'https://jne.gob.pe/hoja-de-vida.pdf']
+            )
+        );
+    }
+
+    /**
+     * COMMIT 1 — verifica el PAYLOAD completo, no solo media[]: el `pepa` que
+     * ChatController manda al frontend debe filtrar fuentes_citadas por el mismo
+     * whitelist. Antes tomaba $meta['fuentes_citadas'] crudo del LLM.
+     */
+    public function test_chat_pepa_payload_filters_fuentes_citadas_through_whitelist(): void
+    {
+        $svc = $this->service();
+        $ref = new ReflectionClass($svc);
+        $prop = $ref->getProperty('retrievedDocUrls');
+        $prop->setAccessible(true);
+        $prop->setValue($svc, ['https://jne.gob.pe/plan-real.pdf']);
+
+        $controller = new \App\Http\Controllers\ChatController($svc);
+        $cref = new ReflectionClass($controller);
+        $method = $cref->getMethod('pepaPayload');
+        $method->setAccessible(true);
+
+        $payload = $method->invoke($controller, [
+            'tema_dominante'  => 'seguridad',
+            'fuentes_citadas' => [
+                'https://jne.gob.pe/plan-real.pdf',              // recuperada → se queda
+                'https://inventado-por-el-llm.example/x.pdf',    // alucinada  → se descarta
+            ],
+        ]);
+
+        $this->assertSame(['https://jne.gob.pe/plan-real.pdf'], $payload['fuentes_citadas']);
+        $this->assertSame('seguridad', $payload['tema_dominante']);
+    }
+
+    public function test_chat_pepa_payload_drops_fuentes_key_when_none_verified(): void
+    {
+        $svc = $this->service();
+        $ref = new ReflectionClass($svc);
+        $prop = $ref->getProperty('retrievedDocUrls');
+        $prop->setAccessible(true);
+        $prop->setValue($svc, []); // el RAG no recuperó nada este turno
+
+        $controller = new \App\Http\Controllers\ChatController($svc);
+        $cref = new ReflectionClass($controller);
+        $method = $cref->getMethod('pepaPayload');
+        $method->setAccessible(true);
+
+        $payload = $method->invoke($controller, [
+            'tema_dominante'  => 'salud',
+            'fuentes_citadas' => ['https://inventado.example/x.pdf'],
+        ]);
+
+        $this->assertArrayNotHasKey('fuentes_citadas', $payload);
+        $this->assertSame('salud', $payload['tema_dominante']);
+    }
+
+    /**
      * RAG_VACIO.md: caso real de bdpolitic — el único doc "encontrado" tiene
      * excerpt vacío (KnowledgeDocument.content NULL, matcheó solo por título).
      * Debe descartarse y aparecer el guard, no una sección vacía ni silencio.
