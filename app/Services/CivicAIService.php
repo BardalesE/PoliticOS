@@ -114,7 +114,7 @@ class CivicAIService
             return $this->buildRestingResponse($topic, $district);
         }
 
-        $parsed = $this->parseAIResponse($rawReply);
+        $parsed = $this->parseAIResponse($rawReply, $context);
 
         if ($this->looksLikeJailbreakAcceptance($parsed['reply'])) {
             Log::warning('AI response looked like a jailbreak acceptance — discarded', [
@@ -185,20 +185,91 @@ class CivicAIService
 
         $isPepa = ($this->config->mode ?? 'campaign') === 'pepa';
 
-        // En PEPA el modelo devuelve JSON: hay que bufferizar todo y parsear antes de
-        // enviar. En campaña devuelve texto plano: streameamos cada token en tiempo real.
-        // En ambos modos acumulamos en $rawBuffer para construir el retorno.
-        $rawBuffer = '';
+        // En PEPA el modelo devuelve JSON: hay que bufferizar todo y parsear antes
+        // de enviar. En campaña devuelve texto plano y se streamea cada token EN
+        // VIVO, sin retención — el "escribiendo…" es lo primero que ve el
+        // ciudadano (y el candidato al probar el chat).
+        //
+        // Guard de "fuga de contexto crudo" (solo campaña): EN PARALELO al
+        // streaming se acumula un buffer de cola y se corre looksLikeRawContextLeak()
+        // cada CONTEXT_LEAK_SCAN_STEP chars nuevos. Si en algún punto el texto ya
+        // emitido resulta ser un volcado verbatim del contexto RAG, se corta el
+        // stream ahí (no se emiten más chunks del modelo) y se agrega el mensaje
+        // canned. Lo ya emitido no se puede deshacer: trade-off consciente — el
+        // ciudadano pudo ver hasta ~180 chars del volcado antes del corte, a
+        // cambio de que NINGUNA respuesta normal (incluidas todas las cortas)
+        // sufra retraso. Pasada CONTEXT_LEAK_SCAN_CAP se deja de escanear: tanto
+        // texto coherente sin match = el modelo está sintetizando, no volcando.
+        $rawBuffer           = '';
+        $campaignBuf         = '';    // cola acumulada para el chequeo
+        $campaignLastScan    = 0;     // longitud del buffer en el último escaneo
+        $campaignScanDone    = false; // dejamos de escanear (cap alcanzado sin fuga)
+        $campaignLeakAborted = false; // fuga detectada → stream cortado
+
         $this->callAIStream($userMessage, $context, $history, $segment, $attack, $session, $topic,
-            function (string $chunk) use (&$rawBuffer, $onChunk, $isPepa) {
+            function (string $chunk) use (
+                &$rawBuffer, &$campaignBuf, &$campaignLastScan, &$campaignScanDone, &$campaignLeakAborted,
+                $onChunk, $isPepa, $context
+            ) {
                 $rawBuffer .= $chunk;
-                // Stream directo al cliente en modo campaña. No reenviamos el centinela
-                // de descanso: se maneja abajo con la respuesta adecuada.
-                if (!$isPepa && $chunk !== '__AI_RESTING__') {
-                    $onChunk($chunk);
+
+                // PEPA: se maneja bufferizado más abajo. Centinela de descanso:
+                // nunca se reenvía crudo.
+                if ($isPepa || $chunk === '__AI_RESTING__') {
+                    return;
+                }
+
+                if ($campaignLeakAborted) {
+                    return; // fuga ya detectada → no emitir más chunks del modelo
+                }
+
+                $onChunk($chunk); // streaming en vivo, inmediato
+
+                if ($campaignScanDone) {
+                    return;
+                }
+
+                $campaignBuf .= $chunk;
+                $len = mb_strlen($campaignBuf);
+
+                if ($len < self::CONTEXT_LEAK_MIN_OVERLAP
+                    || $len - $campaignLastScan < self::CONTEXT_LEAK_SCAN_STEP) {
+                    return; // aún no hay bastante texto, o no creció lo suficiente
+                }
+
+                $campaignLastScan = $len;
+                if ($this->looksLikeRawContextLeak($campaignBuf, $context)) {
+                    Log::warning('Campaign (stream): fuga de contexto crudo detectada — stream cortado', [
+                        'raw_snippet' => mb_substr($campaignBuf, 0, 800),
+                    ]);
+                    $campaignLeakAborted = true;
+                    return;
+                }
+
+                if ($len >= self::CONTEXT_LEAK_SCAN_CAP) {
+                    $campaignScanDone = true; // suficiente texto coherente sin fuga
                 }
             }
         );
+
+        // Fuga detectada a mitad de stream: lo ya emitido no se puede deshacer,
+        // así que se agrega el mismo texto canned que ChatController usa para
+        // $fullReply vacío y se marca la respuesta como fallback (is_fallback)
+        // para que no realimente el historial del LLM.
+        if ($campaignLeakAborted) {
+            $onChunk(self::TECH_DIFFICULTY_REPLY);
+            return [
+                'topic'           => $topic,
+                'media'           => [],
+                'attack_detected' => false,
+                'attack_category' => null,
+                'pepa_metadata'   => null,
+                'nonsense'        => false,
+                'blocked'         => false,
+                'ai_resting'      => true,
+                'quickReplies'    => [],
+            ];
+        }
 
         // IA sin tokens / todos los providers fallaron → respuesta de descanso
         if (trim($rawBuffer) === '__AI_RESTING__') {
@@ -209,6 +280,9 @@ class CivicAIService
             return $resting;
         }
 
+        // Streaming: los chunks campaña ya salieron en vivo y el guard de fuga
+        // corrió en paralelo; no re-pasamos el contexto a parseAIResponse (no
+        // tiene sentido un segundo veredicto sobre texto ya emitido).
         $parsed = $this->parseAIResponse($rawBuffer);
 
         // Solo en PEPA podemos revisar el texto completo antes de emitir nada — está
@@ -971,9 +1045,12 @@ class CivicAIService
     }
 
     // ─── STREAMING ───────────────────────────────────────────────────────
-    private function callAIStream(string $userMessage, string $context, array $history,
-                                  array $segment, ?array $attack, ChatSession $session,
-                                  ?string $topic, callable $onChunk): void
+    // protected (no private) para poder sustituir la capa de red en tests de
+    // respondStream() sin tocar Guzzle/HTTP — el streaming usa un GuzzleClient
+    // directo que Http::fake() no intercepta.
+    protected function callAIStream(string $userMessage, string $context, array $history,
+                                    array $segment, ?array $attack, ChatSession $session,
+                                    ?string $topic, callable $onChunk): void
     {
         $providers = $this->usableProviders();
 
@@ -1463,7 +1540,11 @@ class CivicAIService
     }
 
     // ─── PARSEO DEL OUTPUT ESTRUCTURADO (Pepa JSON) ──────────────────────
-    private function parseAIResponse(string $raw): array
+    // $context: el bloque RAG que se le inyectó al modelo. Solo lo pasa el path
+    // no-streaming (respond()); sirve para detectar en modo campaña que el
+    // modelo devolvió un trozo del contexto verbatim en vez de sintetizar. El
+    // path de streaming valida el arranque por su cuenta y llama sin contexto.
+    private function parseAIResponse(string $raw, string $context = ''): array
     {
         $isPepa  = ($this->config->mode ?? 'campaign') === 'pepa';
         $decoded = $this->extractJsonObject($raw);
@@ -1499,6 +1580,17 @@ class CivicAIService
         // texto contiene el contrato JSON de PEPA, tampoco lo mostramos crudo.
         if ($this->looksLikeStructuredLeak($raw)) {
             Log::warning('Campaign: output contiene estructura JSON inesperada — fallback aplicado', [
+                'raw_snippet' => mb_substr($raw, 0, 800),
+            ]);
+            return ['reply' => $this->parseFallbackReply(), 'pepa_metadata' => null];
+        }
+
+        // Modo campaña: el modelo puede, en vez de sintetizar, devolver un
+        // fragmento del contexto RAG (el excerpt del documento) verbatim. No hay
+        // contrato JSON que lo delate, así que lo detectamos por solape de texto
+        // contiguo con el contexto que se le pasó.
+        if ($context !== '' && $this->looksLikeRawContextLeak($raw, $context)) {
+            Log::warning('Campaign: output reproduce el contexto RAG sin sintetizar (fuga de contexto crudo) — fallback aplicado', [
                 'raw_snippet' => mb_substr($raw, 0, 800),
             ]);
             return ['reply' => $this->parseFallbackReply(), 'pepa_metadata' => null];
@@ -1584,6 +1676,15 @@ class CivicAIService
         return null; // JSON sin cerrar (truncado)
     }
 
+    /**
+     * Texto canned de "inconveniente técnico". Igual al que ChatController::stream()
+     * emite cuando el stream no produjo ningún reply; se expone acá para que el
+     * guard de fuga de contexto (respondStream, modo campaña) sirva el mismo
+     * mensaje sin duplicar el string.
+     */
+    public const TECH_DIFFICULTY_REPLY =
+        'Disculpa, tengo un inconveniente técnico en este momento. Por favor intenta de nuevo en unos minutos.';
+
     /** Mensaje seguro cuando el output del LLM no se pudo parsear. */
     private function parseFallbackReply(): string
     {
@@ -1599,29 +1700,95 @@ class CivicAIService
     }
 
     /**
-     * Convierte "fuentes_citadas" (URLs que el LLM devolvió en metadata_interna)
-     * en media tipo "link". Antes de mostrarlas como "Fuente verificada" exige
-     * que la URL sea EXACTAMENTE una de las que buildContext() recuperó del RAG
-     * en este mismo turno ($this->retrievedDocUrls) — el prompt le pide al LLM
-     * citar solo URLs del contexto, pero no hay garantía de que las respete
-     * (modelos como Llama vía Groq pueden inventar una URL bien formada para
-     * cumplir el formato exigido). Sin esta lista blanca, esa URL inventada
-     * pasaba el único filtro que había (filter_var FILTER_VALIDATE_URL, que
-     * solo valida sintaxis) y se mostraba al ciudadano como fuente verificada
-     * sin serlo. Ver DIAGNOSTICO_CHAT.md, hallazgo #3.
+     * Solape de texto contiguo, en caracteres, a partir del cual asumimos que el
+     * modelo copió del contexto RAG en vez de sintetizar. Deliberadamente alto:
+     * una respuesta bien redactada casi nunca reproduce 180+ caracteres seguidos
+     * del material de origen; un volcado de documento sí. Ver reporte del
+     * pipeline chat/RAG.
      */
-    private function mediaFromSources(array $urls): array
+    private const CONTEXT_LEAK_MIN_OVERLAP = 180;
+
+    /**
+     * Streaming en modo campaña: cada cuántos caracteres nuevos se vuelve a
+     * correr el chequeo de fuga sobre el buffer acumulado (throttle), y a partir
+     * de qué longitud de texto sin match se deja de escanear (si el modelo
+     * produjo tanto texto coherente que no aparece en el contexto, está
+     * sintetizando). Acotan el costo del chequeo continuo a ~12 pasadas.
+     */
+    private const CONTEXT_LEAK_SCAN_STEP = 60;
+    private const CONTEXT_LEAK_SCAN_CAP  = 800;
+
+    /**
+     * ¿$text contiene algún tramo contiguo de >= $minOverlapChars caracteres que
+     * también aparece verbatim en $context? Es la señal de "fuga de contexto
+     * crudo" en modo campaña (el modelo devuelve el excerpt del documento en vez
+     * de una respuesta redactada).
+     *
+     * Normaliza espacios en blanco en ambos lados (una reflow de saltos/espacios
+     * al re-ensamblar chunks SSE no debe esconder el volcado). Ventana
+     * deslizante en unidades multibyte para no cortar UTF-8. Costo: O(len) con
+     * mb_strpos nativo — para el arranque del stream (~300 chars) es <1ms; para
+     * una respuesta completa no-streaming, pocos ms.
+     */
+    private function looksLikeRawContextLeak(string $text, string $context, int $minOverlapChars = self::CONTEXT_LEAK_MIN_OVERLAP): bool
     {
-        return array_values(array_filter(array_map(function (string $url) {
-            if (!filter_var($url, FILTER_VALIDATE_URL)) return null;
+        $normalize = static fn (string $s): string => trim((string) preg_replace('/\s+/u', ' ', $s));
+        $t = $normalize($text);
+        $c = $normalize($context);
+
+        if ($minOverlapChars <= 0 || mb_strlen($t) < $minOverlapChars || mb_strlen($c) < $minOverlapChars) {
+            return false;
+        }
+
+        $limit = mb_strlen($t) - $minOverlapChars;
+        for ($i = 0; $i <= $limit; $i++) {
+            if (mb_strpos($c, mb_substr($t, $i, $minOverlapChars)) !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Lista blanca de URLs citadas por el LLM ("fuentes_citadas" de
+     * metadata_interna). Devuelve solo las que (a) son sintácticamente una URL
+     * (filter_var FILTER_VALIDATE_URL) y (b) provienen EXACTAMENTE de un
+     * documento que buildContext() recuperó del RAG en este mismo turno
+     * ($this->retrievedDocUrls). El prompt le pide al LLM citar solo URLs del
+     * contexto, pero no hay garantía de que lo respete (Llama vía Groq puede
+     * inventar una URL bien formada para cumplir el formato). Las descartadas se
+     * loguean. Ver DIAGNOSTICO_CHAT.md, hallazgo #3.
+     *
+     * Público a propósito: además de mediaFromSources() (array media[]), lo
+     * reutiliza ChatController::pepaPayload() para no mandar al frontend las
+     * URLs crudas del LLM en `pepa.fuentes_citadas` — antes ese era un camino
+     * paralelo sin este filtro.
+     */
+    public function filterVerifiedUrls(array $urls): array
+    {
+        return array_values(array_filter(array_map(function ($url) {
+            if (!is_string($url) || !filter_var($url, FILTER_VALIDATE_URL)) return null;
             if (!in_array($url, $this->retrievedDocUrls, true)) {
                 Log::warning('PEPA: fuente citada por el LLM no vino del RAG recuperado — descartada', [
                     'url_descartada' => $url,
                 ]);
                 return null;
             }
-            return ['type' => 'link', 'url' => $url, 'title' => 'Fuente verificada'];
+            return $url;
         }, $urls)));
+    }
+
+    /**
+     * Convierte "fuentes_citadas" en media tipo "link" ("Fuente verificada"),
+     * aplicando la misma lista blanca que filterVerifiedUrls().
+     */
+    private function mediaFromSources(array $urls): array
+    {
+        return array_map(
+            fn (string $url) => ['type' => 'link', 'url' => $url, 'title' => 'Fuente verificada'],
+            $this->filterVerifiedUrls($urls)
+        );
     }
 
     // ─── BIENVENIDA (primer mensaje de la sesión) ────────────────────────
