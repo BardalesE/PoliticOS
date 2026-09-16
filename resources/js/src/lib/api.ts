@@ -587,6 +587,11 @@ export type KnowledgeDocument = {
   original_name?: string | null;
   content?: string | null;
   candidate_id?: number | null;
+  // Pipeline de extracción (subida → cola → procesamiento → listo). pending/
+  // processing = ProcessKnowledgeDocumentJob todavía trabajando el PDF.
+  // Admin-only, igual que los campos de arriba.
+  status?: "pending" | "processing" | "ready" | "failed";
+  error_message?: string | null;
 };
 
 export type AdminAnalytics = {

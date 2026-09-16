@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ProcessKnowledgeDocumentJob;
 use App\Models\KnowledgeDocument;
 use App\Services\EmbeddingsServiceInterface;
 use App\Services\PlanService;
@@ -62,17 +63,16 @@ class KnowledgeDocumentController extends Controller
             'source_type'  => ['nullable','in:pdf,interview,debate,news'],
         ]);
 
-        $file    = $request->file('file');
-        $path    = $file->store('knowledge', config('filesystems.media'));
-        $url     = Storage::disk(config('filesystems.media'))->url($path);
-        $content = $this->extractText($file->getRealPath());
+        $file = $request->file('file');
+        $path = $file->store('knowledge', config('filesystems.media'));
+        $url  = Storage::disk(config('filesystems.media'))->url($path);
 
         $doc = KnowledgeDocument::create([
             'title'         => $request->input('title'),
             'description'   => $request->input('description'),
             'file_url'      => $url,
             'original_name' => $file->getClientOriginalName(),
-            'content'       => $content,
+            'content'       => null,
             'topic'         => $request->input('topic'),
             'candidate_id'  => $request->input('candidate_id'),
             // Toda cita debe tener URL verificable: sin fuente externa, el PDF subido
@@ -80,15 +80,20 @@ class KnowledgeDocumentController extends Controller
             'source_type'   => $request->input('source_type') ?: 'pdf',
             'file_size'     => $file->getSize(),
             'is_active'     => true,
+            'status'        => 'pending',
         ]);
 
-        // Indexar para RAG (FULLTEXT o Qdrant según driver)
-        if (!empty($content)) {
-            try {
-                $this->embeddings->index($doc->id, $content, $this->indexMetadata($doc));
-            } catch (\Throwable $e) {
-                Log::warning('Embeddings index failed', ['doc_id' => $doc->id, 'error' => $e->getMessage()]);
-            }
+        // Extracción + indexado en background (ProcessKnowledgeDocumentJob):
+        // un PDF grande puede tardar varios segundos en parsear e indexar,
+        // y bloquear el request de subida no escala ni es necesario.
+        // Con QUEUE_CONNECTION=sync (default en local) el job corre inline y
+        // Laravel re-lanza cualquier excepción hacia este dispatch(); el job
+        // ya deja status=failed guardado antes de relanzar, así que solo hay
+        // que evitar que ese throw tumbe el request de subida (que sí tuvo éxito).
+        try {
+            ProcessKnowledgeDocumentJob::dispatch($doc->id);
+        } catch (\Throwable $e) {
+            Log::warning('ProcessKnowledgeDocumentJob dispatch (sync) failed', ['doc_id' => $doc->id, 'error' => $e->getMessage()]);
         }
 
         return response()->json($doc->fresh(), 201);
@@ -134,43 +139,15 @@ class KnowledgeDocumentController extends Controller
     public function reindex(int $id): JsonResponse
     {
         $doc = KnowledgeDocument::findOrFail($id);
-        if (empty($doc->content)) {
-            return response()->json(['message' => 'Documento sin contenido extraído'], 422);
-        }
+        $doc->update(['status' => 'pending', 'error_message' => null]);
 
-        $this->embeddings->delete($doc->id);
-        $this->embeddings->index($doc->id, $doc->content, $this->indexMetadata($doc));
+        try {
+            ProcessKnowledgeDocumentJob::dispatch($doc->id);
+        } catch (\Throwable $e) {
+            Log::warning('ProcessKnowledgeDocumentJob dispatch (sync) failed', ['doc_id' => $doc->id, 'error' => $e->getMessage()]);
+        }
 
         return response()->json(['ok' => true, 'doc' => $doc->fresh()]);
     }
 
-    /**
-     * Metadata que viaja a cada chunk indexado (Fase 4: atribución de fuente).
-     * En Qdrant queda en el payload del punto; en FULLTEXT se resuelve desde
-     * el propio row, pero la firma es la misma para ambos drivers.
-     */
-    private function indexMetadata(KnowledgeDocument $doc): array
-    {
-        return [
-            'title'        => $doc->title,
-            'topic'        => $doc->topic,
-            'candidate_id' => $doc->candidate_id,
-            'source_url'   => $doc->source_url ?: $doc->file_url,
-            'source_type'  => $doc->source_type ?? 'pdf',
-        ];
-    }
-
-    private function extractText(string $filePath): string
-    {
-        try {
-            $parser = new \Smalot\PdfParser\Parser();
-            $pdf    = $parser->parseFile($filePath);
-            $text   = $pdf->getText();
-            $text   = preg_replace('/\s+/', ' ', $text);
-            return mb_substr(trim($text), 0, 80000); // 80k chars (más generoso que v1)
-        } catch (\Throwable $e) {
-            Log::warning('PDF text extraction failed', ['error' => $e->getMessage()]);
-            return '';
-        }
-    }
 }

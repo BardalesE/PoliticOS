@@ -215,7 +215,7 @@ export function KnowledgeUploadPanel({
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <Loader2 size={14} className="animate-spin text-brand-500" />
-            Subiendo y extrayendo texto del PDF...
+            Subiendo documento...
           </div>
           <div className="w-full bg-gray-100 rounded-full h-1.5">
             <div className="bg-brand-500 h-1.5 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
@@ -225,7 +225,7 @@ export function KnowledgeUploadPanel({
 
       {uploadState === "done" && (
         <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-100 rounded-xl px-4 py-3">
-          <CheckCircle size={14} /> Documento subido. El asistente ya puede usarlo.
+          <CheckCircle size={14} /> Documento subido, procesando en segundo plano. Aparecerá como &quot;listo&quot; en la lista en unos segundos.
         </div>
       )}
 

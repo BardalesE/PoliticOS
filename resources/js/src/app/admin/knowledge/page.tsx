@@ -39,6 +39,16 @@ function KnowledgePageInner() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Pipeline de extracción es async (subida → cola → procesamiento → listo):
+  // mientras haya documentos pending/processing, refresca la lista cada 3s
+  // para que el admin vea el cambio a "listo" sin recargar la página.
+  useEffect(() => {
+    const hasPending = docs.some(d => d.status === "pending" || d.status === "processing");
+    if (!hasPending) return;
+    const t = setTimeout(load, 3000);
+    return () => clearTimeout(t);
+  }, [docs, load]);
+
   async function toggleActive(doc: KnowledgeDocument) {
     if (!token) return;
     try {
@@ -148,16 +158,26 @@ function KnowledgePageInner() {
                         <span>{doc.original_name ?? "documento.pdf"}</span>
                         <span>·</span>
                         <span>{fmtSize(doc.file_size)}</span>
-                        {doc.content && (
+                        {doc.status === "ready" && (
                           <>
                             <span>·</span>
                             <span className="text-green-600">✓ Texto extraído</span>
                           </>
                         )}
-                        {doc.content === "" && (
+                        {(doc.status === "pending" || doc.status === "processing") && (
                           <>
                             <span>·</span>
-                            <span className="text-amber-600">Sin texto (PDF imagen)</span>
+                            <span className="inline-flex items-center gap-1 text-brand-500">
+                              <Loader2 size={10} className="animate-spin" /> Procesando...
+                            </span>
+                          </>
+                        )}
+                        {doc.status === "failed" && (
+                          <>
+                            <span>·</span>
+                            <span className="text-red-600" title={doc.error_message ?? undefined}>
+                              ⚠ Error al procesar
+                            </span>
                           </>
                         )}
                       </div>
