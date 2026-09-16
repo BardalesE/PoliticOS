@@ -8,7 +8,7 @@ class CandidateProfile extends Model
 {
     protected $fillable = [
         'preset_name', 'is_active',
-        'name', 'title', 'location', 'party', 'list_number',
+        'name', 'title', 'location', 'distrito_id', 'party', 'list_number',
         'bio', 'tagline', 'election_date',
         'photo_url', 'logo_url', 'hero_photo_url', 'hero_video_url',
         'color_primary', 'color_dark', 'color_accent',
@@ -46,5 +46,10 @@ class CandidateProfile extends Model
     {
         return static::where('is_active', true)->first()
             ?? static::first();
+    }
+
+    public function distrito()
+    {
+        return $this->belongsTo(UbigeoDistrito::class, 'distrito_id');
     }
 }
