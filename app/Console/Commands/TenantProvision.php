@@ -61,6 +61,14 @@ class TenantProvision extends Command
             return 1;
         }
 
+        // db_name se interpola directamente en sentencias CREATE/DROP DATABASE
+        // crudas (PDO no soporta bind params para identificadores). Sin este
+        // whitelist, un db_name con backtick o `;` permite inyección SQL.
+        if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]{1,63}$/', $dbName)) {
+            $this->error("El nombre de base de datos '{$dbName}' es inválido. Solo letras, números y guion bajo, debe empezar con letra o guion bajo, máximo 64 caracteres.");
+            return 1;
+        }
+
         if (Tenant::where('slug', $slug)->exists()) {
             $this->error("Ya existe un tenant con el slug '{$slug}'.");
             return 1;

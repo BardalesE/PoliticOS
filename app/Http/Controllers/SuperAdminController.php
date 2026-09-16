@@ -24,7 +24,7 @@ class SuperAdminController extends Controller
         $data = $request->validate([
             'slug'        => ['required', 'string', 'max:60', 'unique:tenants,slug', 'regex:/^[a-z0-9\-]+$/'],
             'name'        => ['required', 'string', 'max:150'],
-            'db_name'     => ['required', 'string', 'max:100'],
+            'db_name'     => ['required', 'string', 'max:64', 'regex:/^[a-zA-Z_][a-zA-Z0-9_]{1,63}$/'],
             'db_host'     => ['nullable', 'string', 'max:100'],
             'db_port'     => ['nullable', 'integer'],
             'db_user'     => ['nullable', 'string', 'max:100'],
@@ -44,7 +44,7 @@ class SuperAdminController extends Controller
         $tenant = Tenant::findOrFail($id);
         $data   = $request->validate([
             'name'        => ['sometimes', 'string', 'max:150'],
-            'db_name'     => ['sometimes', 'string', 'max:100'],
+            'db_name'     => ['sometimes', 'string', 'max:64', 'regex:/^[a-zA-Z_][a-zA-Z0-9_]{1,63}$/'],
             'db_host'     => ['nullable', 'string', 'max:100'],
             'db_port'     => ['nullable', 'integer'],
             'db_user'     => ['nullable', 'string', 'max:100'],
@@ -69,7 +69,7 @@ class SuperAdminController extends Controller
         $data = $request->validate([
             'slug'           => ['required', 'string', 'max:60', 'unique:tenants,slug', 'regex:/^[a-z0-9\-]+$/'],
             'name'           => ['required', 'string', 'max:150'],
-            'db_name'        => ['required', 'string', 'max:100'],
+            'db_name'        => ['required', 'string', 'max:64', 'regex:/^[a-zA-Z_][a-zA-Z0-9_]{1,63}$/'],
             'admin_email'    => ['required', 'email'],
             'admin_password' => ['required', 'string', 'min:8'],
             'plan'           => ['nullable', 'in:starter,pro,elite'],
