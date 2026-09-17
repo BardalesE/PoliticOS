@@ -1246,9 +1246,17 @@ class CivicAIService
         $tagline = $this->candidate->tagline ?? $this->candidate->campaign_slogan ?? '';
 
         $proposals = Proposal::where('status', '!=', 'completada')->limit(5)->get();
-        $propLines = $proposals->map(
-            fn($p) => '• ' . $p->title . ': ' . mb_substr($p->description, 0, 90) . '…'
-        )->implode("\n");
+        $propLines = $proposals->map(function ($p) {
+            $desc = trim($p->description ?? '');
+            if (mb_strlen($desc) > 90) {
+                $cut = mb_substr($desc, 0, 90);
+                $lastSpace = mb_strrpos($cut, ' ');
+                $desc = ($lastSpace !== false ? mb_substr($cut, 0, $lastSpace) : $cut) . '…';
+            }
+            return '• ' . $p->title . ': ' . $desc;
+        })->implode("\n\n"); // doble salto: el frontend renderiza esto con ReactMarkdown,
+        // que colapsa un solo "\n" en el mismo párrafo — con uno solo, las propuestas
+        // se veían todas pegadas en una sola oración.
 
         $message = "¡Un momento paisano, mi cerebrito digital necesita un pequeño descanso! ☕\n\n"
             . "Pero no te vas con las manos vacías — aquí tienes todo sobre {$first}:\n\n"
