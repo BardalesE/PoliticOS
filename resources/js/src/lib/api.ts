@@ -733,6 +733,7 @@ export type AiSetting = {
   temperature: number;
   fallback_provider: "groq" | "claude" | "openai" | null;
   system_prompt: string;
+  system_prompt_customizado?: boolean;
   mode?: "campaign" | "pepa";
   chat_subtitle:     string | null;
   chat_btn_text:     string | null;

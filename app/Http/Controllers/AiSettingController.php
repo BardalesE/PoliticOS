@@ -152,6 +152,23 @@ class AiSettingController extends Controller
         ]);
 
         $setting = AiSetting::current();
+
+        // Acoplamiento mode -> system_prompt (ver AiSetting::DEFAULT_PROMPT_FILES):
+        // - Si cambia `mode` y el prompt sigue siendo el de fábrica (no
+        //   personalizado), resincroniza system_prompt con el default del
+        //   modo nuevo. Tiene prioridad sobre una edición manual simultánea.
+        // - Si no cambia el modo pero el prompt sí (edición manual directa),
+        //   marca system_prompt_customizado = true para que un futuro cambio
+        //   de modo ya no lo pise.
+        $modeChanged   = array_key_exists('mode', $data) && $data['mode'] !== $setting->mode;
+        $promptChanged = array_key_exists('system_prompt', $data) && $data['system_prompt'] !== $setting->system_prompt;
+
+        if ($modeChanged && !$setting->system_prompt_customizado) {
+            $data['system_prompt'] = AiSetting::defaultPromptForMode($data['mode']);
+        } elseif ($promptChanged) {
+            $data['system_prompt_customizado'] = true;
+        }
+
         $setting->update($data);
 
         return response()->json($setting);

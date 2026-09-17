@@ -286,8 +286,9 @@ export default function AiSettingsPage() {
                   />
                 </div>
                 <p className="text-[11px] text-ink-400 font-medium">
-                  El modo controla el badge del chat y la metadata que viaja al frontend.
-                  Recuerda alinear también el prompt del sistema (pepa_prompt vs politicos_v2_prompt).
+                  El modo controla el badge del chat, la metadata que viaja al frontend y,
+                  si no personalizaste el prompt del sistema, lo resincroniza automáticamente
+                  con el default de ese modo (pepa_prompt vs politicos_v2_prompt) al guardar.
                 </p>
               </div>
             </section>
@@ -394,6 +395,14 @@ export default function AiSettingsPage() {
                     Define la personalidad y restricciones del asistente. Deja vacío para usar el prompt del código.
                   </p>
                 </div>
+                {form.system_prompt_customizado && (
+                  <div className="flex items-start gap-2 mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <Info size={14} className="text-blue-600 shrink-0 mt-0.5" />
+                    <p className="text-[11px] text-blue-700 font-semibold leading-relaxed">
+                      Este prompt fue personalizado manualmente y no se actualiza automáticamente al cambiar de modo.
+                    </p>
+                  </div>
+                )}
                 <textarea value={form.system_prompt ?? ""}
                   onChange={(e) => set("system_prompt", e.target.value)}
                   rows={14}
