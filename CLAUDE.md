@@ -267,6 +267,17 @@ servicio. Detalle en `docs/architecture/09-fase6-checklist.md`.
 ### Base de datos
 - Correr `php artisan migrate` tras cualquier migración nueva. Hay **dos BDs**:
   la `central` (tenants/planes) y la del tenant.
+- **Si la migración toca una tabla que vive en la BD de tenant** (todo lo que
+  no sea `tenants`/`plan_features`), `php artisan migrate` local **no le llega
+  a los tenants reales** — cada uno tiene su propia BD. Hay que correr también
+  `php artisan tenant:migrate --force` (`app/Console/Commands/TenantMigrate.php`),
+  que itera `central.tenants` activos vía `TenantContext` y migra cada BD.
+  Sin este paso, una migración nueva queda "aplicada" solo en la BD por defecto
+  y los tenants reales revientan con `Column not found` la primera vez que se
+  toca esa tabla (pasó con `visited_at` en `districts` y con `status`/
+  `error_message` en `knowledge_documents`). En prod (Render) ya corre solo en
+  cada arranque; en local es manual — **no des por cerrado un trabajo con
+  migración de tabla de tenant sin haber corrido `tenant:migrate --force`.**
 - Seeders idempotentes (`firstOrCreate`), seguros de re-ejecutar.
 
 ---
@@ -323,6 +334,12 @@ permite migrar storage a S3 sin tocar código. Ver `.env.production.example` y
 - **No modificar `CivicAIService` ni los prompts** sin validar el flujo completo
   y los tests de parseo (`PepaResponseParsingTest`).
 - **Todo job/comando/scheduler corre por tenant** vía `TenantContext`. No asumir la BD por defecto.
+- **Después de cualquier migración que toque una tabla de tenant, correr
+  `php artisan tenant:migrate --force` antes de dar por cerrado el trabajo.**
+  `php artisan migrate` a secas solo cubre la BD por defecto/central — los
+  tenants reales (`camilo`, `rigo`, `valle-hermoso`, `qa-elite`, ...) quedan
+  desactualizados y rompen con `Column not found` en producción/QA. Ver
+  "Base de datos" arriba.
 - `ResolveTenant` debe seguir corriendo antes de `auth:sanctum` (no tocar el orden
   en `bootstrap/app.php`).
 - No eliminar la migración de `role` en `users` — `EnsureIsAdmin` depende del campo.
