@@ -51,6 +51,15 @@ if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
         || echo "[entrypoint] WARN: tenant:migrate falló — revisa la tabla tenants / credenciales por tenant"
 fi
 
+# 3b ─ ubigeo (INEI) en los tenants listados en UBIGEO_SEED_TENANTS ─────────
+# Necesario para el selector departamento→provincia→distrito de
+# /admin/directorio. Idempotente: si ya está cargado no hace nada.
+# Ej.: UBIGEO_SEED_TENANTS="politicosperu"  (varios, separados por espacio)
+if [ -n "${UBIGEO_SEED_TENANTS:-}" ]; then
+    php artisan tenant:seed-ubigeo ${UBIGEO_SEED_TENANTS} \
+        || echo "[entrypoint] WARN: tenant:seed-ubigeo falló — revisa el slug y que tenant:migrate haya corrido"
+fi
+
 # 4 ── seed inicial (solo primer deploy: RUN_SEED=true) ───────────────────────
 if [ "${RUN_SEED:-false}" = "true" ]; then
     php artisan db:seed --force \

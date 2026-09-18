@@ -139,8 +139,10 @@ No mezclarlas — resuelven negocios distintos:
 - **API pública** (tenant-scoped, el frontend manda `X-Tenant` = `NEXT_PUBLIC_DIRECTORY_TENANT`):
   `GET /api/directorio/ubicaciones` (solo lugares habilitados), `/candidatos?distrito_id=|provincia_id=|departamento_id=`,
   `/candidatos/{slug}`. Listas blancas de campos: nunca `content`, `whatsapp_number` ni campos de personalidad del AI.
-- **Despliegue:** el tenant "directorio" necesita `UbigeoSeeder` corrido en su BD
-  (`php artisan db:seed --class=UbigeoSeeder` en su contexto) y `tenant:migrate` al día.
+- **Despliegue:** el tenant "directorio" necesita el ubigeo sembrado en su BD y
+  `tenant:migrate` al día. En Render se hace solo: define `UBIGEO_SEED_TENANTS=<slug>`
+  y el entrypoint corre `php artisan tenant:seed-ubigeo <slug>` (idempotente). Manual:
+  `php artisan tenant:seed-ubigeo <slug>` o `--here` para la BD por defecto.
 
 ---
 
