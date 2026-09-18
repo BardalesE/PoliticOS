@@ -98,6 +98,34 @@ Acceso SuperAdmin: http://localhost:3000/superadmin/login (usa `SUPER_ADMIN_KEY`
 
 ---
 
+## Arquitectura del directorio público
+
+Hay **dos rutas distintas** para dar de alta un candidato en la plataforma.
+No mezclarlas — resuelven negocios distintos:
+
+- **Tenant "directorio"** (uno solo, nacional): candidatos **gratuitos**,
+  agregados por departamento/provincia/distrito vía `distrito_id`
+  (`ubigeo_distritos`, ya existe desde `2026_09_16_000004`). Cada candidato
+  gratuito vive como una **fila más** en `candidate_profiles` de este único
+  tenant — no tiene BD propia. Distinguibles por `tipo_cuenta =
+  'publico_gratuito'` y `estado_publicacion` (`borrador` mientras se carga/
+  procesa el documento, `publicado` cuando ya responde). `slug` les da su
+  URL pública (`/candidato/{slug}`), a diferencia de los tenants pagos que
+  se acceden por subdominio propio. Columnas agregadas en
+  `2026_09_17_231310_add_directorio_fields_to_candidate_profiles_table.php`.
+  **Este tenant "directorio" todavía no está provisionado** (pendiente).
+- **`tenant:provision`** (sin cambios, no tocar su comportamiento): sigue
+  siendo el camino para un candidato **individual con tenant propio y
+  pagado** — BD dedicada, subdominio propio, features de plan (`starter`/
+  `pro`/`elite`). Es el mismo comando que se usó para `camilo`/`rigo`/
+  `valle-hermoso` en su momento. Un candidato del directorio "sube de nivel"
+  a este camino cuando compra el paquete completo (bot personalizado, voz
+  clonada, analítica) — en ese punto se migra su fila del tenant
+  "directorio" a un tenant propio, no se modifica el tenant "directorio"
+  para dársela.
+
+---
+
 ## Modos de operación (PEPA)
 
 | Modo | Prompt | Perfil | RAG | Descripción |
