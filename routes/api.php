@@ -32,6 +32,10 @@ use App\Http\Controllers\LiveStreamController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\SurveyController;
 use App\Http\Controllers\SystemController;
+use App\Http\Controllers\SiteVisitController;
+use App\Http\Controllers\DirectorioController;
+use App\Http\Controllers\DirectorioAdminController;
+use App\Http\Controllers\UbigeoController;
 
 /*
 |--------------------------------------------------------------------------
@@ -100,6 +104,28 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
 
     // ─── Videos de campaña (público) ─────────────────────────────────
     Route::get('/campaign-videos', [CampaignVideoController::class, 'index']);
+
+    // ─── Visitas únicas de la plataforma (público, global — sin tenant) ─
+    // ResolveTenant lo exime (api/site-visits): el contador vive en la BD central.
+    Route::get('/site-visits',  [SiteVisitController::class, 'show'])->middleware('throttle:60,1,site-visits-read');
+    Route::post('/site-visits', [SiteVisitController::class, 'store'])->middleware('throttle:20,1,site-visits');
+
+    // ─── Directorio público de candidatos (solo lectura) ─────────────
+    // Solo expone lugares/candidatos publicados con base de conocimiento lista
+    // (CandidateProfile::visibleInDirectory). Tenant-scoped: el frontend manda
+    // X-Tenant del tenant "directorio".
+    Route::prefix('directorio')->group(function () {
+        Route::get('/ubicaciones',        [DirectorioController::class, 'ubicaciones']);
+        Route::get('/candidatos',         [DirectorioController::class, 'candidatos']);
+        Route::get('/candidatos/{slug}',  [DirectorioController::class, 'show']);
+    });
+
+    // Datos de referencia INEI para los dropdowns en cascada del admin.
+    Route::prefix('ubigeo')->group(function () {
+        Route::get('/departamentos', [UbigeoController::class, 'departamentos']);
+        Route::get('/provincias',    [UbigeoController::class, 'provincias']);
+        Route::get('/distritos',     [UbigeoController::class, 'distritos']);
+    });
 
     // ─── Hero settings (público) ─────────────────────────────────────
     Route::get('/hero-settings', [HeroSettingController::class, 'show']);
@@ -301,6 +327,17 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
         Route::put   ('/knowledge/{id}', [KnowledgeDocumentController::class, 'update']);
         Route::delete('/knowledge/{id}', [KnowledgeDocumentController::class, 'destroy']);
         Route::post  ('/knowledge/{id}/reindex', [KnowledgeDocumentController::class, 'reindex']);
+
+        // Directorio público: alta manual de candidatos y publicación.
+        // (Los PDF se suben por /knowledge con candidate_id.)
+        Route::prefix('directorio')->group(function () {
+            Route::get   ('/candidatos',                    [DirectorioAdminController::class, 'index']);
+            Route::post  ('/candidatos',                    [DirectorioAdminController::class, 'store']);
+            Route::put   ('/candidatos/{id}',               [DirectorioAdminController::class, 'update']);
+            Route::post  ('/candidatos/{id}/publicar',      [DirectorioAdminController::class, 'publicar']);
+            Route::post  ('/candidatos/{id}/despublicar',   [DirectorioAdminController::class, 'despublicar']);
+            Route::delete('/candidatos/{id}',               [DirectorioAdminController::class, 'destroy']);
+        });
     });
 
     // ─── Encuestas de campaña (captura en campo + dashboard) ─────────────

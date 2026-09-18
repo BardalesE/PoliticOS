@@ -124,6 +124,24 @@ No mezclarlas — resuelven negocios distintos:
   "directorio" a un tenant propio, no se modifica el tenant "directorio"
   para dársela.
 
+### Carga manual y visibilidad del directorio
+
+- **Alta:** panel admin `/admin/directorio` (API `POST /api/admin/directorio/candidatos`):
+  candidato en `borrador` con distrito en cascada (depto → provincia → distrito),
+  `slug` único autogenerado y estable, `tipo_cuenta = publico_gratuito`,
+  `is_active = false` (nunca toca el candidato activo de un tenant pago). Los PDF
+  (Hoja de Vida, Plan de Gobierno) se suben por `POST /api/admin/knowledge` con
+  `candidate_id`; se procesan solos (`ProcessKnowledgeDocumentJob`).
+- **Regla de visibilidad (única, en `CandidateProfile::scopeVisibleInDirectory`):**
+  un candidato —y su lugar— se muestra solo si `estado_publicacion = publicado`,
+  tiene `slug` y `distrito_id`, y ≥1 documento `is_active` con `status = ready`.
+  Se calcula en cada consulta, no se guarda: borrar el último documento apaga el lugar.
+- **API pública** (tenant-scoped, el frontend manda `X-Tenant` = `NEXT_PUBLIC_DIRECTORY_TENANT`):
+  `GET /api/directorio/ubicaciones` (solo lugares habilitados), `/candidatos?distrito_id=|provincia_id=|departamento_id=`,
+  `/candidatos/{slug}`. Listas blancas de campos: nunca `content`, `whatsapp_number` ni campos de personalidad del AI.
+- **Despliegue:** el tenant "directorio" necesita `UbigeoSeeder` corrido en su BD
+  (`php artisan db:seed --class=UbigeoSeeder` en su contexto) y `tenant:migrate` al día.
+
 ---
 
 ## Modos de operación (PEPA)

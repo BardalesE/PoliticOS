@@ -65,6 +65,13 @@ class ResolveTenant
             return null;
         }
 
+        // Contador de visitas de la plataforma: dato global en la BD central,
+        // no pertenece a ningún tenant (y no debe fallar con un 404 si el
+        // navegador arrastra un ?tenant= viejo).
+        if ($request->is('api/site-visits')) {
+            return null;
+        }
+
         $subdomain = $this->subdomainSlug($request);
 
         // En producción el subdominio manda: así un header X-Tenant falsificado

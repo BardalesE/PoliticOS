@@ -1,5 +1,8 @@
 import { headers } from "next/headers";
+import type { Metadata } from "next";
 import DynamicHome from "@/components/landing/DynamicHome";
+import { PlatformLanding } from "@/components/platform/PlatformLanding";
+import { PLATFORM_METADATA } from "@/components/platform/metadata";
 import type {
   HeroSettings, HomeSettings,
   Proposal, CampaignEvent, TeamMember,
@@ -40,8 +43,17 @@ async function resolveTenant(): Promise<string> {
   );
 }
 
+// Sin candidato/tenant, la raíz es la home de la PLATAFORMA (ERM 2026 +
+// contador de visitas). Con tenant (subdominio, ?tenant= o env) sigue siendo la
+// home del candidato, sin cambios.
+export async function generateMetadata(): Promise<Metadata> {
+  return (await resolveTenant()) ? {} : PLATFORM_METADATA;
+}
+
 export default async function HomePage() {
   const tenant = await resolveTenant();
+
+  if (!tenant) return <PlatformLanding />;
 
   const [
     initialHero,
