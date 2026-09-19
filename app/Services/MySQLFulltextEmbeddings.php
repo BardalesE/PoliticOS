@@ -57,7 +57,7 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
         return $docs->map(fn($d) => [
             'document_id' => $d->id,
             'title'       => $d->title,
-            'excerpt'     => $this->extractExcerpt($d->content, $query),
+            'excerpt'     => $this->extractExcerpt($d->content, $query, 1200, (string) $d->title),
             'score'       => (float) $d->relevance,
             'metadata'    => $this->docMetadata($d),
         ])->all();
@@ -149,14 +149,6 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
     }
 
     /**
-     * Elige la ventana de $windowSize caracteres con más cobertura de
-     * palabras DISTINTAS de la consulta, no la que contiene la primera
-     * palabra que aparezca (comportamiento anterior). Con textos largos
-     * (plan de gobierno, entrevistas), la primera coincidencia suele caer en
-     * la portada/introducción — el modelo recibía siempre el mismo fragmento
-     * genérico sin importar la pregunta real.
-     */
-    /**
      * Divide la consulta en palabras "limpias": separa por cualquier
      * carácter que no sea letra/dígito (así `¿signos!`, `,`, `.`, `?` pegados
      * a la palabra no rompen el match — "seguridad?" nunca hacía match
@@ -173,27 +165,128 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
         )));
     }
 
-    private function extractExcerpt(?string $content, string $query, int $windowSize = 1200): string
+    /**
+     * Palabras de la pregunta que NO indican tema: piden "propuestas" o "el plan"
+     * pero no dicen de qué. Solo se ignoran al elegir la ventana (no al buscar).
+     */
+    private const GENERIC_QUERY_WORDS = [
+        'propone','proponen','proponer','propuesta','propuestas','plan','planes',
+        'gobierno','candidato','candidata','alcalde','alcaldia','alcaldía','distrito',
+        'dice','dicen','piensa','planea','plantea','plantean','quiere','hara','hará',
+        'ciudadano','ciudadana','ciudadanos','ciudadanas','documento','documentos','informacion','información','favor','puedes','podrias',
+    ];
+
+    /**
+     * Familias de términos: "agricultura" no aparece en un plan que habla de
+     * "actividad agropecuaria", "canal de riego" y "productores". FULLTEXT no
+     * tiene stemming ni sinónimos, así que la elección de ventana expande el
+     * tema de la pregunta a su vocabulario habitual (prefijos, sin acentos).
+     */
+    private const TERM_FAMILIES = [
+        'agri'      => ['agricu','agricol','agrope','riego','cultivo','productor','ganad','cosecha','campo','agrari','pastos','reservorio','irrigac'],
+        'agro'      => ['agricu','agricol','agrope','riego','cultivo','productor','ganad','cosecha','agrari','irrigac'],
+        'ganad'     => ['ganad','pecuari','pastos','crianza','veterinar'],
+        'riego'     => ['riego','irrigac','canal','reservorio','agua'],
+        'salud'     => ['salud','hospital','posta','centro de salud','medic','enfermer','esalud','sis '],
+        'hospital'  => ['salud','hospital','posta','medic','enfermer'],
+        'educa'     => ['educa','colegio','escuela','docente','maestro','aprendizaje','estudiante','institucion educativa'],
+        'colegio'   => ['educa','colegio','escuela','docente','maestro','estudiante'],
+        'segur'     => ['segur','serenazgo','policia','delincu','robo','cameras','camaras','vigilancia','ronda'],
+        'delincu'   => ['segur','serenazgo','policia','delincu','robo','camaras','vigilancia'],
+        'agua'      => ['agua','desague','saneamiento','alcantarillado','potable','reservorio'],
+        'saneam'    => ['agua','desague','saneamiento','alcantarillado','potable'],
+        'empleo'    => ['empleo','trabajo','laboral','emprend','mype','ingreso'],
+        'trabajo'   => ['empleo','trabajo','laboral','emprend','mype','ingreso'],
+        'carreter'  => ['carreter','trocha','via ','vias','camino','pista','asfalt','pavimento','vial'],
+        'pista'     => ['carreter','trocha','vias','camino','pista','asfalt','pavimento','vial'],
+        'turism'    => ['turism','turista','atractivo','patrimonio','cultural'],
+        'ambient'   => ['ambient','residuos','basura','contaminac','reciclaj','relleno'],
+        'basura'    => ['ambient','residuos','basura','reciclaj','relleno'],
+    ];
+
+    /** minúsculas + sin tildes: para comparar "agrícola" con "agricola". */
+    private function fold(string $s): string
+    {
+        $s = mb_strtolower($s);
+
+        return strtr($s, ['á'=>'a','é'=>'e','í'=>'i','ó'=>'o','ú'=>'u','ü'=>'u','ñ'=>'n']);
+    }
+
+    /**
+     * Grupos de términos a buscar en el documento. Cada grupo cuenta UNA vez por
+     * ventana, y se expande con su familia temática si la tiene.
+     *
+     * @return array<int, array<int,string>>  lista de grupos (cada grupo = prefijos equivalentes)
+     */
+    private function queryTermGroups(string $query, string $title): array
+    {
+        $titleFolded = $this->fold($title);
+
+        $build = function (bool $dropTitleAndGeneric) use ($query, $titleFolded): array {
+            $groups = [];
+            foreach ($this->splitQueryWords($query) as $w) {
+                $f = $this->fold($w);
+                if ($dropTitleAndGeneric) {
+                    if (in_array($f, array_map([$this, 'fold'], self::GENERIC_QUERY_WORDS), true)) continue;
+                    // Palabras del título = identidad del documento (nombre del candidato,
+                    // "plan de gobierno"): aparecen en todas partes y no orientan al tema.
+                    if ($titleFolded !== '' && str_contains($titleFolded, $f)) continue;
+                }
+                $stem   = mb_strlen($f) >= 7 ? mb_substr($f, 0, 6) : $f;
+                $group  = [$stem];
+                foreach (self::TERM_FAMILIES as $key => $family) {
+                    if (str_starts_with($f, $key)) {
+                        $group = array_merge($group, $family);
+                        break;
+                    }
+                }
+                $groups[] = array_values(array_unique($group));
+            }
+            return $groups;
+        };
+
+        return $build(true) ?: $build(false);
+    }
+
+    /**
+     * Elige la ventana de $windowSize caracteres más relevante para la pregunta.
+     *
+     * Antes puntuaba por "cuántas palabras distintas de la consulta caen en la
+     * ventana", tratando igual "Gregorio" (49 veces en un plan de San Gregorio)
+     * que "agricultura" (1 vez): ganaba siempre la portada, donde coinciden el
+     * nombre del candidato y el distrito, y el LLM respondía "no encuentro nada
+     * sobre agricultura" teniendo un canal de riego en el propio plan.
+     *
+     * Ahora: (1) se ignoran las palabras del título y las genéricas ("propone");
+     * (2) cada término se pondera por rareza dentro del documento; (3) se
+     * expande el tema a su vocabulario (agricultura → agropecuaria, riego...);
+     * (4) se premia la densidad de aciertos dentro de la ventana.
+     */
+    private function extractExcerpt(?string $content, string $query, int $windowSize = 1200, string $title = ''): string
     {
         if (!$content) return '';
 
-        $words = $this->splitQueryWords($query);
+        $groups = $this->queryTermGroups($query, $title);
 
-        if (empty($words)) {
+        if (empty($groups)) {
             return mb_substr($content, 0, $windowSize);
         }
 
-        $contentLower = mb_strtolower($content);
-        $contentLen   = mb_strlen($contentLower);
+        $folded = $this->fold($content);
+        $len    = mb_strlen($folded);
 
-        // Todas las posiciones de cada palabra de la consulta en el documento.
-        $positions = [];
-        foreach ($words as $word) {
-            $offset = 0;
-            while (($pos = mb_stripos($contentLower, $word, $offset)) !== false) {
-                $positions[] = ['pos' => $pos, 'word' => $word];
-                $offset = $pos + mb_strlen($word);
-                if ($offset >= $contentLen) break;
+        // Posiciones de cada grupo (todas sus variantes) en el documento.
+        $positions = [];   // list of [pos, groupIdx]
+        $totals    = array_fill(0, count($groups), 0);
+        foreach ($groups as $gi => $variants) {
+            foreach ($variants as $v) {
+                $offset = 0;
+                while (($pos = mb_strpos($folded, $v, $offset)) !== false) {
+                    $positions[] = [$pos, $gi];
+                    $totals[$gi]++;
+                    $offset = $pos + max(1, mb_strlen($v));
+                    if ($offset >= $len) break;
+                }
             }
         }
 
@@ -201,22 +294,33 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
             return mb_substr($content, 0, $windowSize);
         }
 
-        // Para cada posición candidata, cuenta cuántas palabras distintas de
-        // la consulta caen dentro de una ventana centrada ahí, y se queda con
-        // la de mayor cobertura (empate → la más temprana en el documento).
+        usort($positions, fn ($a, $b) => $a[0] <=> $b[0]);
+
+        // Peso por rareza: un término que aparece 49 veces orienta poco.
+        $weights = array_map(fn ($t) => $t > 0 ? 1 / log(2 + $t) : 0.0, $totals);
+
         $lookback  = (int) ($windowSize * 0.2);
         $bestStart = 0;
-        $bestScore = -1;
-        foreach ($positions as $candidate) {
-            $start = max(0, $candidate['pos'] - $lookback);
-            $end   = $start + $windowSize;
-            $covered = [];
-            foreach ($positions as $p) {
-                if ($p['pos'] >= $start && $p['pos'] < $end) {
-                    $covered[$p['word']] = true;
+        $bestScore = -1.0;
+        $lastStart = -1;
+        foreach ($positions as [$pos]) {
+            $start = max(0, $pos - $lookback);
+            if ($start === $lastStart) continue;
+            $lastStart = $start;
+            $end = $start + $windowSize;
+
+            $hits = [];
+            foreach ($positions as [$p, $gi]) {
+                if ($p >= $start && $p < $end) {
+                    $hits[$gi] = ($hits[$gi] ?? 0) + 1;
                 }
+                if ($p >= $end) break;
             }
-            $score = count($covered);
+
+            $score = 0.0;
+            foreach ($hits as $gi => $h) {
+                $score += $weights[$gi] * (1 + log($h));
+            }
             if ($score > $bestScore) {
                 $bestScore = $score;
                 $bestStart = $start;
@@ -254,7 +358,7 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
         return $q->get()->map(fn($d) => [
             'document_id' => $d->id,
             'title'       => $d->title,
-            'excerpt'     => $this->extractExcerpt($d->content, $query),
+            'excerpt'     => $this->extractExcerpt($d->content, $query, 1200, (string) $d->title),
             'score'       => 0.5,
             'metadata'    => $this->docMetadata($d),
         ])->all();
