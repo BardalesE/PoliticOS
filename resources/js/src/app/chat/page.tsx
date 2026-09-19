@@ -34,6 +34,18 @@ interface QuickReply {
   value: string;
 }
 
+/**
+ * Cita verificable de una respuesta: el fragmento EXACTO (y la página) del
+ * documento que el servidor le dio a la IA. El texto viene del PDF, no de la IA.
+ */
+interface Citation {
+  id: string;            // "S1"
+  title: string;
+  page: number | null;   // página del visor de PDF (1 = primera hoja)
+  excerpt: string;
+  url: string | null;
+}
+
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -43,6 +55,7 @@ interface ChatMessage {
   media?: MediaItem[];
   quickReplies?: QuickReply[];
   sources?: string[]; // fuentes citadas (modo PEPA)
+  citations?: Citation[]; // fragmentos verificables [S1]… con su página
 }
 
 interface WelcomeBack {
@@ -424,6 +437,94 @@ function QuickReplyButtons({ replies, onSelect }: { replies: QuickReply[]; onSel
 
 // ─── Chip de fuente citada (modo PEPA) ────────────────────────────────────────
 
+// ─── Citas verificables [S1] → chips con página ───────────────────────────────
+
+/** [S1] o [S1, S2] — el mismo formato que valida el backend. */
+const CITATION_GROUP_RE = /\[\s*(S\d+(?:\s*[,;]\s*S\d+)*)\s*\]/g;
+
+/**
+ * Convierte las etiquetas [S1] del texto en enlaces internos `#cite-S1` que
+ * ReactMarkdown pinta como chips. Las etiquetas sin cita real (inventadas por el
+ * modelo) se quitan, y también una etiqueta a medio escribir al final del stream.
+ */
+function linkifyCitations(text: string, citations: Citation[] | undefined): string {
+  const known = new Set((citations ?? []).map((c) => c.id));
+  return text
+    .replace(CITATION_GROUP_RE, (_m, group: string) =>
+      (group.match(/S\d+/g) ?? [])
+        .filter((id) => known.has(id))
+        .map((id) => `[${id}](#cite-${id})`)
+        .join(" ")
+    )
+    .replace(/\[\s*S?[\d,;\sS]*$/, "");
+}
+
+/** Enlace al PDF abierto en la página citada (el visor del navegador entiende #page=N). */
+function citationHref(c: Citation): string | null {
+  if (!c.url) return null;
+  return c.page ? `${c.url.split("#")[0]}#page=${c.page}` : c.url;
+}
+
+function citationLabel(c: Citation): string {
+  return c.page ? `${c.id} · pág. ${c.page}` : c.id;
+}
+
+function CitationChip({ c, active, onClick }: { c: Citation; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={active}
+      title={`${c.title}${c.page ? ` — pág. ${c.page}` : ""}`}
+      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-colors ${
+        active
+          ? "border-chat-600 bg-chat-600 text-white"
+          : "border-chat-400 bg-chat-50 text-chat-700 hover:bg-chat-400/25"
+      }`}
+    >
+      {citationLabel(c)}
+    </button>
+  );
+}
+
+/** Panel con el texto tal como aparece en el documento, para compararlo con el PDF. */
+function CitationPanel({ c, onClose }: { c: Citation; onClose: () => void }) {
+  const href = citationHref(c);
+  return (
+    <div className="mt-2 rounded-xl border border-gray-200 bg-gray-50 p-3" role="region" aria-label={`Fuente ${c.id}`}>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[11px] font-semibold text-gray-700">
+          {c.title}
+          {c.page ? <span className="text-gray-500"> · página {c.page}</span> : null}
+        </p>
+        <button type="button" onClick={onClose} aria-label="Cerrar fuente" className="shrink-0 text-gray-400 hover:text-gray-600">
+          <X size={14} />
+        </button>
+      </div>
+      <p className="mt-2 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+        Texto del documento
+      </p>
+      <blockquote className="mt-1 border-l-2 border-chat-400 pl-3 text-[13px] leading-relaxed text-gray-700">
+        …{c.excerpt}…
+      </blockquote>
+      {href && (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-flex items-center gap-1 text-[12px] font-semibold text-chat-700 hover:underline"
+        >
+          <FileText size={13} />
+          {c.page ? `Abrir el PDF en la página ${c.page}` : "Abrir el documento"}
+        </a>
+      )}
+      <p className="mt-2 text-[10px] text-gray-400">
+        Este es el fragmento que recibió la IA. Compáralo con el PDF para comprobarlo.
+      </p>
+    </div>
+  );
+}
+
 function SourceChip({ url }: { url: string }) {
   let label = url;
   try {
@@ -477,6 +578,11 @@ export default function ChatPage() {
   // Chips de candidatos: acotan el RAG a los documentos del candidato elegido.
   const [candidates, setCandidates] = useState<ChatCandidate[]>([]);
   const [candidateSlug, setCandidateSlug] = useState<string | null>(null);
+
+  // Cita abierta (mensaje + etiqueta), para mostrar el texto del documento.
+  const [openCite, setOpenCite] = useState<{ msgId: string; id: string } | null>(null);
+  const toggleCite = (msgId: string, id: string) =>
+    setOpenCite((cur) => (cur && cur.msgId === msgId && cur.id === id ? null : { msgId, id }));
   const endRef                   = useRef<HTMLDivElement>(null);
 
   // ── Geolocalización (browser GPS) ───────────────────────────────────────────
@@ -973,6 +1079,11 @@ export default function ChatPage() {
                   m.map((x) => (x.id === aiId ? { ...x, quickReplies: payload.quickReplies } : x))
                 );
               }
+              if (payload.citations?.length) {
+                setMessages((m) =>
+                  m.map((x) => (x.id === aiId ? { ...x, citations: payload.citations } : x))
+                );
+              }
               if (payload.mode) setAssistantMode(payload.mode);
               if (payload.pepa?.fuentes_citadas?.length) {
                 setMessages((m) =>
@@ -1012,7 +1123,7 @@ export default function ChatPage() {
       setMessages((m) =>
         m.map((x) =>
           x.id === aiId
-            ? { ...x, content: data.reply ?? "Sin respuesta.", media: data.media ?? [], quickReplies: data.quickReplies ?? [], sources: data.pepa?.fuentes_citadas ?? undefined, pending: false }
+            ? { ...x, content: data.reply ?? "Sin respuesta.", media: data.media ?? [], quickReplies: data.quickReplies ?? [], sources: data.pepa?.fuentes_citadas ?? undefined, citations: data.citations?.length ? data.citations : undefined, pending: false }
             : x
         )
       );
@@ -1301,7 +1412,34 @@ export default function ChatPage() {
                         <>
                           {msg.role === "assistant" ? (
                             <div className="[&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:list-disc [&_ul]:pl-4 [&_ul]:mb-2 [&_ol]:list-decimal [&_ol]:pl-4 [&_ol]:mb-2 [&_li]:leading-relaxed [&_strong]:font-semibold [&_em]:italic [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:rounded [&_code]:text-[13px] [&_code]:font-mono">
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                  a: ({ href, children }) => {
+                                    if (href?.startsWith("#cite-")) {
+                                      const cite = msg.citations?.find((c) => c.id === href.slice(6));
+                                      if (!cite) return null;
+                                      const active = openCite?.msgId === msg.id && openCite.id === cite.id;
+                                      return (
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleCite(msg.id, cite.id)}
+                                          aria-expanded={active}
+                                          title={`${cite.title}${cite.page ? ` — pág. ${cite.page}` : ""}`}
+                                          className={`mx-0.5 inline-flex -translate-y-0.5 items-center rounded px-1 text-[10px] font-bold leading-4 transition-colors ${
+                                            active ? "bg-chat-600 text-white" : "bg-chat-50 text-chat-700 ring-1 ring-chat-400 hover:bg-chat-400/25"
+                                          }`}
+                                        >
+                                          {children}
+                                        </button>
+                                      );
+                                    }
+                                    return <a href={href} target="_blank" rel="noopener noreferrer" className="text-chat-700 underline">{children}</a>;
+                                  },
+                                }}
+                              >
+                                {linkifyCitations(msg.content, msg.citations)}
+                              </ReactMarkdown>
                             </div>
                           ) : (
                             <span className="whitespace-pre-wrap">{msg.content}</span>
@@ -1314,6 +1452,27 @@ export default function ChatPage() {
                               {msg.media.slice(0, 8).map((m, i) => (
                                 <MediaBadge key={i} item={m} />
                               ))}
+                            </div>
+                          )}
+                          {msg.role === "assistant" && msg.citations && msg.citations.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-gray-100">
+                              <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-widest mb-1.5">
+                                Fuentes en el documento
+                              </p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {msg.citations.map((c) => (
+                                  <CitationChip
+                                    key={c.id}
+                                    c={c}
+                                    active={openCite?.msgId === msg.id && openCite.id === c.id}
+                                    onClick={() => toggleCite(msg.id, c.id)}
+                                  />
+                                ))}
+                              </div>
+                              {(() => {
+                                const open = openCite?.msgId === msg.id ? msg.citations.find((c) => c.id === openCite.id) : null;
+                                return open ? <CitationPanel c={open} onClose={() => setOpenCite(null)} /> : null;
+                              })()}
                             </div>
                           )}
                           {msg.sources && msg.sources.length > 0 && (

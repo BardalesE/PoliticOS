@@ -137,6 +137,7 @@ class ChatController extends Controller
             'attack_detected' => $response['attack_detected'] ?? false,
             'attack_category' => $response['attack_category'] ?? null,
             'pepa_metadata'   => $response['pepa_metadata'] ?? null,
+            'citations'       => ($response['citations'] ?? null) ?: null,
             'is_fallback'     => $response['ai_resting'] ?? false,
         ]);
 
@@ -294,6 +295,7 @@ class ChatController extends Controller
                             'attack_detected' => $meta['attack_detected'] ?? false,
                             'attack_category' => $meta['attack_category'] ?? null,
                             'pepa_metadata'   => $meta['pepa_metadata'] ?? null,
+                            'citations'       => ($meta['citations'] ?? null) ?: null,
                             'is_fallback'     => $meta['ai_resting'] ?? false,
                         ]);
                         $this->applyPepaMetaToSession($session, $meta['pepa_metadata'] ?? null);
@@ -318,6 +320,7 @@ class ChatController extends Controller
                         'quickReplies'   => $meta['quickReplies'] ?? [],
                         'mode'           => $this->assistantMode(),
                         'pepa'           => $this->pepaPayload($meta['pepa_metadata'] ?? null),
+                        'citations'      => $meta['citations'] ?? [],
                     ])."\n\n";
                     flush();
                 } catch (\Throwable $e) {
@@ -361,6 +364,7 @@ class ChatController extends Controller
                 'content'   => $m->content,
                 'topic'     => $m->topic,
                 'media'     => json_decode($m->media ?? '[]', true),
+                'citations' => $m->citations ?? [],
                 'timestamp' => $m->created_at->timestamp * 1000,
             ]),
         ]);
@@ -510,6 +514,7 @@ class ChatController extends Controller
             'quickReplies'   => $response['quickReplies'] ?? [],
             'mode'           => $this->assistantMode(),
             'pepa'           => $this->pepaPayload($response['pepa_metadata'] ?? null),
+            'citations'      => $response['citations'] ?? [],
         ])->cookie(
             'politicos_visitor_id',
             $session->visitor_uuid,

@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\KnowledgeDocument;
 use App\Services\EmbeddingsServiceInterface;
+use App\Services\PdfPageExtractor;
 use App\Services\TenantContext;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -11,7 +12,6 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Pipeline de extracción de documentos: subida (KnowledgeDocumentController::store,
@@ -48,12 +48,13 @@ class ProcessKnowledgeDocumentJob implements ShouldQueue
         $doc->update(['status' => 'processing', 'error_message' => null]);
 
         try {
-            $content = $this->extractText($doc);
+            $extracted = (new PdfPageExtractor())->fromDocument($doc);
+            $content   = $extracted['content'];
             if ($content === '') {
                 throw new \RuntimeException('No se pudo extraer texto del PDF (documento escaneado sin OCR, vacío o corrupto).');
             }
 
-            $doc->update(['content' => $content]);
+            $doc->update(['content' => $content, 'pages' => $extracted['pages'] ?: null]);
 
             // delete() antes de index() para que reintentos y reindex() manual
             // sean idempotentes (mismo patrón que ya usaba el reindex síncrono).
@@ -78,29 +79,6 @@ class ProcessKnowledgeDocumentJob implements ShouldQueue
             // en 'failed' arriba (visible aunque el job termine descartado).
             throw $e;
         }
-    }
-
-    /**
-     * Lee el PDF desde el disco configurado (MEDIA_DISK) como bytes crudos,
-     * no por ruta local: este job puede correr en un worker distinto al que
-     * recibió el upload, y en prod MEDIA_DISK puede ser S3.
-     */
-    private function extractText(KnowledgeDocument $doc): string
-    {
-        $mediaDisk = config('filesystems.media');
-        $base      = Storage::disk($mediaDisk)->url('');
-        $relativePath = ltrim(str_replace($base, '', $doc->file_url), '/');
-
-        $raw = Storage::disk($mediaDisk)->get($relativePath);
-        if ($raw === null) {
-            throw new \RuntimeException("Archivo no encontrado en el disco '{$mediaDisk}': {$relativePath}");
-        }
-
-        $parser = new \Smalot\PdfParser\Parser();
-        $pdf    = $parser->parseContent($raw);
-        $text   = preg_replace('/\s+/', ' ', $pdf->getText());
-
-        return mb_substr(trim($text), 0, 80000); // 80k chars, igual que antes
     }
 
     private function indexMetadata(KnowledgeDocument $doc): array
