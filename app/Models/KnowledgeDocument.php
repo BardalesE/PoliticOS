@@ -9,7 +9,7 @@ class KnowledgeDocument extends Model
 {
     protected $fillable = [
         'title', 'description', 'file_url', 'original_name',
-        'content', 'topic', 'candidate_id', 'source_url', 'source_type',
+        'content', 'pages', 'topic', 'candidate_id', 'source_url', 'source_type',
         'file_size', 'is_active', 'status', 'error_message',
         'chunks', 'embeddings_meta', 'embeddings_indexed',
     ];
@@ -18,6 +18,7 @@ class KnowledgeDocument extends Model
         'is_active'          => 'boolean',
         'candidate_id'       => 'integer',
         'file_size'          => 'integer',
+        'pages'              => 'array',
         'chunks'             => 'array',
         'embeddings_meta'    => 'array',
         'embeddings_indexed' => 'boolean',

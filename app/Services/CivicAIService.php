@@ -61,6 +61,14 @@ class CivicAIService
     private ?int $scopeCandidateId = null;
     private ?string $scopeCandidateName = null;
 
+    /**
+     * Fragmentos que el RAG puso en el prompt de ESTE turno, con la etiqueta que
+     * el modelo debe citar: [{id:"S1", document_id, title, page, excerpt, url}].
+     * `excerpt` es literalmente el texto que vio el modelo (y que se muestra al
+     * ciudadano para que lo compare con el PDF), no algo que el modelo escribiera.
+     */
+    private array $retrievedCitations = [];
+
     public function __construct(EmbeddingsServiceInterface $embeddings)
     {
         // DB queries are intentionally deferred to ensureInitialized().
@@ -150,8 +158,11 @@ class CivicAIService
             AttackResponse::where('id', $attack['id'])->increment('times_used');
         }
 
+        $reply = $this->stripUnknownCitations($parsed['reply']);
+
         return [
-            'reply'           => $parsed['reply'],
+            'reply'           => $reply,
+            'citations'       => $this->citationsForReply($reply),
             'topic'           => $parsed['pepa_metadata']['tema_dominante'] ?? $topic,
             'media'           => $media,
             'attack_detected' => $attack !== null,
@@ -317,6 +328,13 @@ class CivicAIService
             return $resting;
         }
 
+        // PEPA va bufferizado: aquí sí se pueden limpiar etiquetas [S#] inventadas antes
+        // de emitir. En campaña el texto ya salió en vivo; el frontend ignora las
+        // etiquetas sin cita correspondiente.
+        if ($isPepa) {
+            $parsed['reply'] = $this->stripUnknownCitations($parsed['reply']);
+        }
+
         // Solo en PEPA enviamos el texto ya parseado en trozos; en campaña ya se streameó arriba.
         if ($isPepa) {
             foreach (str_split($parsed['reply'], 30) as $chunk) {
@@ -336,6 +354,7 @@ class CivicAIService
 
         return [
             'topic'           => $parsed['pepa_metadata']['tema_dominante'] ?? $topic,
+            'citations'       => $this->citationsForReply($parsed['reply']),
             'media'           => $media,
             'attack_detected' => $attack !== null,
             'attack_category' => $attack['category'] ?? null,
@@ -611,28 +630,115 @@ class CivicAIService
         . 'responde exactamente que "no tengo información en los documentos del '
         . 'candidato" — nunca completes ni inventes esa respuesta con conocimiento general.';
 
+    private const CITATION_RULES =
+        "\nCITAS VERIFICABLES: cada fragmento de abajo lleva una etiqueta [S1], [S2]… "
+        . "Cuando una afirmación tuya salga de un fragmento, termina esa frase con su etiqueta, "
+        . "p. ej. \"…ampliar el canal de riego [S2].\" Usa SOLO las etiquetas que aparecen abajo; "
+        . "no inventes etiquetas ni números de página, no cites lo que no esté en ese fragmento "
+        . "y no pongas etiqueta a opiniones tuyas. Si ningún fragmento respalda algo, dilo en vez de citar.";
+
     private function buildDocumentationSection(array $docs, bool $isPepa): string
     {
         $docs = array_values(array_filter($docs, fn ($d) => trim($d['excerpt'] ?? '') !== ''));
         $this->retrievedDocUrls = $this->extractDocUrls($docs);
 
+        $this->retrievedCitations = [];
+
         if (empty($docs)) {
             return "\n" . self::NO_DOCS_GUARD;
         }
 
+        // Etiqueta S1..Sn por fragmento. El texto citable se guarda tal como se le
+        // muestra al modelo (recortado al mismo largo).
+        foreach ($docs as $i => &$d) {
+            $d['excerpt'] = mb_substr($d['excerpt'], 0, 1200);
+            $d['cite']    = 'S' . ($i + 1);
+
+            $this->retrievedCitations[] = [
+                'id'          => $d['cite'],
+                'document_id' => $d['document_id'] ?? null,
+                'title'       => $d['title'] ?: 'Documento',
+                'page'        => $d['page'] ?? null,
+                'excerpt'     => $d['excerpt'],
+                'url'         => $d['metadata']['file_url'] ?? $d['metadata']['source_url'] ?? null,
+                'type'        => $d['metadata']['source_type'] ?? 'pdf',
+            ];
+        }
+        unset($d);
+
         if ($isPepa) {
             // Modo PEPA: agrupado por candidato con fuente citable
-            return $this->formatDocsWithAttribution($docs);
+            return self::CITATION_RULES . "\n" . $this->formatDocsWithAttribution($docs);
         }
 
         // Modo campaña: lista plana (comportamiento original)
         $parts = ["\nDOCUMENTACIÓN OFICIAL (plan de gobierno, entrevistas, declaraciones):"];
         foreach ($docs as $d) {
             $title = $d['title'] ?: 'Documento';
-            $excerpt = mb_substr($d['excerpt'], 0, 1200);
-            $parts[] = "=== {$title} ===\n{$excerpt}";
+            $page  = ! empty($d['page']) ? " (pág. {$d['page']})" : '';
+            $parts[] = "=== [{$d['cite']}] {$title}{$page} ===\n{$d['excerpt']}";
         }
-        return implode("\n", $parts);
+        return self::CITATION_RULES . "\n" . implode("\n", $parts);
+    }
+
+    /**
+     * Citas realmente usadas en la respuesta: las etiquetas [S1] / [S1, S2] que el
+     * modelo dejó en el texto Y que corresponden a un fragmento recuperado este
+     * turno, en orden de aparición. Una etiqueta inventada no produce cita.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function citationsForReply(string $reply): array
+    {
+        if (! $this->retrievedCitations || $reply === '') {
+            return [];
+        }
+
+        $byId = [];
+        foreach ($this->retrievedCitations as $c) {
+            $byId[$c['id']] = $c;
+        }
+
+        $used = [];
+        foreach ($this->citationMarkers($reply) as $id) {
+            if (isset($byId[$id]) && ! isset($used[$id])) {
+                $used[$id] = $byId[$id];
+            }
+        }
+
+        return array_values($used);
+    }
+
+    /** Quita del texto las etiquetas [S#] que no corresponden a ningún fragmento recuperado. */
+    public function stripUnknownCitations(string $reply): string
+    {
+        $known = array_column($this->retrievedCitations, 'id');
+
+        return (string) preg_replace_callback(self::CITATION_MARKER_RE, function (array $m) use ($known) {
+            preg_match_all('/S\d+/', $m[1], $ids);
+            $keep = array_values(array_filter($ids[0], fn ($id) => in_array($id, $known, true)));
+
+            return $keep ? '[' . implode(', ', $keep) . ']' : '';
+        }, $reply);
+    }
+
+    /** [S1] o [S1, S2] / [S1; S2] — con espacios tolerados. */
+    private const CITATION_MARKER_RE = '/\[\s*(S\d+(?:\s*[,;]\s*S\d+)*)\s*\]/';
+
+    /** @return array<int, string> ids en orden de aparición, con repetidos */
+    private function citationMarkers(string $reply): array
+    {
+        if (! preg_match_all(self::CITATION_MARKER_RE, $reply, $groups)) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($groups[1] as $group) {
+            preg_match_all('/S\d+/', $group, $m);
+            array_push($ids, ...$m[0]);
+        }
+
+        return $ids;
     }
 
     /**
@@ -704,7 +810,9 @@ class CivicAIService
                 $source   = $d['metadata']['source_url'] ?? $d['metadata']['file_url'] ?? '';
                 $excerpt  = mb_substr($d['excerpt'], 0, 1200);
                 $sourceTag = $source !== '' ? " [Fuente: {$source}]" : ' [Fuente: sin fuente pública — no cites URL]';
-                $parts[] = "— {$title} [{$type}]{$sourceTag}\n{$excerpt}";
+                $cite     = isset($d['cite']) ? "[{$d['cite']}] " : '';
+                $page     = ! empty($d['page']) ? " (pág. {$d['page']})" : '';
+                $parts[] = "— {$cite}{$title}{$page} [{$type}]{$sourceTag}\n{$excerpt}";
             }
         }
 

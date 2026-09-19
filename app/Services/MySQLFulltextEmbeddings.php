@@ -38,6 +38,14 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
 
         if (empty($cleanQuery)) return [];
 
+        // Chat acotado a un candidato: son pocos documentos, así que no se exige
+        // que FULLTEXT los "adivine" por palabras exactas ("agricultura" no está
+        // en un plan que dice "actividad agropecuaria"); se buscan las páginas
+        // relevantes DENTRO de sus documentos.
+        if (!empty($filter['candidate_id'])) {
+            return $this->searchWithinCandidate($query, (int) $filter['candidate_id']);
+        }
+
         try {
             $docs = $this->runFulltextQuery($cleanQuery, $topK, $filter);
 
@@ -54,19 +62,13 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
             return $this->fallbackLike($query, $topK, $filter);
         }
 
-        return $docs->map(fn($d) => [
-            'document_id' => $d->id,
-            'title'       => $d->title,
-            'excerpt'     => $this->extractExcerpt($d->content, $query, 1200, (string) $d->title),
-            'score'       => (float) $d->relevance,
-            'metadata'    => $this->docMetadata($d),
-        ])->all();
+        return $this->toExcerpts($docs, $query);
     }
 
     private function runFulltextQuery(string $cleanQuery, int $topK, array $filter)
     {
         $q = KnowledgeDocument::query()
-            ->select('id','title','content','topic','file_url','candidate_id','source_url','source_type')
+            ->select('id','title','content','pages','topic','file_url','candidate_id','source_url','source_type')
             ->selectRaw(
                 'MATCH(title, content) AGAINST(? IN NATURAL LANGUAGE MODE) as relevance',
                 [$cleanQuery]
@@ -174,6 +176,8 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
         'gobierno','candidato','candidata','alcalde','alcaldia','alcaldía','distrito',
         'dice','dicen','piensa','planea','plantea','plantean','quiere','hara','hará',
         'ciudadano','ciudadana','ciudadanos','ciudadanas','documento','documentos','informacion','información','favor','puedes','podrias',
+        'resume','resumen','resumir','resumeme','resúmeme','explica','explicame','explícame',
+        'cuentame','cuéntame','hablame','háblame','dime','principales','principal','puntos','ideas',
     ];
 
     /**
@@ -218,7 +222,7 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
      *
      * @return array<int, array<int,string>>  lista de grupos (cada grupo = prefijos equivalentes)
      */
-    private function queryTermGroups(string $query, string $title): array
+    private function queryTermGroups(string $query, string $title, bool $fallbackToAll = true): array
     {
         $titleFolded = $this->fold($title);
 
@@ -245,7 +249,9 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
             return $groups;
         };
 
-        return $build(true) ?: $build(false);
+        // Sin términos de tema ("resume el plan"): extractExcerpt() puntúa con todas las
+        // palabras; el ranking por páginas prefiere no ordenar y servir el inicio.
+        return $build(true) ?: ($fallbackToAll ? $build(false) : []);
     }
 
     /**
@@ -355,13 +361,179 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
             });
         }
 
-        return $q->get()->map(fn($d) => [
-            'document_id' => $d->id,
-            'title'       => $d->title,
-            'excerpt'     => $this->extractExcerpt($d->content, $query, 1200, (string) $d->title),
-            'score'       => 0.5,
-            'metadata'    => $this->docMetadata($d),
-        ])->all();
+        return $this->toExcerpts($q->get(), $query);
+    }
+
+    /** Máximo de fragmentos que llegan al LLM por turno (presupuesto de tokens). */
+    private const MAX_EXCERPTS = 4;
+    /** Páginas distintas que puede aportar un mismo documento. */
+    private const PAGES_PER_DOC = 2;
+    private const EXCERPT_CHARS = 1200;
+
+    /**
+     * De documentos a fragmentos citables. Un documento con texto por página
+     * (`pages`) aporta sus mejores páginas, cada una con su número; uno sin
+     * páginas (subido antes de las citas por página) aporta un fragmento sin
+     * número, como antes.
+     *
+     * Primero entra la mejor página de cada documento (diversidad de fuentes) y
+     * con lo que sobre del tope se completa con las siguientes mejores.
+     *
+     * @param iterable<KnowledgeDocument> $docs
+     * @return array<int, array<string, mixed>>
+     */
+    private function toExcerpts(iterable $docs, string $query, bool $requireHit = false): array
+    {
+        $primary = [];
+        $extra   = [];
+
+        foreach ($docs as $d) {
+            $score  = (float) ($d->relevance ?? 0.5);
+            $pages  = is_array($d->pages) ? array_values($d->pages) : [];
+            // null = no se puede ordenar (sin páginas, o pregunta sin términos de tema);
+            // [] = hay páginas pero ninguna habla del tema → el documento no aporta.
+            $ranked = $pages ? $this->rankPages($pages, $query, (string) $d->title) : null;
+
+            // Pregunta general ("resume el plan"): sin términos de tema no hay qué ordenar;
+            // en un documento con páginas sirven sus primeras páginas con texto.
+            if ($ranked === null && $pages) {
+                $ranked = [];
+                foreach ($pages as $i => $text) {
+                    if (trim((string) $text) !== '') {
+                        $ranked[$i + 1] = 0.0;
+                    }
+                    if (count($ranked) >= self::PAGES_PER_DOC) break;
+                }
+            }
+
+            if ($ranked === []) {
+                continue;
+            }
+
+            if ($ranked === null) {
+                if ($requireHit && ! $this->contentMentionsQuery((string) $d->content, $query, (string) $d->title)) {
+                    continue;
+                }
+                $primary[] = [
+                    'document_id' => $d->id,
+                    'title'       => $d->title,
+                    'excerpt'     => $this->extractExcerpt($d->content, $query, self::EXCERPT_CHARS, (string) $d->title),
+                    'page'        => null,
+                    'score'       => $score,
+                    'metadata'    => $this->docMetadata($d),
+                ];
+                continue;
+            }
+
+            $first = true;
+            foreach (array_slice($ranked, 0, self::PAGES_PER_DOC, true) as $n => $pageScore) {
+                $entry = [
+                    'document_id' => $d->id,
+                    'title'       => $d->title,
+                    'excerpt'     => $this->extractExcerpt($pages[$n - 1], $query, self::EXCERPT_CHARS, (string) $d->title),
+                    'page'        => $n,
+                    'score'       => $score,
+                    'page_score'  => $pageScore,
+                    'metadata'    => $this->docMetadata($d),
+                ];
+                if ($first) {
+                    $primary[] = $entry;   // la mejor página de este documento
+                    $first = false;
+                } else {
+                    $extra[] = $entry;
+                }
+            }
+        }
+
+        usort($extra, fn ($a, $b) => $b['page_score'] <=> $a['page_score']);
+
+        $out = array_slice(array_merge($primary, $extra), 0, self::MAX_EXCERPTS);
+
+        return array_map(function (array $e) {
+            unset($e['page_score']);
+            return $e;
+        }, $out);
+    }
+
+    /**
+     * Páginas de un documento ordenadas por relevancia para la pregunta:
+     * [número de página (1-based) => puntaje], solo las que tienen algún acierto.
+     * Misma ponderación que extractExcerpt(): ignora identidad/genéricas, pesa por
+     * rareza dentro del documento, expande el tema a su vocabulario y premia la
+     * densidad. null si la pregunta no aporta términos de tema (no se puede
+     * ordenar); [] si ninguna página acierta.
+     *
+     * @param array<int, string> $pages
+     * @return array<int, float>|null
+     */
+    private function rankPages(array $pages, string $query, string $title): ?array
+    {
+        $groups = $this->queryTermGroups($query, $title, false);
+        if (! $groups) {
+            return null;
+        }
+
+        // Aciertos por página y grupo, y total por grupo en todo el documento.
+        $hits   = [];
+        $totals = array_fill(0, count($groups), 0);
+        foreach ($pages as $i => $text) {
+            $folded = $this->fold((string) $text);
+            if ($folded === '') continue;
+
+            foreach ($groups as $gi => $variants) {
+                $h = 0;
+                foreach ($variants as $v) {
+                    $h += substr_count($folded, $v);
+                }
+                if ($h > 0) {
+                    $hits[$i][$gi] = $h;
+                    $totals[$gi]  += $h;
+                }
+            }
+        }
+
+        $scores = [];
+        foreach ($hits as $i => $byGroup) {
+            $score = 0.0;
+            foreach ($byGroup as $gi => $h) {
+                $score += (1 / log(2 + $totals[$gi])) * (1 + log($h));
+            }
+            $scores[$i + 1] = $score;
+        }
+
+        arsort($scores);
+
+        return $scores;
+    }
+
+    /** Documentos de UN candidato → fragmentos por página. Solo aportan los que hablan del tema. */
+    private function searchWithinCandidate(string $query, int $candidateId): array
+    {
+        $docs = KnowledgeDocument::query()
+            ->where('is_active', true)
+            ->where('candidate_id', $candidateId)
+            ->where('status', 'ready')
+            ->orderBy('id')
+            ->limit(10)
+            ->get(['id', 'title', 'content', 'pages', 'topic', 'file_url', 'candidate_id', 'source_url', 'source_type']);
+
+        return $this->toExcerpts($docs, $query, true);
+    }
+
+    /** ¿Algún término de tema de la pregunta (o su familia) aparece en el texto? */
+    private function contentMentionsQuery(string $content, string $query, string $title): bool
+    {
+        $folded = $this->fold($content);
+        foreach ($this->queryTermGroups($query, $title, false) as $variants) {
+            foreach ($variants as $v) {
+                if ($v !== '' && str_contains($folded, $v)) {
+                    return true;
+                }
+            }
+        }
+
+        // Pregunta sin términos de tema ("resume el plan"): sirve el inicio del documento.
+        return $this->queryTermGroups($query, $title, false) === [];
     }
 
     /** Atribución de fuente (Fase 4) — mismo shape que el payload de Qdrant. */
