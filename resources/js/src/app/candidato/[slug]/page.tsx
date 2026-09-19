@@ -33,7 +33,11 @@ export default async function CandidatoPage({ params }: Props) {
   if (!c) notFound();
 
   const accent = { color: "rgb(var(--brand-primary-rgb))" };
-  const chatHref = DIRECTORY_TENANT ? `/chat?tenant=${encodeURIComponent(DIRECTORY_TENANT)}` : "/chat";
+  // ?candidato= deja el chat acotado a los documentos de ESTE candidato.
+  const chatParams = new URLSearchParams();
+  if (DIRECTORY_TENANT) chatParams.set("tenant", DIRECTORY_TENANT);
+  chatParams.set("candidato", c.slug);
+  const chatHref = `/chat?${chatParams.toString()}`;
   const redes = [
     { label: "Facebook", url: c.facebook_url },
     { label: "Instagram", url: c.instagram_url },
@@ -123,7 +127,7 @@ export default async function CandidatoPage({ params }: Props) {
             <p className="mt-1 text-[14px] text-white/90">PEPA, nuestra IA neutral, responde con base en estos documentos y cita su fuente.</p>
           </div>
           <Link href={chatHref} className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-3 text-[14px] font-bold" style={accent}>
-            <MessageCircle size={17} aria-hidden /> Preguntar a la IA
+            <MessageCircle size={17} aria-hidden /> Preguntar sobre {c.name.split(" ")[0]}
           </Link>
         </section>
 

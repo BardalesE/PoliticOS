@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Jobs\AnalyzeMessageJob;
 use App\Jobs\GeolocateSessionJob;
 use App\Models\AiSetting;
+use App\Models\CandidateProfile;
 use App\Models\ChatMessage;
 use App\Models\ChatSession;
 use App\Models\CitizenProfile;
@@ -35,7 +36,10 @@ class ChatController extends Controller
             'lat'         => ['nullable','numeric','between:-90,90'],
             'lng'         => ['nullable','numeric','between:-180,180'],
             'accuracy'    => ['nullable','numeric','min:0'],
+            'candidate_slug' => ['nullable','string','max:120'],
         ]);
+
+        $this->applyCandidateScope($data['candidate_slug'] ?? null);
 
         $session = $this->resolveSession($request, $data['session_id'] ?? null, $data['consent'] ?? null);
 
@@ -167,7 +171,10 @@ class ChatController extends Controller
             'lat'         => ['nullable','numeric','between:-90,90'],
             'lng'         => ['nullable','numeric','between:-180,180'],
             'accuracy'    => ['nullable','numeric','min:0'],
+            'candidate_slug' => ['nullable','string','max:120'],
         ]);
+
+        $this->applyCandidateScope($data['candidate_slug'] ?? null);
 
         $session = $this->resolveSession($request, $data['session_id'] ?? null, $data['consent'] ?? null);
 
@@ -409,6 +416,20 @@ class ChatController extends Controller
     }
 
     // ─── Helpers privados ─────────────────────────────────────────────────
+
+    /**
+     * Chips de candidatos del chat: acota el RAG al candidato elegido. Solo acepta
+     * candidatos visibles en el directorio (publicados y con base de conocimiento
+     * lista); un slug desconocido se ignora y el chat consulta sobre todos.
+     */
+    private function applyCandidateScope(?string $slug): void
+    {
+        $candidate = $slug
+            ? CandidateProfile::query()->visibleInDirectory()->where('slug', $slug)->first()
+            : null;
+
+        $this->ai->scopeToCandidate($candidate);
+    }
 
     private function isResetKeyword(string $message): bool
     {
