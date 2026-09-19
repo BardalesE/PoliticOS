@@ -369,4 +369,56 @@ class DirectorioTest extends TestCase
 
         $this->getJson('/api/ubigeo/provincias')->assertUnprocessable();
     }
+
+    // ── Chat acotado por candidato (chips de candidatos) ─────────────
+
+    public function test_rag_search_can_be_scoped_to_one_candidate(): void
+    {
+        $ana  = $this->candidato(['name' => 'Ana', 'slug' => 'ana'], null, null);
+        $luis = $this->candidato(['name' => 'Luis', 'slug' => 'luis'], null, null);
+        $this->documento($ana,  ['title' => 'Plan Ana',  'content' => 'Ana propone un canal de riego para los agricultores.']);
+        $this->documento($luis, ['title' => 'Plan Luis', 'content' => 'Luis propone riego tecnificado y reservorios.']);
+
+        $svc = new \App\Services\MySQLFulltextEmbeddings();
+
+        // Sin acotar: FULLTEXT no existe en SQLite → cae al LIKE de respaldo y trae a ambos.
+        $todos = collect($svc->search('riego agricultores', 5))->pluck('title')->all();
+        $this->assertEqualsCanonicalizing(['Plan Ana', 'Plan Luis'], $todos);
+
+        // Acotado: solo los documentos de Luis.
+        $luisSolo = collect($svc->search('riego agricultores', 5, ['candidate_id' => $luis->id]))->pluck('title')->all();
+        $this->assertSame(['Plan Luis'], $luisSolo);
+    }
+
+    private function scopeOf(\App\Services\CivicAIService $ai): array
+    {
+        $r = new \ReflectionObject($ai);
+        $id = $r->getProperty('scopeCandidateId');   $id->setAccessible(true);
+        $nm = $r->getProperty('scopeCandidateName'); $nm->setAccessible(true);
+
+        return [$id->getValue($ai), $nm->getValue($ai)];
+    }
+
+    private function applyScope(string $slug): array
+    {
+        $ai = new \App\Services\CivicAIService(new \App\Services\MySQLFulltextEmbeddings());
+        $controller = new \App\Http\Controllers\ChatController($ai);
+        $m = new \ReflectionMethod($controller, 'applyCandidateScope');
+        $m->setAccessible(true);
+        $m->invoke($controller, $slug);
+
+        return $this->scopeOf($ai);
+    }
+
+    public function test_chat_scope_accepts_only_candidates_visible_in_the_directory(): void
+    {
+        $visible = $this->candidato(['name' => 'Visible', 'slug' => 'visible']);
+        $this->candidato(['name' => 'Borrador', 'slug' => 'borrador', 'estado_publicacion' => 'borrador']);
+        $this->candidato(['name' => 'Sin doc', 'slug' => 'sin-doc'], null, null);
+
+        $this->assertSame([$visible->id, 'Visible'], $this->applyScope('visible'));
+        $this->assertSame([null, null], $this->applyScope('borrador'));
+        $this->assertSame([null, null], $this->applyScope('sin-doc'));
+        $this->assertSame([null, null], $this->applyScope('no-existe'));
+    }
 }

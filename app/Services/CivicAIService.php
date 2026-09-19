@@ -53,6 +53,14 @@ class CivicAIService
      */
     private array $retrievedDocUrls = [];
 
+    /**
+     * Candidato elegido por el ciudadano en el chat (chips de candidatos). Cuando
+     * está definido, el RAG busca SOLO en los documentos de ese candidato y el
+     * prompt lo explicita: sin esto el chat mezclaba a todos los candidatos del tenant.
+     */
+    private ?int $scopeCandidateId = null;
+    private ?string $scopeCandidateName = null;
+
     public function __construct(EmbeddingsServiceInterface $embeddings)
     {
         // DB queries are intentionally deferred to ensureInitialized().
@@ -60,6 +68,15 @@ class CivicAIService
         // connection to the tenant's database — querying here would always hit
         // the central DB and return null for candidate/config.
         $this->embeddings = $embeddings;
+    }
+
+    /** Acota el chat a un candidato (o null para volver a consultar sobre todos). */
+    public function scopeToCandidate(?CandidateProfile $candidate): static
+    {
+        $this->scopeCandidateId   = $candidate?->id;
+        $this->scopeCandidateName = $candidate?->name;
+
+        return $this;
     }
 
     private function ensureInitialized(): void
@@ -555,7 +572,14 @@ class CivicAIService
         // de Groq. extractExcerpt() ya prioriza el fragmento más relevante
         // (ver MySQLFulltextEmbeddings), así que menos texto no pierde la
         // parte que importa.
-        $docs = $this->embeddings->search($userMessage, 3, $topic ? ['topic' => $topic] : []);
+        $filter = $topic ? ['topic' => $topic] : [];
+        if ($this->scopeCandidateId) {
+            $filter['candidate_id'] = $this->scopeCandidateId;
+            $parts[] = "\nCONSULTA ACOTADA: el ciudadano eligió consultar SOLO sobre {$this->scopeCandidateName}. "
+                . "Responde únicamente con lo que dicen los documentos de este candidato. "
+                . "No compares con otros candidatos ni opines sobre ellos; si algo no está en sus documentos, dilo.";
+        }
+        $docs = $this->embeddings->search($userMessage, 3, $filter);
         $parts[] = $this->buildDocumentationSection($docs, ($this->config->mode ?? 'campaign') === 'pepa');
 
         return implode("\n", $parts);

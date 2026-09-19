@@ -9,7 +9,7 @@ import ConsentModal from "@/components/chat/ConsentModal";
 import AIBadge from "@/components/chat/AIBadge";
 import { LiveAlert } from "@/components/live/LiveAlert";
 import { useCandidate } from "@/context/CandidateContext";
-import { resolveTenantSlug, normalizeApiBase } from "@/lib/api";
+import { resolveTenantSlug, normalizeApiBase, tenantHeaders } from "@/lib/api";
 import { tenantStorageKey } from "@/lib/utils";
 import { TenantLink } from "@/components/ui/TenantLink";
 
@@ -20,6 +20,13 @@ interface MediaItem {
   url: string;
   title: string;
   thumbnail?: string;
+}
+
+/** Candidato del directorio que el ciudadano puede elegir para acotar el chat. */
+interface ChatCandidate {
+  slug: string;
+  name: string;
+  party?: string | null;
 }
 
 interface QuickReply {
@@ -52,6 +59,7 @@ const LS_HISTORY        = "politicos_chat_history";
 const LS_SAVED_AT       = "politicos_chat_saved_at";
 const LS_SESSION        = "politicos_session_id";
 const LS_REG_DONE       = "politicos_reg_done";
+const LS_CANDIDATE      = "politicos_chat_candidate";
 const LS_CITIZEN_NAME   = "politicos_citizen_name";
 const LS_CITIZEN_POINTS = "politicos_citizen_points";
 
@@ -465,6 +473,10 @@ export default function ChatPage() {
   const [showNonsense, setShowNonsense] = useState(false);
   const [blocked, setBlocked]    = useState(false);
   const [assistantMode, setAssistantMode] = useState<string | null>(null);
+
+  // Chips de candidatos: acotan el RAG a los documentos del candidato elegido.
+  const [candidates, setCandidates] = useState<ChatCandidate[]>([]);
+  const [candidateSlug, setCandidateSlug] = useState<string | null>(null);
   const endRef                   = useRef<HTMLDivElement>(null);
 
   // ── Geolocalización (browser GPS) ───────────────────────────────────────────
@@ -533,6 +545,42 @@ export default function ChatPage() {
   }, [messages, welcomeBack]);
 
   // ── Init ────────────────────────────────────────────────────────────────────
+  // ── Candidatos disponibles para acotar el chat ───────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch(`${API}/directorio/candidatos`, {
+          headers: { Accept: "application/json", ...tenantHeaders() },
+        });
+        if (!r.ok) return;
+        const json = (await r.json()) as { data?: ChatCandidate[] };
+        const list = (json.data ?? []).filter((c) => c.slug && c.name);
+        if (cancelled) return;
+        setCandidates(list);
+
+        // ?candidato=slug (desde la ficha) manda sobre lo último que eligió el ciudadano.
+        let wanted: string | null = null;
+        try {
+          wanted = new URLSearchParams(window.location.search).get("candidato")
+            || localStorage.getItem(tenantStorageKey(LS_CANDIDATE));
+        } catch {}
+        if (wanted && list.some((c) => c.slug === wanted)) setCandidateSlug(wanted);
+      } catch {
+        /* sin chips: el chat sigue consultando sobre todos */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const chooseCandidate = (slug: string | null) => {
+    setCandidateSlug(slug);
+    try {
+      if (slug) localStorage.setItem(tenantStorageKey(LS_CANDIDATE), slug);
+      else localStorage.removeItem(tenantStorageKey(LS_CANDIDATE));
+    } catch {}
+  };
+
   useEffect(() => {
     const hasConsent = ConsentModal.hasConsent();
     setConsent(hasConsent);
@@ -868,6 +916,7 @@ export default function ChatPage() {
     session_id:  sessionId,
     consent:     consent ?? false,
     initialized: chatInitialized,
+    ...(candidateSlug ? { candidate_slug: candidateSlug } : {}),
     ...(geoLocation ? { lat: geoLocation.lat, lng: geoLocation.lng, accuracy: geoLocation.accuracy } : {}),
   });
 
@@ -1078,6 +1127,49 @@ export default function ChatPage() {
           </div>
           <TenantLink href="/" className="text-sm text-gray-500 hover:text-brand-600 transition-colors shrink-0">Inicio</TenantLink>
         </div>
+        {candidates.length > 0 && (
+          <div className="max-w-3xl mx-auto mt-2.5">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1.5">
+              Consultar sobre
+            </p>
+            <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1" role="group" aria-label="Elegir candidato">
+              <button
+                type="button"
+                onClick={() => chooseCandidate(null)}
+                aria-pressed={candidateSlug === null}
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  candidateSlug === null
+                    ? "border-gray-900 bg-gray-900 text-white"
+                    : "border-gray-300 bg-white text-gray-600 hover:border-gray-400"
+                }`}
+              >
+                Todos
+              </button>
+              {candidates.map((c) => (
+                <button
+                  key={c.slug}
+                  type="button"
+                  onClick={() => chooseCandidate(c.slug)}
+                  aria-pressed={candidateSlug === c.slug}
+                  title={c.party ? `${c.name} · ${c.party}` : c.name}
+                  className={`shrink-0 max-w-[16rem] truncate rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    candidateSlug === c.slug
+                      ? "border-brand-600 bg-brand-600 text-white"
+                      : "border-gray-300 bg-white text-gray-600 hover:border-gray-400"
+                  }`}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+            {candidateSlug && (
+              <p className="mt-1 text-[11px] text-gray-500">
+                Las respuestas usan solo los documentos de{" "}
+                <span className="font-semibold">{candidates.find((c) => c.slug === candidateSlug)?.name}</span>.
+              </p>
+            )}
+          </div>
+        )}
       </header>
 
       {/* ── Pantalla de bienvenida de regreso (Mejora 2) ── */}
