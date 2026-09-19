@@ -18,6 +18,11 @@ export function TenantGuard() {
   useEffect(() => {
     if (SKIP.some((p) => pathname.startsWith(p))) return;
 
+    // La raíz "/" es la home de la plataforma: no debe "pegarse" al último
+    // candidato/tenant que el navegador recuerde (p. ej. tras entrar al admin
+    // con ?tenant=). Las rutas de un candidato sí conservan su tenant.
+    if (pathname === "/") return;
+
     const params       = new URLSearchParams(window.location.search);
     const tenantInUrl  = params.get("tenant");
 

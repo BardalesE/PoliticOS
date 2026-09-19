@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import Link from "next/link";
 import { ArrowUpRight, FileText, MapPin, Users } from "lucide-react";
 import { TenantLink } from "@/components/ui/TenantLink";
 import { ElectionCountdown } from "@/components/platform/ElectionCountdown";
@@ -65,9 +66,9 @@ export async function PlatformLanding() {
       {/* Franja de marca */}
       <header style={{ background: "rgb(var(--brand-primary-rgb))" }}>
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
-          <TenantLink href="/" aria-label="PoliticOS — inicio" className="font-condensed text-[28px] uppercase leading-none tracking-wide text-white">
+          <Link href="/" aria-label="PoliticOS — inicio" className="font-condensed text-[28px] uppercase leading-none tracking-wide text-white">
             Politic<span className="text-white/70">OS</span>
-          </TenantLink>
+          </Link>
           <nav aria-label="Principal" className="flex items-center gap-1 text-[13px] font-semibold text-white sm:gap-3">
             <TenantLink href="/propuestas" className="hidden rounded-full px-3 py-2 hover:bg-white/15 sm:block">
               Propuestas

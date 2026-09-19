@@ -51,6 +51,17 @@ export function resolveTenantSlug(): string {
       const fromLogin = localStorage.getItem("admin_tenant_slug");
       if (fromLogin) return fromLogin;
     } catch {}
+
+    // 6. Tenant del directorio nacional (plataforma sin candidato): sin esto, el
+    //    chat/propuestas a los que se llega desde la home de plataforma le
+    //    hablan a la BD por defecto y responden "asistente no configurado".
+    //    Solo en páginas públicas: en /admin un slug perdido debe fallar, no
+    //    caer silenciosamente en el tenant del directorio.
+    const path = window.location.pathname;
+    const directory = process.env.NEXT_PUBLIC_DIRECTORY_TENANT;
+    if (directory && !path.startsWith("/admin") && !path.startsWith("/superadmin")) {
+      return directory;
+    }
   }
 
   return "";

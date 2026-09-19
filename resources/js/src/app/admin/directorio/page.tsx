@@ -307,7 +307,12 @@ export default function DirectorioAdminPage() {
                   const estado = c.visible
                     ? { t: "Publicado · visible", cls: "bg-green-50 text-green-700 border-green-200" }
                     : c.estado_publicacion === "publicado"
-                    ? { t: "Publicado, pero oculto: falta un documento procesado", cls: "bg-amber-50 text-amber-700 border-amber-200" }
+                    ? {
+                        t: !c.distrito_id
+                          ? "Publicado, pero oculto: falta asignar un distrito"
+                          : "Publicado, pero oculto: falta un documento procesado",
+                        cls: "bg-amber-50 text-amber-700 border-amber-200",
+                      }
                     : { t: "Borrador", cls: "bg-gray-50 text-gray-600 border-gray-200" };
                   return (
                     <li key={c.id} className="px-5 py-4">
