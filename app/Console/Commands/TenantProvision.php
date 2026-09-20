@@ -214,7 +214,7 @@ class TenantProvision extends Command
 
             $conn->table('ai_settings')->insert([
                 'provider'          => 'groq',
-                'model'             => 'llama-3.3-70b-versatile',
+                'model'             => \App\Models\AiSetting::DEFAULT_GROQ_MODEL,
                 'fallback_provider' => 'claude',
                 'temperature'       => 0.4,
                 'max_tokens'        => 1200,

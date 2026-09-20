@@ -7,7 +7,7 @@ import { superadminApi, ApiError, type AiSetting, type Tenant } from "@/lib/api"
 
 const PROVIDERS = ["groq", "claude", "openai"] as const;
 const MODELS: Record<string, string[]> = {
-  groq:   ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it"],
+  groq:   ["openai/gpt-oss-120b", "openai/gpt-oss-20b"],
   claude: ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-7"],
   openai: ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"],
 };

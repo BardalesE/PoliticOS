@@ -21,7 +21,7 @@ const PROVIDERS = [
 ] as const;
 
 const MODELS: Record<string, string[]> = {
-  groq:   ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768", "gemma2-9b-it"],
+  groq:   ["openai/gpt-oss-120b", "openai/gpt-oss-20b"],
   claude: ["claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-opus-4-7"],
   openai: ["gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"],
 };
@@ -33,7 +33,7 @@ const PRESET_COLORS = [
 
 const EMPTY: Partial<AiSetting> = {
   provider: "groq",
-  model: "llama-3.3-70b-versatile",
+  model: "openai/gpt-oss-120b",
   max_tokens: 600,
   temperature: 0.65,
   fallback_provider: "claude",
@@ -335,7 +335,7 @@ export default function AiSettingsPage() {
                   <input type="text" value={form.model ?? ""}
                     onChange={(e) => set("model", e.target.value)}
                     className="w-full border border-ink-200 rounded-lg px-3 py-2 text-sm font-mono text-ink-800 focus:outline-none focus:ring-2 focus:ring-brand-400"
-                    placeholder="ej. llama-3.3-70b-versatile" />
+                    placeholder="ej. openai/gpt-oss-120b" />
                   {modelList.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {modelList.map((m) => (

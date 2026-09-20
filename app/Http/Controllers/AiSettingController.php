@@ -77,9 +77,7 @@ class AiSettingController extends Controller
                     default => Http::timeout(8)
                         ->withToken(config('services.ai.groq_key') ?? '')
                         ->post('https://api.groq.com/openai/v1/chat/completions', array_merge($payload, [
-                            'model' => $setting->provider === 'groq'
-                                ? $setting->model
-                                : config('services.ai.groq_model', 'llama-3.3-70b-versatile'),
+                            'model' => AiSetting::effectiveGroqModel($setting->provider === 'groq' ? $setting->model : null),
                         ])),
                 };
 

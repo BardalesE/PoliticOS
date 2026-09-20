@@ -1015,9 +1015,7 @@ class CivicAIService
                 $userMessage, $systemPrompt, $history,
                 'https://api.groq.com/openai/v1/chat/completions',
                 $this->resolveApiKey('groq', config('services.ai.groq_key')),
-                $this->config->provider === 'groq'
-                    ? $this->config->model
-                    : config('services.ai.groq_model', 'llama-3.3-70b-versatile')
+                AiSetting::effectiveGroqModel($this->config->provider === 'groq' ? $this->config->model : null)
             ),
         };
     }
@@ -1248,9 +1246,7 @@ class CivicAIService
                 $userMessage, $systemPrompt, $history, $onChunk,
                 'https://api.groq.com/openai/v1/chat/completions',
                 $this->resolveApiKey('groq', config('services.ai.groq_key')),
-                $this->config->provider === 'groq'
-                    ? $this->config->model
-                    : config('services.ai.groq_model', 'llama-3.3-70b-versatile')
+                AiSetting::effectiveGroqModel($this->config->provider === 'groq' ? $this->config->model : null)
             ),
         };
     }
