@@ -57,12 +57,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     invalidateCache();
-    const { token: t, user: u, tenant_slug } = await adminApi.auth.login(email, password);
+    const { token: t, user: u, tenant_slug, tenant_name } = await adminApi.auth.login(email, password);
+    // El slug que devuelve el servidor es la verdad: a qué candidato se conectó
+    // realmente esta sesión (puede diferir del que el navegador creía).
+    const withTenant: AdminUser = { ...u, tenant: tenant_slug ? { slug: tenant_slug, name: tenant_name ?? tenant_slug } : null };
     localStorage.setItem(TOKEN_KEY, t);
-    localStorage.setItem(USER_KEY, JSON.stringify(u));
+    localStorage.setItem(USER_KEY, JSON.stringify(withTenant));
     if (tenant_slug) localStorage.setItem(TENANT_KEY, tenant_slug);
+    else localStorage.removeItem(TENANT_KEY);
     setToken(t);
-    setUser(u);
+    setUser(withTenant);
   }, []);
 
   const logout = useCallback(async () => {

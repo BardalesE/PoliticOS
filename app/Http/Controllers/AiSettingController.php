@@ -20,7 +20,12 @@ class AiSettingController extends Controller
         // de la plataforma" sin nunca devolver el secreto.
         return response()->json(array_merge(
             $setting->toArray(),
-            ['has_own_api_key' => $setting->api_key !== null]
+            [
+                'has_own_api_key' => $setting->api_key !== null,
+                // true = admin de un candidato (tenant): solo puede editar el
+                // botón del chat; el modelo/prompt/keys los gestiona la plataforma.
+                'restricted'      => $this->isTenantScoped(),
+            ]
         ));
     }
 
@@ -130,7 +135,27 @@ class AiSettingController extends Controller
     // PUT /api/admin/ai-settings
     public function update(Request $request): JsonResponse
     {
-        $data = $request->validate([
+        $data = $request->validate(self::rules());
+
+        // El admin de un candidato solo edita el botón del chat. Los campos de
+        // plataforma (proveedor, modelo, key, prompt, modo) se descartan aquí en
+        // el servidor: ocultarlos en la UI no basta, el cliente es editable.
+        if ($this->isTenantScoped()) {
+            $data = array_intersect_key($data, array_flip(AiSetting::TENANT_EDITABLE));
+        }
+
+        $setting = AiSetting::current()->applyAdminUpdate($data);
+
+        return response()->json(array_merge(
+            $setting->toArray(),
+            ['has_own_api_key' => $setting->api_key !== null, 'restricted' => $this->isTenantScoped()]
+        ));
+    }
+
+    /** Reglas de validación compartidas con el superadmin. */
+    public static function rules(): array
+    {
+        return [
             'provider'          => ['sometimes', 'in:groq,claude,openai'],
             // nullable + string vacío permitido a propósito: mandar "" borra la key
             // propia del tenant y vuelve a usar la key global compartida como
@@ -149,28 +174,16 @@ class AiSettingController extends Controller
             'chat_btn_color'     => ['nullable', 'string', 'max:20'],
             'chat_btn_size'      => ['nullable', 'in:sm,md,lg'],
             'chat_btn_position'  => ['nullable', 'in:bottom-right,bottom-left'],
-        ]);
+        ];
+    }
 
-        $setting = AiSetting::current();
-
-        // Acoplamiento mode -> system_prompt (ver AiSetting::DEFAULT_PROMPT_FILES):
-        // - Si cambia `mode` y el prompt sigue siendo el de fábrica (no
-        //   personalizado), resincroniza system_prompt con el default del
-        //   modo nuevo. Tiene prioridad sobre una edición manual simultánea.
-        // - Si no cambia el modo pero el prompt sí (edición manual directa),
-        //   marca system_prompt_customizado = true para que un futuro cambio
-        //   de modo ya no lo pise.
-        $modeChanged   = array_key_exists('mode', $data) && $data['mode'] !== $setting->mode;
-        $promptChanged = array_key_exists('system_prompt', $data) && $data['system_prompt'] !== $setting->system_prompt;
-
-        if ($modeChanged && !$setting->system_prompt_customizado) {
-            $data['system_prompt'] = AiSetting::defaultPromptForMode($data['mode']);
-        } elseif ($promptChanged) {
-            $data['system_prompt_customizado'] = true;
-        }
-
-        $setting->update($data);
-
-        return response()->json($setting);
+    /**
+     * ¿La petición corre dentro de un tenant (candidato)? En instalaciones
+     * single-tenant (sin tenant resuelto) el admin es el dueño y conserva el
+     * acceso completo.
+     */
+    private function isTenantScoped(): bool
+    {
+        return app()->bound('tenant') && app('tenant') !== null;
     }
 }

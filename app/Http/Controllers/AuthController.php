@@ -41,6 +41,7 @@ class AuthController extends Controller
         return response()->json([
             'token'       => $token,
             'tenant_slug' => $tenant?->slug,
+            'tenant_name' => $tenant?->name,
             'user'        => [
                 'id'    => $user->id,
                 'name'  => $user->name,
@@ -58,12 +59,18 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
-        $user = $request->user();
+        $user   = $request->user();
+        $tenant = app()->bound('tenant') ? app('tenant') : null;
+
         return response()->json([
             'id'    => $user->id,
             'name'  => $user->name,
             'email' => $user->email,
             'role'  => $user->role,
+            // A qué candidato (tenant) está hablando ESTA sesión, según el
+            // servidor: el panel lo muestra siempre para que nadie edite otro
+            // candidato sin darse cuenta. null = instalación single-tenant.
+            'tenant' => $tenant ? ['slug' => $tenant->slug, 'name' => $tenant->name] : null,
         ]);
     }
 }

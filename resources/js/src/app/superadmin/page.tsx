@@ -4,15 +4,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSuperAdmin } from "@/context/SuperAdminContext";
 import {
   superadminApi, ApiError,
-  type Tenant, type ProvisionPayload, type TenantStats, type TenantCredentials, type PlanFeatureSet,
+  type Tenant, type TenantAudit, type ProvisionPayload, type TenantStats, type TenantCredentials, type PlanFeatureSet,
 } from "@/lib/api";
 import {
   Plus, Pencil, Trash2, Loader2, CheckCircle2, XCircle,
   ChevronDown, ChevronUp, Database, Users, FileText,
   MessageSquare, Zap, BarChart2, RefreshCw, Copy, Check,
   ExternalLink, AlertTriangle, KeyRound, Eye, EyeOff, Clock, ShieldAlert,
-  CreditCard, Lock, Unlock, Save,
+  CreditCard, Lock, Unlock, Save, Bot,
 } from "lucide-react";
+import TenantAiModal from "@/components/superadmin/TenantAiModal";
 import { motion, AnimatePresence } from "framer-motion";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────
@@ -845,13 +846,14 @@ function EditModal({
 
 function TenantRow({
   tenant, saKey,
-  onEdit, onDelete, onToggle, onCredentials,
+  onEdit, onDelete, onToggle, onCredentials, onAi,
 }: {
   tenant: Tenant; saKey: string;
   onEdit: () => void;
   onDelete: () => void;
   onToggle: () => void;
   onCredentials: () => void;
+  onAi: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [stats, setStats]       = useState<TenantStats | null>(null);
@@ -913,6 +915,13 @@ function TenantRow({
               className="p-1.5 rounded-lg text-gray-500 hover:text-amber-600 hover:bg-gray-100 transition"
             >
               <KeyRound className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={onAi}
+              title="IA y prompt de este candidato"
+              className="p-1.5 rounded-lg text-gray-500 hover:text-trust-700 hover:bg-gray-100 transition"
+            >
+              <Bot className="w-3.5 h-3.5" />
             </button>
             <a
               href={adminUrl} target="_blank" rel="noopener noreferrer"
@@ -1024,13 +1033,14 @@ function StatChip({
 
 function TenantCard({
   tenant, saKey,
-  onEdit, onDelete, onToggle, onCredentials,
+  onEdit, onDelete, onToggle, onCredentials, onAi,
 }: {
   tenant: Tenant; saKey: string;
   onEdit: () => void;
   onDelete: () => void;
   onToggle: () => void;
   onCredentials: () => void;
+  onAi: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [stats, setStats]       = useState<TenantStats | null>(null);
@@ -1097,6 +1107,13 @@ function TenantCard({
           className="p-1.5 rounded-lg text-gray-500 hover:text-amber-600 hover:bg-gray-100 transition"
         >
           <KeyRound className="w-4 h-4" />
+        </button>
+        <button
+          onClick={onAi}
+          title="IA y prompt de este candidato"
+          className="p-1.5 rounded-lg text-gray-500 hover:text-trust-700 hover:bg-gray-100 transition"
+        >
+          <Bot className="w-4 h-4" />
         </button>
         <a
           href={adminUrl} target="_blank" rel="noopener noreferrer"
@@ -1442,6 +1459,14 @@ export default function SuperAdminPage() {
   const [editTarget, setEditTarget]       = useState<Tenant | null>(null);
   const [deleteTarget, setDeleteTarget]   = useState<Tenant | null>(null);
   const [credsTarget, setCredsTarget]     = useState<Tenant | null>(null);
+  const [aiTarget, setAiTarget]           = useState<Tenant | null>(null);
+  const [audit, setAudit]                 = useState<TenantAudit | null>(null);
+
+  // Aislamiento: avisa si dos candidatos comparten base de datos (o usan la central).
+  useEffect(() => {
+    if (!saKey) return;
+    superadminApi.tenants.audit(saKey).then(setAudit).catch(() => setAudit(null));
+  }, [saKey, tenants.length]);
 
   const load = useCallback(async () => {
     if (!saKey) return;
@@ -1545,6 +1570,17 @@ export default function SuperAdminPage() {
       {/* Tab de tenants */}
       {activeTab === "tenants" && <>
 
+      {audit && audit.problems.length > 0 && (
+        <div className="mb-4 flex items-start gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>
+            <b>Aislamiento roto:</b> {audit.problems.join(", ")} comparte(n) base de datos con otro candidato o
+            con la base central ({audit.central_db}). Cambiar el prompt de uno cambia el de los demás.
+            Provisiona una base propia por candidato (bdpolitic_&lt;slug&gt;).
+          </span>
+        </div>
+      )}
+
       {/* Resumen por plan */}
       {tenants.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
@@ -1600,6 +1636,7 @@ export default function SuperAdminPage() {
               onDelete={() => setDeleteTarget(t)}
               onToggle={() => toggleActive(t)}
               onCredentials={() => setCredsTarget(t)}
+              onAi={() => setAiTarget(t)}
             />
           ))}
         </div>
@@ -1626,6 +1663,7 @@ export default function SuperAdminPage() {
                   onDelete={() => setDeleteTarget(t)}
                   onToggle={() => toggleActive(t)}
                   onCredentials={() => setCredsTarget(t)}
+              onAi={() => setAiTarget(t)}
                 />
               ))}
             </tbody>
@@ -1645,6 +1683,10 @@ export default function SuperAdminPage() {
           />
         )}
       </AnimatePresence>
+
+      {aiTarget && (
+        <TenantAiModal tenant={aiTarget} saKey={saKey!} onClose={() => setAiTarget(null)} />
+      )}
 
       {editTarget && (
         <EditModal

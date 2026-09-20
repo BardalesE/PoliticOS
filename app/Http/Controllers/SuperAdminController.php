@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AiSetting;
 use App\Models\Tenant;
+use App\Services\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
@@ -33,6 +35,10 @@ class SuperAdminController extends Controller
             'is_active'   => ['nullable', 'boolean'],
         ]);
 
+        if ($conflict = $this->databaseConflict($data['db_name'], $data['db_host'] ?? null, $data['db_port'] ?? null)) {
+            return response()->json(['message' => $conflict, 'errors' => ['db_name' => [$conflict]]], 422);
+        }
+
         $tenant = Tenant::create($data);
 
         return response()->json($tenant, 201);
@@ -52,6 +58,18 @@ class SuperAdminController extends Controller
             'plan'        => ['nullable', 'in:starter,pro,elite,custom'],
             'is_active'   => ['nullable', 'boolean'],
         ]);
+        if (isset($data['db_name']) || array_key_exists('db_host', $data) || array_key_exists('db_port', $data)) {
+            $conflict = $this->databaseConflict(
+                $data['db_name'] ?? $tenant->db_name,
+                array_key_exists('db_host', $data) ? $data['db_host'] : $tenant->db_host,
+                array_key_exists('db_port', $data) ? $data['db_port'] : $tenant->db_port,
+                $tenant->id,
+            );
+            if ($conflict) {
+                return response()->json(['message' => $conflict, 'errors' => ['db_name' => [$conflict]]], 422);
+            }
+        }
+
         $tenant->update($data);
         return response()->json($tenant);
     }
@@ -78,6 +96,10 @@ class SuperAdminController extends Controller
             'db_user'        => ['nullable', 'string', 'max:100'],
             'db_password'    => ['nullable', 'string'],
         ]);
+
+        if ($conflict = $this->databaseConflict($data['db_name'], $data['db_host'] ?? null, $data['db_port'] ?? null)) {
+            return response()->json(['message' => $conflict, 'errors' => ['db_name' => [$conflict]]], 422);
+        }
 
         $args = [
             'slug'           => $data['slug'],
@@ -194,6 +216,155 @@ class SuperAdminController extends Controller
             'admin_email'    => $tenant->admin_email,
             'admin_password' => $newPassword,
             'reset_at'       => now()->toIso8601String(),
+        ]);
+    }
+
+    // GET /api/superadmin/tenants/{id}/ai-settings
+    //
+    // Configuración de IA de UN tenant, con el tenant explícito en la URL: no
+    // depende de ningún X-Tenant / localStorage del navegador, que es lo que
+    // hacía que "editar el prompt de otro candidato" escribiera en el equivocado.
+    public function tenantAiSettings(int $id): JsonResponse
+    {
+        $tenant = Tenant::findOrFail($id);
+
+        $payload = TenantContext::run($tenant->slug, fn () => $this->aiSettingsPayload(AiSetting::current()));
+        if ($payload === null) {
+            return response()->json(['message' => 'El tenant está inactivo o no se pudo abrir su base de datos.'], 422);
+        }
+
+        return response()->json($this->withTenantInfo($tenant, $payload));
+    }
+
+    // PUT /api/superadmin/tenants/{id}/ai-settings
+    public function updateTenantAiSettings(Request $request, int $id): JsonResponse
+    {
+        $tenant = Tenant::findOrFail($id);
+        $data   = $request->validate(AiSettingController::rules());
+
+        $payload = TenantContext::run(
+            $tenant->slug,
+            fn () => $this->aiSettingsPayload(AiSetting::current()->applyAdminUpdate($data))
+        );
+        if ($payload === null) {
+            return response()->json(['message' => 'El tenant está inactivo o no se pudo abrir su base de datos.'], 422);
+        }
+
+        Log::info('Superadmin editó la configuración de IA de un tenant', [
+            'tenant_id'   => $tenant->id,
+            'tenant_slug' => $tenant->slug,
+            'fields'      => array_keys($data),
+            'ip'          => $request->ip(),
+        ]);
+
+        return response()->json($this->withTenantInfo($tenant, $payload));
+    }
+
+    // GET /api/superadmin/tenants-audit
+    //
+    // Diagnóstico de aislamiento: qué tenants comparten base de datos y cuál es
+    // el prompt real de cada uno (hash, no el texto). Dos tenants con la misma
+    // BD, o con el mismo prompt "de fábrica" cuando se personalizó uno, delatan
+    // el problema de configuración cruzada.
+    public function auditTenants(): JsonResponse
+    {
+        $tenants = Tenant::orderBy('id')->get();
+
+        $rows = $tenants->map(function (Tenant $t) {
+            $ai = $t->is_active
+                ? TenantContext::run($t->slug, function () {
+                    $s = AiSetting::current();
+                    return [
+                        'mode'         => $s->mode,
+                        'customized'   => (bool) $s->system_prompt_customizado,
+                        'prompt_chars' => mb_strlen((string) $s->system_prompt),
+                        'prompt_hash'  => substr(md5((string) $s->system_prompt), 0, 8),
+                    ];
+                })
+                : null;
+
+            return [
+                'id'         => $t->id,
+                'slug'       => $t->slug,
+                'is_active'  => $t->is_active,
+                'db'         => "{$t->db_name}@{$t->db_host}:{$t->db_port}",
+                'shared_with' => $this->tenantsSharingDatabase($t)->pluck('slug')->values(),
+                'is_central' => $this->isCentralDatabase($t->db_name, $t->db_host, $t->db_port),
+                'ai'         => $ai,
+            ];
+        })->values();
+
+        return response()->json([
+            'central_db' => config('database.connections.central.database'),
+            'tenants'    => $rows,
+            'problems'   => $rows->filter(fn ($r) => $r['is_central'] || $r['shared_with']->isNotEmpty())->pluck('slug')->values(),
+        ]);
+    }
+
+    /** Mensaje de error si (db, host, port) ya está en uso por otro tenant o es la BD central. */
+    private function databaseConflict(string $dbName, ?string $host, $port, ?int $exceptId = null): ?string
+    {
+        if ($this->isCentralDatabase($dbName, $host, $port)) {
+            return "La base de datos '{$dbName}' es la base central de la plataforma; un tenant no puede usarla.";
+        }
+
+        $other = Tenant::where('db_name', $dbName)
+            ->when($exceptId, fn ($q) => $q->where('id', '!=', $exceptId))
+            ->get()
+            ->first(fn (Tenant $t) => $this->sameServer($t->db_host, $t->db_port, $host, $port));
+
+        return $other
+            ? "La base de datos '{$dbName}' ya la usa el tenant '{$other->slug}'. Compartir base de datos mezcla la configuración (prompt, documentos, usuarios) de los candidatos."
+            : null;
+    }
+
+    private function tenantsSharingDatabase(Tenant $t)
+    {
+        return Tenant::where('db_name', $t->db_name)->where('id', '!=', $t->id)->get()
+            ->filter(fn (Tenant $o) => $this->sameServer($o->db_host, $o->db_port, $t->db_host, $t->db_port));
+    }
+
+    private function isCentralDatabase(string $dbName, ?string $host, $port): bool
+    {
+        $central = config('database.connections.central');
+
+        return $dbName === ($central['database'] ?? null)
+            && $this->sameServer($central['host'] ?? null, $central['port'] ?? null, $host, $port);
+    }
+
+    // host/port vacíos = "el servidor por defecto" (mismo que el de la BD central).
+    private function sameServer(?string $hostA, $portA, ?string $hostB, $portB): bool
+    {
+        $default = config('database.connections.central');
+        $hostA = strtolower($hostA ?: (string) ($default['host'] ?? ''));
+        $hostB = strtolower($hostB ?: (string) ($default['host'] ?? ''));
+        $portA = (string) ($portA ?: ($default['port'] ?? 3306));
+        $portB = (string) ($portB ?: ($default['port'] ?? 3306));
+
+        return $hostA === $hostB && $portA === $portB;
+    }
+
+    private function aiSettingsPayload(AiSetting $setting): array
+    {
+        return array_merge($setting->toArray(), [
+            'has_own_api_key' => $setting->api_key !== null,
+            'restricted'      => false,
+        ]);
+    }
+
+    private function withTenantInfo(Tenant $tenant, array $payload): array
+    {
+        $sharing = $this->tenantsSharingDatabase($tenant)->pluck('slug')->values()->all();
+
+        return array_merge($payload, [
+            'tenant' => [
+                'id'          => $tenant->id,
+                'slug'        => $tenant->slug,
+                'name'        => $tenant->name,
+                'db'          => "{$tenant->db_name}@{$tenant->db_host}",
+                'shared_with' => $sharing,
+                'is_central'  => $this->isCentralDatabase($tenant->db_name, $tenant->db_host, $tenant->db_port),
+            ],
         ]);
     }
 

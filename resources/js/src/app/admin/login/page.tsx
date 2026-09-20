@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { Lock, Mail, AlertCircle, Loader2, Eye, EyeOff, Server } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useCandidate } from "@/context/CandidateContext";
-import { ApiError } from "@/lib/api";
+import { ApiError, resolveTenantSlug } from "@/lib/api";
 
 export default function AdminLoginPage() {
   const { login, isAuthenticated } = useAuth();
@@ -17,6 +17,9 @@ export default function AdminLoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const [loading, setLoading]   = useState(false);
+  // A qué candidato va a entrar este login (se calcula en el cliente: depende de la URL y del navegador).
+  const [target, setTarget]     = useState<string | null>(null);
+  useEffect(() => { setTarget(resolveTenantSlug() || ""); }, []);
 
   // Destino tras login: ?next= si es una ruta interna segura, si no /admin.
   function nextTarget(): string {
@@ -108,6 +111,13 @@ export default function AdminLoginPage() {
           <p className="text-sm text-gray-300 mt-2">
             {hasRealCandidate ? "Panel de administración de campaña" : "Solo para administradores autorizados"}
           </p>
+          {target !== null && (
+            <p className={`text-xs mt-2 font-mono ${target ? "text-gray-400" : "text-amber-300"}`}>
+              {target
+                ? `Entrarás al panel de: ${target}`
+                : "Sin candidato en la URL: entrarás a la base por defecto. Abre este panel desde el superadmin."}
+            </p>
+          )}
         </div>
 
         {/* Card */}
