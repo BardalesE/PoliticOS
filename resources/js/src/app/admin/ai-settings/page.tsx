@@ -231,12 +231,15 @@ export default function AiSettingsPage() {
   }
 
   const modelList = MODELS[form.provider ?? "groq"] ?? [];
+  // Admin de un candidato: el servidor solo le deja editar el botón del chat.
+  // El modelo, el prompt y las keys los configura el equipo de PoliticOS.
+  const restricted = !!form.restricted;
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-6">
       <PageHeader
         title="Configuración del chatbot"
-        subtitle="Modelo de IA, prompt y diseño del botón flotante."
+        subtitle={restricted ? "Diseño del botón flotante del chat." : "Modelo de IA, prompt y diseño del botón flotante."}
       >
         <button form="ai-form" type="submit" disabled={saving}
           className="btn-pp-primary flex items-center gap-2 disabled:opacity-60">
@@ -262,6 +265,18 @@ export default function AiSettingsPage() {
           {/* ── Columna principal ── */}
           <div className="xl:col-span-2 space-y-6">
 
+            {restricted && (
+              <div className="flex items-start gap-3 p-4 bg-brand-50 border border-brand-100 rounded-xl text-sm text-ink-700">
+                <Info size={16} className="shrink-0 mt-0.5 text-brand-500" />
+                <p>
+                  El <b>modelo de IA y el prompt</b> de tu asistente los configura el equipo de PoliticOS
+                  para tu campaña. Si necesitas ajustar cómo responde, escríbenos y lo cambiamos por ti.
+                </p>
+              </div>
+            )}
+
+            {!restricted && (
+            <>
             {/* Modo de operación */}
             <section className="bg-white rounded-xl border border-ink-200 shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-ink-100 flex items-center gap-2">
@@ -416,6 +431,8 @@ export default function AiSettingsPage() {
                 )}
               </div>
             </section>
+            </>
+            )}
 
             {/* Botón flotante */}
             <section className="bg-white rounded-xl border border-ink-200 shadow-sm overflow-hidden">
@@ -551,6 +568,8 @@ export default function AiSettingsPage() {
               </div>
             </section>
 
+            {!restricted && (
+            <>
             {/* Estado del proveedor */}
             <section className="bg-white rounded-xl border border-ink-200 shadow-sm overflow-hidden">
               <div className="px-5 py-3.5 border-b border-ink-100 flex items-center justify-between">
@@ -626,8 +645,11 @@ export default function AiSettingsPage() {
                 )}
               </div>
             </section>
+            </>
+            )}
 
             {/* Config summary */}
+            {!restricted && (
             <section className="bg-ink-50 rounded-xl border border-ink-200 p-5 space-y-3">
               <p className="text-xs font-extrabold text-ink-500 uppercase tracking-wider">Resumen IA</p>
               <dl className="space-y-2 text-sm">
@@ -646,6 +668,7 @@ export default function AiSettingsPage() {
                 ))}
               </dl>
             </section>
+            )}
 
           </div>
         </div>

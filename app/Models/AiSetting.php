@@ -14,6 +14,15 @@ class AiSetting extends Model
         'pepa'     => 'pepa_prompt.txt',
     ];
 
+    // Campos que puede editar el admin de un candidato (apariencia del botón
+    // del chat). Todo lo demás (proveedor, modelo, API key, prompt, modo) es
+    // configuración de PLATAFORMA: solo el superadmin la toca, por tenant y con
+    // el tenant explícito en la URL (ver SuperAdminController::updateTenantAiSettings).
+    public const TENANT_EDITABLE = [
+        'chat_subtitle', 'chat_btn_text', 'chat_btn_image_url',
+        'chat_btn_shape', 'chat_btn_color', 'chat_btn_size', 'chat_btn_position',
+    ];
+
     protected $fillable = [
         'provider', 'api_key', 'model', 'max_tokens', 'temperature',
         'fallback_provider', 'system_prompt', 'system_prompt_customizado', 'mode',
@@ -65,5 +74,32 @@ class AiSetting extends Model
         $path = base_path("resources/prompts/{$file}");
 
         return file_exists($path) ? (file_get_contents($path) ?: '') : '';
+    }
+
+    /**
+     * Aplica una edición validada de la configuración de IA. Única fuente de la
+     * regla de acoplamiento mode -> system_prompt, compartida por el admin del
+     * tenant (solo campos TENANT_EDITABLE) y el superadmin (todos los campos):
+     * - Si cambia `mode` y el prompt sigue siendo el de fábrica (no
+     *   personalizado), resincroniza system_prompt con el default del modo
+     *   nuevo. Tiene prioridad sobre una edición manual simultánea.
+     * - Si no cambia el modo pero el prompt sí (edición manual directa), marca
+     *   system_prompt_customizado = true para que un futuro cambio de modo ya no
+     *   lo pise.
+     */
+    public function applyAdminUpdate(array $data): self
+    {
+        $modeChanged   = array_key_exists('mode', $data) && $data['mode'] !== $this->mode;
+        $promptChanged = array_key_exists('system_prompt', $data) && $data['system_prompt'] !== $this->system_prompt;
+
+        if ($modeChanged && !$this->system_prompt_customizado) {
+            $data['system_prompt'] = self::defaultPromptForMode($data['mode']);
+        } elseif ($promptChanged) {
+            $data['system_prompt_customizado'] = true;
+        }
+
+        $this->update($data);
+
+        return $this;
     }
 }

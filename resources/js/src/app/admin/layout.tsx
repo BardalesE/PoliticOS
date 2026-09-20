@@ -8,7 +8,7 @@ import { PlanProvider } from "@/context/PlanContext";
 import { AdminSidebar } from "@/components/admin/Sidebar";
 
 function AdminGuard({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const { profile } = useCandidate();
   const router   = useRouter();
   const pathname = usePathname();
@@ -96,6 +96,17 @@ function AdminGuard({ children }: { children: React.ReactNode }) {
             </span>
           </div>
         </div>
+
+        {/* A qué candidato está conectada esta sesión (dato del servidor): evita
+            editar el prompt/documentos de otro candidato sin darse cuenta. */}
+        {user?.tenant && (
+          <div className="flex items-center gap-2 px-4 py-1.5 bg-ink-950 text-[11px] text-gray-300 border-b border-white/10">
+            <span className="h-1.5 w-1.5 rounded-full bg-green-400" aria-hidden />
+            <span>Administrando:</span>
+            <b className="text-white">{user.tenant.name}</b>
+            <code className="text-gray-400">{user.tenant.slug}</code>
+          </div>
+        )}
 
         <main className="flex-1 overflow-auto">
           {children}

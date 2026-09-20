@@ -369,6 +369,10 @@ Route::middleware(['throttle:30,1,superadmin', \App\Http\Middleware\EnsureSuperA
         Route::put   ('/tenants/{id}/plan',           [PlanController::class, 'updateTenantPlan']);
         Route::get   ('/tenants/{id}/credentials',    [SuperAdminController::class, 'getCredentials']);
         Route::post  ('/tenants/{id}/reset-password', [SuperAdminController::class, 'resetPassword']);
+        // IA por tenant (prompt, modelo, keys) — solo el superadmin, con el tenant en la URL.
+        Route::get   ('/tenants/{id}/ai-settings',    [SuperAdminController::class, 'tenantAiSettings']);
+        Route::put   ('/tenants/{id}/ai-settings',    [SuperAdminController::class, 'updateTenantAiSettings']);
+        Route::get   ('/tenants-audit',               [SuperAdminController::class, 'auditTenants']);
     });
 
 // ─── Cron externo (sin tenant) ──────────────────────────────────────────

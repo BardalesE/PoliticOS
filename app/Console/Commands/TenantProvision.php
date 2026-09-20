@@ -74,6 +74,20 @@ class TenantProvision extends Command
             return 1;
         }
 
+        // Un tenant = una base de datos propia. Reusar la de otro (o la central)
+        // mezclaría prompts, documentos y usuarios de candidatos distintos.
+        $centralDb = config('database.connections.central.database');
+        if ($dbName === $centralDb && strtolower((string) $dbHost) === strtolower((string) config('database.connections.central.host'))) {
+            $this->error("'{$dbName}' es la base central de la plataforma; usa otro nombre (p. ej. bdpolitic_{$slug}).");
+            return 1;
+        }
+        $sharing = Tenant::where('db_name', $dbName)->get()
+            ->first(fn (Tenant $t) => strtolower((string) $t->db_host) === strtolower((string) $dbHost));
+        if ($sharing) {
+            $this->error("La base de datos '{$dbName}' ya la usa el tenant '{$sharing->slug}'. Elige otro nombre.");
+            return 1;
+        }
+
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $this->error("El email '{$email}' no es válido.");
             return 1;

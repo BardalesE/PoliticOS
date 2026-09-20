@@ -33,6 +33,31 @@ export function resolveTenantSlug(): string {
       }
     }
 
+    // Panel admin (/admin/*): la sesión pertenece a UN candidato y su slug
+    // (admin_tenant_slug, el que devolvió el login) manda sobre cualquier slug
+    // "ciudadano" que el navegador recuerde de haber visitado otras páginas
+    // públicas. Antes el slug ciudadano iba primero: entrar al panel de B con un
+    // ?tenant=A recordado abría la sesión (y guardaba el prompt) en A.
+    const path = window.location.pathname;
+    if (path.startsWith("/admin")) {
+      const urlTenant = new URLSearchParams(window.location.search).get("tenant");
+      try {
+        const own = localStorage.getItem("admin_tenant_slug");
+        if (urlTenant) {
+          if (own && own !== urlTenant) {
+            // Cambio explícito de candidato: la sesión anterior era de otro.
+            localStorage.removeItem("admin_token");
+            localStorage.removeItem("admin_user");
+          }
+          localStorage.setItem("admin_tenant_slug", urlTenant);
+          return urlTenant;
+        }
+        return own || "";
+      } catch {
+        return urlTenant || "";
+      }
+    }
+
     // 3. ?tenant= en la URL — persiste automáticamente en localStorage
     const urlSlug = new URLSearchParams(window.location.search).get("tenant");
     if (urlSlug) {
@@ -57,9 +82,8 @@ export function resolveTenantSlug(): string {
     //    hablan a la BD por defecto y responden "asistente no configurado".
     //    Solo en páginas públicas: en /admin un slug perdido debe fallar, no
     //    caer silenciosamente en el tenant del directorio.
-    const path = window.location.pathname;
     const directory = process.env.NEXT_PUBLIC_DIRECTORY_TENANT;
-    if (directory && !path.startsWith("/admin") && !path.startsWith("/superadmin")) {
+    if (directory && !path.startsWith("/superadmin")) {
       return directory;
     }
   }
@@ -232,6 +256,8 @@ export type AdminUser = {
   email: string;
   role: "admin" | "editor";
   created_at?: string;
+  /** Candidato (tenant) al que está conectada ESTA sesión según el servidor; null = single-tenant. */
+  tenant?: { slug: string; name: string } | null;
 };
 
 export type ChatSession = {
@@ -305,7 +331,7 @@ export type PlanFeatureSet = {
 export const adminApi = {
   auth: {
     login: (email: string, password: string) =>
-      request<{ token: string; user: AdminUser; tenant_slug?: string }>("/auth/login", {
+      request<{ token: string; user: AdminUser; tenant_slug?: string | null; tenant_name?: string | null }>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       }),
@@ -752,6 +778,21 @@ export type AiSetting = {
   chat_btn_color:    string | null;
   chat_btn_size:     "sm" | "md" | "lg";
   chat_btn_position: "bottom-right" | "bottom-left";
+  /** true = admin de un candidato: solo puede editar el botón del chat. */
+  restricted?: boolean;
+  has_own_api_key?: boolean;
+  /** Solo en las respuestas del superadmin: qué tenant se está editando y con quién comparte BD. */
+  tenant?: { id: number; slug: string; name: string; db: string; shared_with: string[]; is_central: boolean };
+};
+
+export type TenantAudit = {
+  central_db: string;
+  problems: string[];
+  tenants: {
+    id: number; slug: string; is_active: boolean; db: string; is_central: boolean;
+    shared_with: string[];
+    ai: { mode: string; customized: boolean; prompt_chars: number; prompt_hash: string } | null;
+  }[];
 };
 
 export type Tenant = {
@@ -1043,6 +1084,14 @@ export const superadminApi = {
       saRequest<TenantCredentials>(
         `/superadmin/tenants/${id}/credentials`, saKey
       ),
+    getAiSettings: (saKey: string, id: number) =>
+      saRequest<AiSetting>(`/superadmin/tenants/${id}/ai-settings`, saKey),
+    updateAiSettings: (saKey: string, id: number, data: Partial<AiSetting> & { api_key?: string | null }) =>
+      saRequest<AiSetting>(`/superadmin/tenants/${id}/ai-settings`, saKey, {
+        method: "PUT", body: JSON.stringify(data),
+      }),
+    audit: (saKey: string) =>
+      saRequest<TenantAudit>("/superadmin/tenants-audit", saKey),
     resetPassword: (saKey: string, id: number) =>
       saRequest<{ admin_email: string; admin_password: string; reset_at: string }>(
         `/superadmin/tenants/${id}/reset-password`, saKey, { method: "POST" }
