@@ -167,6 +167,8 @@ class AiSettingController extends Controller
             'mode'               => ['sometimes', 'in:campaign,pepa'],
             // Solo lo puede fijar el superadmin (el admin del candidato no llega: ver TENANT_EDITABLE).
             'max_messages_per_session' => ['sometimes', 'integer', 'between:'.AiSetting::MESSAGE_LIMIT_MIN.','.AiSetting::MESSAGE_LIMIT_MAX],
+            // Mini encuesta "¿apoyas a este candidato?" del chat. También solo superadmin.
+            'support_poll_enabled' => ['sometimes', 'boolean'],
             'chat_subtitle'      => ['nullable', 'string', 'max:100'],
             'chat_btn_text'      => ['nullable', 'string', 'max:100'],
             'chat_btn_image_url' => ['nullable', 'string', 'max:500'],

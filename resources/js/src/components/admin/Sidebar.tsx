@@ -76,6 +76,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/admin/citizens", label: "Ciudadanos registrados", icon: UserCheck, badge: "NEW" },
       { href: "/admin/surveys",  label: "Encuestas de campaña",   icon: ClipboardList, badge: "NEW", feature: "surveys" },
+      { href: "/admin/segmentacion", label: "Zonas y apoyo del chat", icon: MapPin, badge: "NEW" },
     ],
   },
   {

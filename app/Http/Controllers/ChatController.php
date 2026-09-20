@@ -463,6 +463,7 @@ class ChatController extends Controller
             : null;
 
         $this->ai->scopeToCandidate($candidate);
+        \App\Models\ChatMessage::$scopedCandidateId = $candidate?->id;
     }
 
     private function isResetKeyword(string $message): bool
