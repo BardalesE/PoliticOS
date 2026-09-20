@@ -31,6 +31,8 @@ use App\Http\Controllers\IngestEntityController;
 use App\Http\Controllers\LiveStreamController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\SurveyController;
+use App\Http\Controllers\SegmentacionController;
+use App\Http\Controllers\SegmentacionAdminController;
 use App\Http\Controllers\SystemController;
 use App\Http\Controllers\SiteVisitController;
 use App\Http\Controllers\DirectorioController;
@@ -65,6 +67,16 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
         Route::get('/quota/{id}',    [ChatController::class, 'quotaStatus']);
         Route::post('/consent',      [ChatController::class, 'consent']);
         Route::post('/location',     [ChatController::class, 'saveLocation']);
+    });
+
+    // ─── Segmentador por zona + mini encuesta de apoyo (público, anónimo) ─
+    Route::prefix('segmentacion')->middleware([
+        'throttle:60,1,segmentacion',
+        \App\Http\Middleware\CaptureRequestContext::class,
+    ])->group(function () {
+        Route::get ('/zona',  [SegmentacionController::class, 'show']);
+        Route::put ('/zona',  [SegmentacionController::class, 'update']);
+        Route::post('/apoyo', [SegmentacionController::class, 'apoyo'])->middleware('throttle:20,1,segmentacion-apoyo');
     });
 
     // ─── Registro ciudadano (público) ────────────────────────────────
@@ -259,6 +271,9 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
         // Chat sessions (solo lectura)
         Route::get('/chat-sessions',      [AdminController::class, 'listSessions']);
         Route::get('/chat-sessions/{id}', [AdminController::class, 'showSession']);
+
+        // Dashboard de segmentación por zona + apoyo (agregado, solo lectura)
+        Route::get('/segmentacion/resumen', [SegmentacionAdminController::class, 'resumen']);
 
         // Galería
         Route::get   ('/gallery',      [GalleryController::class, 'adminIndex']);

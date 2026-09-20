@@ -63,6 +63,7 @@ export default function TenantAiModal({
         max_tokens: Number(form.max_tokens), temperature: Number(form.temperature),
         mode: form.mode, system_prompt: form.system_prompt ?? "",
         max_messages_per_session: Math.min(50, Math.max(10, Number(form.max_messages_per_session) || 20)),
+        support_poll_enabled: !!form.support_poll_enabled,
       };
       if (clearKey) payload.api_key = "";
       else if (newKey.trim()) payload.api_key = newKey.trim();
@@ -187,6 +188,19 @@ export default function TenantAiModal({
                   oficina o equipo compartiendo internet no se bloquee entre sí.
                 </p>
               </div>
+
+              <label className="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 cursor-pointer">
+                <input type="checkbox" className="mt-0.5 h-4 w-4 accent-trust-700"
+                  checked={!!form.support_poll_enabled}
+                  onChange={(e) => set("support_poll_enabled", e.target.checked)} />
+                <span>
+                  <span className="block text-xs font-semibold text-gray-700">Mini encuesta «¿Apoyas a este candidato? Sí / No»</span>
+                  <span className="block text-[11px] text-gray-500 mt-0.5 leading-relaxed">
+                    Aparece en el chat al elegir un candidato. Un voto anónimo por visitante. Los resultados solo se
+                    ven en el panel (Segmentación), nunca públicos: no es una encuesta científica.
+                  </span>
+                </span>
+              </label>
 
               <div>
                 <p className="text-xs font-semibold text-gray-600 mb-1">

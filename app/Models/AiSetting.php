@@ -54,7 +54,7 @@ class AiSetting extends Model
         'fallback_provider', 'system_prompt', 'system_prompt_customizado', 'mode',
         'chat_subtitle', 'chat_btn_text', 'chat_btn_image_url',
         'chat_btn_shape', 'chat_btn_color', 'chat_btn_size', 'chat_btn_position',
-        'attack_spike_threshold', 'max_messages_per_session',
+        'attack_spike_threshold', 'max_messages_per_session', 'support_poll_enabled',
     ];
 
     // api_key nunca sale de la BD en texto plano — Laravel cifra/descifra
@@ -68,6 +68,7 @@ class AiSetting extends Model
         'api_key'                   => 'encrypted',
         'attack_spike_threshold'    => 'integer',
         'max_messages_per_session'  => 'integer',
+        'support_poll_enabled'      => 'boolean',
         'system_prompt_customizado' => 'boolean',
     ];
 

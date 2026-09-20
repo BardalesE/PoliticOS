@@ -769,6 +769,8 @@ export type AiSetting = {
   max_tokens: number;
   /** Mensajes por conversación (10–50). Solo lo edita el superadmin. */
   max_messages_per_session?: number;
+  /** Mini encuesta "¿apoyas a este candidato?" del chat. Solo superadmin. */
+  support_poll_enabled?: boolean;
   temperature: number;
   fallback_provider: "groq" | "claude" | "openai" | null;
   system_prompt: string;
@@ -998,6 +1000,51 @@ export const surveysApi = {
     request<SurveyDashboard>(
       `/admin/surveys/dashboard${journeyId ? `?journey_id=${journeyId}` : ""}`, {}, token, 0
     ),
+};
+
+// ─── Dashboard de segmentación (zona + apoyo) ───────────────────────────
+
+export type SegmentacionNivel = "departamento" | "provincia" | "distrito";
+
+export interface SegmentacionZona {
+  id: number;
+  place: string;
+  visitantes: number;
+  si: number;
+  no: number;
+  indeciso: number;
+  total: number;
+}
+
+export interface SegmentacionCandidato {
+  id: number;
+  name: string;
+  party: string | null;
+  consultas: number;
+  si: number;
+  no: number;
+  pct_si: number | null;
+}
+
+export interface SegmentacionResumen {
+  aviso: string;
+  poll_enabled: boolean;
+  kpis: { visitantes_con_zona: number; consultas: number; votos: number; apoyo_si: number; apoyo_no: number };
+  serie: { dia: string; visitantes: number }[];
+  nivel: SegmentacionNivel;
+  zonas: SegmentacionZona[];
+  candidatos: SegmentacionCandidato[];
+}
+
+export const segmentacionApi = {
+  resumen: (token: string, p: { nivel?: SegmentacionNivel; parent_id?: number; candidate_id?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (p.nivel) qs.set("nivel", p.nivel);
+    if (p.parent_id) qs.set("parent_id", String(p.parent_id));
+    if (p.candidate_id) qs.set("candidate_id", String(p.candidate_id));
+    const q = qs.toString();
+    return request<SegmentacionResumen>(`/admin/segmentacion/resumen${q ? `?${q}` : ""}`, {}, token, 0);
+  },
 };
 
 // ─── API pública del candidato ─────────────────────────────────────────

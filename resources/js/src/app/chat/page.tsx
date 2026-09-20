@@ -11,6 +11,9 @@ import { LiveAlert } from "@/components/live/LiveAlert";
 import { useCandidate } from "@/context/CandidateContext";
 import { resolveTenantSlug, normalizeApiBase, tenantHeaders } from "@/lib/api";
 import { tenantStorageKey } from "@/lib/utils";
+import { getVisitorId, getZona, setZona as saveZona, votarApoyo, type SegmentacionEstado, type ZonaInfo } from "@/lib/segmentacion";
+import type { Ubicaciones } from "@/lib/directorio";
+import { SupportPoll, ZoneBadge, ZonePicker } from "@/components/chat/ZonaYApoyo";
 import { TenantLink } from "@/components/ui/TenantLink";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -27,6 +30,7 @@ interface ChatCandidate {
   slug: string;
   name: string;
   party?: string | null;
+  distrito?: { id: number } | null;
 }
 
 interface QuickReply {
@@ -242,25 +246,6 @@ function ThinkingAnimation() {
 function getYoutubeId(url: string): string | null {
   const m = url.match(/(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/);
   return m ? m[1] : null;
-}
-
-/** UUID estable del navegador: identifica al visitante para el tope diario y para ligar su registro. */
-function getVisitorId(): string {
-  const KEY = "politicos_visitor_uuid";
-  try {
-    const saved = localStorage.getItem(KEY);
-    if (saved && /^[0-9a-f-]{36}$/i.test(saved)) return saved;
-    const id = typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
-          const r = (Math.random() * 16) | 0;
-          return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
-        });
-    localStorage.setItem(KEY, id);
-    return id;
-  } catch {
-    return "";
-  }
 }
 
 function getCookieValue(name: string): string | null {
@@ -711,6 +696,19 @@ export default function ChatPage() {
   const [candidates, setCandidates] = useState<ChatCandidate[]>([]);
   const [candidateSlug, setCandidateSlug] = useState<string | null>(null);
 
+  // Segmentador por zona: con 2+ candidatos publicados el ciudadano elige su
+  // distrito y el chat le ofrece los 5 más cercanos (distrito → provincia → depto).
+  const [ubicaciones, setUbicaciones] = useState<Ubicaciones | null>(null);
+  const [zona, setZona]               = useState<ZonaInfo | null>(null);
+  const [zoneBusy, setZoneBusy]       = useState(false);
+  const [changingZone, setChangingZone] = useState(false);
+  const zoneMode = !!ubicaciones;
+
+  // Mini encuesta "¿apoyas a este candidato?" (la habilita el superadmin por tenant).
+  const [pollEnabled, setPollEnabled] = useState(false);
+  const [votes, setVotes]             = useState<Record<string, boolean>>({});
+  const [voteBusy, setVoteBusy]       = useState(false);
+
   // Cita abierta (mensaje + etiqueta), para mostrar el texto del documento.
   const [openCite, setOpenCite] = useState<{ msgId: string; id: string } | null>(null);
   const toggleCite = (msgId: string, id: string) =>
@@ -784,18 +782,25 @@ export default function ChatPage() {
 
   // ── Init ────────────────────────────────────────────────────────────────────
   // ── Candidatos disponibles para acotar el chat ───────────────────────────────
+  const applyEstado = (est: SegmentacionEstado, wanted: string | null) => {
+    setZona(est.zona);
+    setCandidates(est.candidatos.map((c) => ({ slug: c.slug, name: c.name, party: c.party })));
+    setPollEnabled(est.poll_enabled);
+    setVotes(est.votos ?? {});
+    if (wanted && est.candidatos.some((c) => c.slug === wanted)) setCandidateSlug(wanted);
+    else setCandidateSlug((cur) => (cur && est.candidatos.some((c) => c.slug === cur) ? cur : null));
+  };
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const r = await fetch(`${API}/directorio/candidatos`, {
-          headers: { Accept: "application/json", ...tenantHeaders() },
-        });
+        const headers = { Accept: "application/json", ...tenantHeaders() };
+        const r = await fetch(`${API}/directorio/candidatos`, { headers });
         if (!r.ok) return;
         const json = (await r.json()) as { data?: ChatCandidate[] };
         const list = (json.data ?? []).filter((c) => c.slug && c.name);
         if (cancelled) return;
-        setCandidates(list);
 
         // ?candidato=slug (desde la ficha) manda sobre lo último que eligió el ciudadano.
         let wanted: string | null = null;
@@ -803,13 +808,52 @@ export default function ChatPage() {
           wanted = new URLSearchParams(window.location.search).get("candidato")
             || localStorage.getItem(tenantStorageKey(LS_CANDIDATE));
         } catch {}
+
+        // ¿Hay varios candidatos? Entonces se segmenta por zona; con uno solo, chips directos.
+        let ubi: Ubicaciones | null = null;
+        if (list.length >= 2) {
+          const u = await fetch(`${API}/directorio/ubicaciones`, { headers }).catch(() => null);
+          if (u?.ok) ubi = (await u.json()) as Ubicaciones;
+        }
+        let est = ubi ? await getZona() : null;
+
+        if (ubi && est) {
+          // Llegó desde la ficha de un candidato y aún no dijo dónde vota: usar su distrito.
+          const deep = wanted ? list.find((c) => c.slug === wanted) : undefined;
+          if (!est.zona && deep?.distrito?.id) est = (await saveZona(deep.distrito.id)) ?? est;
+          if (cancelled) return;
+          setUbicaciones(ubi);
+          applyEstado(est, wanted);
+          return;
+        }
+
+        // Sin segmentación (un solo candidato o API de zona caída): comportamiento de siempre.
+        setCandidates(list);
         if (wanted && list.some((c) => c.slug === wanted)) setCandidateSlug(wanted);
       } catch {
         /* sin chips: el chat sigue consultando sobre todos */
       }
     })();
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const pickZone = async (distritoId: number) => {
+    setZoneBusy(true);
+    const est = await saveZona(distritoId);
+    setZoneBusy(false);
+    if (!est) return;
+    setChangingZone(false);
+    applyEstado(est, null);
+  };
+
+  const vote = async (supports: boolean) => {
+    if (!candidateSlug || voteBusy) return;
+    setVoteBusy(true);
+    const nuevos = await votarApoyo(candidateSlug, supports);
+    setVoteBusy(false);
+    if (nuevos) setVotes(nuevos);
+  };
 
   const chooseCandidate = (slug: string | null) => {
     setCandidateSlug(slug);
@@ -1430,8 +1474,17 @@ export default function ChatPage() {
           </div>
           <TenantLink href="/" className="text-sm text-gray-500 hover:text-brand-600 transition-colors shrink-0">Inicio</TenantLink>
         </div>
-        {candidates.length > 0 && (
+        {zoneMode && (!zona || changingZone) && ubicaciones && (
+          <ZonePicker
+            ubicaciones={ubicaciones}
+            busy={zoneBusy}
+            onPick={pickZone}
+            onCancel={zona ? () => setChangingZone(false) : undefined}
+          />
+        )}
+        {!(zoneMode && (!zona || changingZone)) && (candidates.length > 0 || (zoneMode && !!zona)) && (
           <div className="max-w-3xl mx-auto mt-2.5">
+            {zoneMode && zona && <ZoneBadge zona={zona} onChange={() => setChangingZone(true)} />}
             <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1.5">
               Consultar sobre
             </p>
@@ -1470,6 +1523,14 @@ export default function ChatPage() {
                 Las respuestas usan solo los documentos de{" "}
                 <span className="font-semibold">{candidates.find((c) => c.slug === candidateSlug)?.name}</span>.
               </p>
+            )}
+            {pollEnabled && candidateSlug && (
+              <SupportPoll
+                name={candidates.find((c) => c.slug === candidateSlug)?.name ?? ""}
+                vote={votes[candidateSlug]}
+                busy={voteBusy}
+                onVote={vote}
+              />
             )}
           </div>
         )}
