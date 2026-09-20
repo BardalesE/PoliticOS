@@ -46,6 +46,19 @@ interface Citation {
   url: string | null;
 }
 
+/** Tope de mensajes de la conversación (lo calcula y aplica el servidor). */
+interface Quota {
+  base: number;                 // mensajes por bloque (10–50, lo fija la plataforma)
+  max: number;                  // tope de esta conversación (base, o 2×base si ya dejó sus datos)
+  used: number;
+  remaining: number;
+  registered: boolean;
+  blocked: "session" | "daily" | "network" | null;
+  can_unlock: boolean;          // puede dejar sus datos para ganar `base` mensajes más
+  can_new_session: boolean;     // aún le queda margen diario para otra conversación
+  resets_at: string | null;
+}
+
 interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -229,6 +242,25 @@ function ThinkingAnimation() {
 function getYoutubeId(url: string): string | null {
   const m = url.match(/(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?/\s]{11})/);
   return m ? m[1] : null;
+}
+
+/** UUID estable del navegador: identifica al visitante para el tope diario y para ligar su registro. */
+function getVisitorId(): string {
+  const KEY = "politicos_visitor_uuid";
+  try {
+    const saved = localStorage.getItem(KEY);
+    if (saved && /^[0-9a-f-]{36}$/i.test(saved)) return saved;
+    const id = typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+        });
+    localStorage.setItem(KEY, id);
+    return id;
+  } catch {
+    return "";
+  }
 }
 
 function getCookieValue(name: string): string | null {
@@ -559,6 +591,101 @@ function BlockedBanner() {
   );
 }
 
+// ─── Mensajes agotados ────────────────────────────────────────────────────────
+
+/**
+ * Reemplaza al cuadro de texto cuando el servidor cortó la conversación. Ofrece
+ * (1) dejar los datos para ganar otro bloque de mensajes y (2) empezar una
+ * conversación nueva; la nueva cuenta contra el tope diario, no reinicia nada.
+ */
+function QuotaWall({
+  quota, busy, error, onUnlock, onNewChat,
+}: {
+  quota: Quota;
+  busy: boolean;
+  error: string | null;
+  onUnlock: (f: { name: string; phone: string; email: string }) => void;
+  onNewChat: () => void;
+}) {
+  const [name, setName]       = useState("");
+  const [phone, setPhone]     = useState("");
+  const [email, setEmail]     = useState("");
+  const [agree, setAgree]     = useState(false);
+  const [showForm, setShowForm] = useState(false);
+
+  const resets = quota.resets_at
+    ? new Date(quota.resets_at).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })
+    : null;
+  const canSubmit = name.trim().length > 1 && (phone.trim().length >= 6 || email.includes("@")) && agree && !busy;
+
+  return (
+    <div className="max-w-3xl mx-auto rounded-2xl border border-chat-400 bg-chat-50 p-4">
+      <p className="text-sm font-bold text-gray-800">⏳ Mensajes agotados</p>
+
+      {quota.blocked === "session" && (
+        <p className="text-xs text-gray-600 mt-1">
+          Usaste los {quota.max} mensajes de esta conversación.
+          {quota.can_unlock ? ` Deja tus datos y te damos ${quota.base} mensajes más.` : ""}
+        </p>
+      )}
+      {quota.blocked === "daily" && (
+        <p className="text-xs text-gray-600 mt-1">
+          Alcanzaste el límite diario de mensajes.{resets ? ` Podrás seguir hoy a las ${resets}.` : " Vuelve mañana."}
+        </p>
+      )}
+      {quota.blocked === "network" && (
+        <p className="text-xs text-gray-600 mt-1">
+          Se alcanzó el límite de mensajes desde tu red por hoy.{resets ? ` Se libera a las ${resets}.` : " Intenta más tarde."}
+        </p>
+      )}
+
+      {quota.can_unlock && !showForm && (
+        <button
+          onClick={() => setShowForm(true)}
+          className="mt-3 w-full bg-chat-500 text-white text-sm font-medium py-2.5 rounded-full hover:bg-chat-600 transition"
+        >
+          Dejar mis datos y conseguir {quota.base} mensajes más
+        </button>
+      )}
+
+      {quota.can_unlock && showForm && (
+        <form
+          className="mt-3 space-y-2"
+          onSubmit={(e) => { e.preventDefault(); if (canSubmit) onUnlock({ name: name.trim(), phone: phone.trim(), email: email.trim() }); }}
+        >
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre"
+            autoComplete="name" required
+            className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-chat-500" />
+          <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Tu WhatsApp"
+            inputMode="tel" autoComplete="tel"
+            className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-chat-500" />
+          <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Tu correo (opcional si diste WhatsApp)"
+            type="email" autoComplete="email"
+            className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-chat-500" />
+          <label className="flex items-start gap-2 text-[11px] text-gray-500">
+            <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5" />
+            Acepto que usen mis datos para contactarme y mejorar las propuestas para mi zona.
+          </label>
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <button type="submit" disabled={!canSubmit}
+            className="w-full bg-chat-500 text-white text-sm font-medium py-2.5 rounded-full hover:bg-chat-600 disabled:opacity-40 transition">
+            {busy ? "Guardando…" : `Desbloquear ${quota.base} mensajes`}
+          </button>
+        </form>
+      )}
+
+      {quota.can_new_session && (
+        <button
+          onClick={onNewChat}
+          className="mt-2 w-full border border-gray-300 text-gray-600 text-sm font-medium py-2.5 rounded-full hover:bg-white transition"
+        >
+          Iniciar nueva conversación
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function ChatPage() {
@@ -574,6 +701,11 @@ export default function ChatPage() {
   const [showNonsense, setShowNonsense] = useState(false);
   const [blocked, setBlocked]    = useState(false);
   const [assistantMode, setAssistantMode] = useState<string | null>(null);
+
+  // Tope de mensajes: lo decide el servidor y llega en cada respuesta.
+  const [quota, setQuota]           = useState<Quota | null>(null);
+  const [unlockBusy, setUnlockBusy] = useState(false);
+  const [unlockError, setUnlockError] = useState<string | null>(null);
 
   // Chips de candidatos: acotan el RAG a los documentos del candidato elegido.
   const [candidates, setCandidates] = useState<ChatCandidate[]>([]);
@@ -890,11 +1022,68 @@ export default function ChatPage() {
     localStorage.removeItem(tenantStorageKey(LS_SESSION));
     localStorage.removeItem(tenantStorageKey(LS_REG_DONE));
     setSessionId(null);
+    setQuota(null);
+    setUnlockError(null);
     setWelcomeBack(null);
     setRegPhase(null);
     setChatInitialized(false);
     setMessages([]);
     autoStartRegistrationFlow();
+  }
+
+  // ── Tope de mensajes: consultar y desbloquear ───────────────────────────────
+
+  async function refreshQuota(id: string | null = sessionId): Promise<Quota | null> {
+    if (!id) return null;
+    try {
+      const r = await fetch(`${API}/chat/quota/${encodeURIComponent(id)}`, { headers: { ...tenantHeaders() } });
+      if (!r.ok) return null;
+      const q: Quota | null = (await r.json()).quota ?? null;
+      setQuota(q);
+      return q;
+    } catch {
+      return null;
+    }
+  }
+
+  // Al volver a una conversación guardada, saber de entrada si ya está agotada.
+  useEffect(() => {
+    if (sessionId && !quota) refreshQuota(sessionId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
+
+  async function unlockWithData(f: { name: string; phone: string; email: string }) {
+    setUnlockBusy(true);
+    setUnlockError(null);
+    try {
+      const r = await fetch(`${API}/citizen/register`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", ...tenantHeaders() },
+        body: JSON.stringify({
+          name:           f.name,
+          phone_whatsapp: f.phone || null,
+          email:          f.email || null,
+          visitor_uuid:   getVisitorId(),
+          source:         "chat",
+          consent:        true,
+        }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        setUnlockError(err.message ?? "No pudimos guardar tus datos. Revisa el WhatsApp o correo e intenta de nuevo.");
+        return;
+      }
+      // El servidor decide si el registro desbloquea (queda ligado a este navegador).
+      const q = await refreshQuota();
+      if (q?.blocked === "session" && q.can_unlock) {
+        setUnlockError("Ese contacto ya estaba registrado desde otro dispositivo. Inicia una conversación nueva para seguir.");
+      }
+    } catch {
+      setUnlockError("No pudimos conectar. Intenta de nuevo en un momento.");
+    } finally {
+      setUnlockBusy(false);
+    }
   }
 
   // ── Paso 3-5: motor de registro conversacional ────────────────────────────────
@@ -965,7 +1154,7 @@ export default function ChatPage() {
               dni:             regData.dni,
               phone_whatsapp:  regData.phone,
               email:           email || null,
-              visitor_uuid:    getCookieValue("politicos_visitor_id"),
+              visitor_uuid:    getVisitorId(),
               source:          "chat",
               consent:         true,
               ...(geoLocation ? { lat: geoLocation.lat, lng: geoLocation.lng, accuracy: geoLocation.accuracy } : {}),
@@ -1022,6 +1211,7 @@ export default function ChatPage() {
     session_id:  sessionId,
     consent:     consent ?? false,
     initialized: chatInitialized,
+    visitor_id:  getVisitorId(),
     ...(candidateSlug ? { candidate_slug: candidateSlug } : {}),
     ...(geoLocation ? { lat: geoLocation.lat, lng: geoLocation.lng, accuracy: geoLocation.accuracy } : {}),
   });
@@ -1085,6 +1275,7 @@ export default function ChatPage() {
                 );
               }
               if (payload.mode) setAssistantMode(payload.mode);
+              if (payload.quota) setQuota(payload.quota);
               if (payload.pepa?.fuentes_citadas?.length) {
                 setMessages((m) =>
                   m.map((x) => (x.id === aiId ? { ...x, sources: payload.pepa.fuentes_citadas } : x))
@@ -1128,6 +1319,7 @@ export default function ChatPage() {
         )
       );
       if (data.mode) setAssistantMode(data.mode);
+      if (data.quota) setQuota(data.quota);
       setBlocked(data.blocked ?? false);
       if (data.nonsense || data.attackDetected) setShowNonsense(true);
       return true;
@@ -1553,6 +1745,16 @@ export default function ChatPage() {
 
           {/* Composer */}
           <footer className="sticky bottom-0 bg-white border-t border-gray-200 px-4 py-3">
+            {quota?.blocked && (
+              <QuotaWall
+                quota={quota}
+                busy={unlockBusy}
+                error={unlockError}
+                onUnlock={unlockWithData}
+                onNewChat={handleNewChat}
+              />
+            )}
+            {!quota?.blocked && (<>
             <div className="max-w-3xl mx-auto flex gap-2">
               <input
                 type="text"
@@ -1593,6 +1795,11 @@ export default function ChatPage() {
                 )}
               </button>
             </div>
+            {quota && quota.remaining <= 5 && (
+              <p className="text-[11px] text-gray-400 text-right max-w-3xl mx-auto mt-1">
+                Te quedan {quota.remaining} {quota.remaining === 1 ? "mensaje" : "mensajes"}
+              </p>
+            )}
             {listening && (
               <p className="text-[11px] text-red-500 text-center mt-1.5 flex items-center justify-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
@@ -1603,6 +1810,7 @@ export default function ChatPage() {
               IA basada en información pública. Verifica decisiones electorales en{" "}
               <a className="underline" href="https://infogob.jne.gob.pe" target="_blank" rel="noopener noreferrer">infogob.jne.gob.pe</a>
             </p>
+            </>)}
           </footer>
         </>
       )}

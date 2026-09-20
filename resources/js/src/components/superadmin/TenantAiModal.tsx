@@ -62,6 +62,7 @@ export default function TenantAiModal({
         fallback_provider: form.fallback_provider ?? null,
         max_tokens: Number(form.max_tokens), temperature: Number(form.temperature),
         mode: form.mode, system_prompt: form.system_prompt ?? "",
+        max_messages_per_session: Math.min(50, Math.max(10, Number(form.max_messages_per_session) || 20)),
       };
       if (clearKey) payload.api_key = "";
       else if (newKey.trim()) payload.api_key = newKey.trim();
@@ -161,6 +162,30 @@ export default function TenantAiModal({
                   <input type="number" step="0.05" min={0} max={1} className={field} value={form.temperature ?? 0.4}
                     onChange={(e) => set("temperature", Number(e.target.value))} />
                 </label>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <label htmlFor="max-msgs" className="text-xs font-semibold text-gray-700">
+                    Mensajes por conversación
+                  </label>
+                  <span className="text-sm font-bold text-trust-700 tabular-nums">
+                    {form.max_messages_per_session ?? 20}
+                  </span>
+                </div>
+                <input id="max-msgs" type="range" min={10} max={50} step={1}
+                  className="w-full mt-2 accent-trust-700"
+                  value={form.max_messages_per_session ?? 20}
+                  onChange={(e) => set("max_messages_per_session", Number(e.target.value))} />
+                <div className="flex justify-between text-[10px] text-gray-400"><span>10</span><span>50</span></div>
+                <p className="text-[11px] text-gray-500 mt-2 leading-relaxed">
+                  Al llegar al límite el chat muestra «Mensajes agotados». El visitante puede{" "}
+                  <b>dejar sus datos</b> (nombre y contacto) para ganar otro bloque igual, o iniciar una
+                  conversación nueva. Topes anti-abuso automáticos por visitante en 24 h:{" "}
+                  <b>{(form.max_messages_per_session ?? 20) * 3}</b> mensajes ({(form.max_messages_per_session ?? 20) * 6} si
+                  ya dejó sus datos) y <b>{(form.max_messages_per_session ?? 20) * 10}</b> por red/IP, para que una
+                  oficina o equipo compartiendo internet no se bloquee entre sí.
+                </p>
               </div>
 
               <div>

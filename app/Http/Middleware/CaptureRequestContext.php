@@ -16,13 +16,24 @@ class CaptureRequestContext
     public function handle(Request $request, Closure $next): Response
     {
         // Visitor cookie persistente (UUID v4)
-        $visitorUuid = $request->cookie('politicos_visitor_id');
-        if (!$visitorUuid || !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $visitorUuid)) {
-            $visitorUuid = (string) \Illuminate\Support\Str::uuid();
+        // El frontend (otro dominio que la API) no puede compartir la cookie de
+        // sesión, así que manda su propio UUID estable (localStorage) en el body:
+        // es el que sirve para topes por visitante. Prioridad: body > cookie > nuevo.
+        $uuidRe = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i';
+        $fromClient  = (string) $request->input('visitor_id', '');
+        $visitorUuid = preg_match($uuidRe, $fromClient) ? $fromClient : null;
+        $usedClient  = $visitorUuid !== null;
+
+        if (!$visitorUuid) {
+            $visitorUuid = $request->cookie('politicos_visitor_id');
+            if (!$visitorUuid || !preg_match($uuidRe, $visitorUuid)) {
+                $visitorUuid = (string) \Illuminate\Support\Str::uuid();
+            }
         }
 
         $context = [
             'visitor_uuid' => $visitorUuid,
+            'visitor_from_client' => $usedClient,
             'referrer'     => $request->header('referer'),
             'utm_source'   => $request->query('utm_source'),
             'utm_medium'   => $request->query('utm_medium'),

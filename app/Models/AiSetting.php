@@ -44,12 +44,17 @@ class AiSetting extends Model
         return self::RETIRED_GROQ_MODELS[$model] ?? ($model !== '' ? $model : self::DEFAULT_GROQ_MODEL);
     }
 
+    // Tope de mensajes por conversación (chat público). Lo fija el superadmin por candidato.
+    public const MESSAGE_LIMIT_MIN     = 10;
+    public const MESSAGE_LIMIT_MAX     = 50;
+    public const MESSAGE_LIMIT_DEFAULT = 20;
+
     protected $fillable = [
         'provider', 'api_key', 'model', 'max_tokens', 'temperature',
         'fallback_provider', 'system_prompt', 'system_prompt_customizado', 'mode',
         'chat_subtitle', 'chat_btn_text', 'chat_btn_image_url',
         'chat_btn_shape', 'chat_btn_color', 'chat_btn_size', 'chat_btn_position',
-        'attack_spike_threshold',
+        'attack_spike_threshold', 'max_messages_per_session',
     ];
 
     // api_key nunca sale de la BD en texto plano — Laravel cifra/descifra
@@ -62,6 +67,7 @@ class AiSetting extends Model
         'temperature'               => 'float',
         'api_key'                   => 'encrypted',
         'attack_spike_threshold'    => 'integer',
+        'max_messages_per_session'  => 'integer',
         'system_prompt_customizado' => 'boolean',
     ];
 
@@ -84,6 +90,14 @@ class AiSetting extends Model
             'chat_btn_position' => 'bottom-right',
             'attack_spike_threshold' => 10,
         ]);
+    }
+
+    /** Mensajes permitidos por conversación, siempre dentro de 10–50. */
+    public function sessionMessageLimit(): int
+    {
+        $value = (int) ($this->max_messages_per_session ?: self::MESSAGE_LIMIT_DEFAULT);
+
+        return max(self::MESSAGE_LIMIT_MIN, min(self::MESSAGE_LIMIT_MAX, $value));
     }
 
     // Prompt de fábrica para un modo dado (DEFAULT_PROMPT_FILES). Usado al

@@ -62,6 +62,7 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
         Route::post('/',             [ChatController::class, 'send']);
         Route::post('/stream',       [ChatController::class, 'stream']);
         Route::get('/session/{id}',  [ChatController::class, 'session']);
+        Route::get('/quota/{id}',    [ChatController::class, 'quotaStatus']);
         Route::post('/consent',      [ChatController::class, 'consent']);
         Route::post('/location',     [ChatController::class, 'saveLocation']);
     });

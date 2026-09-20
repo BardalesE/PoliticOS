@@ -767,6 +767,8 @@ export type AiSetting = {
   provider: "groq" | "claude" | "openai";
   model: string;
   max_tokens: number;
+  /** Mensajes por conversación (10–50). Solo lo edita el superadmin. */
+  max_messages_per_session?: number;
   temperature: number;
   fallback_provider: "groq" | "claude" | "openai" | null;
   system_prompt: string;
