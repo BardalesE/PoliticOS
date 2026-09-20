@@ -19,8 +19,9 @@ use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 /**
- * Segmentador por zona del chat (hasta 5 candidatos: distrito → provincia →
- * departamento), mini encuesta de apoyo sí/no y dashboard agregado.
+ * Segmentador por zona del chat (distrito → solo ese distrito; provincia → todos
+ * sus distritos; departamento → todo el departamento), mini encuesta de apoyo
+ * sí/no y dashboard agregado.
  */
 class SegmentacionTest extends TestCase
 {
@@ -162,36 +163,102 @@ class SegmentacionTest extends TestCase
 
     // ── Segmentador ──────────────────────────────────────────────────
 
-    public function test_offers_up_to_five_candidates_district_first_then_province_then_department(): void
+    private function zonaNivel(string $visitor, array $ids)
     {
-        $this->candidato('Ana Gregorio', $this->sanGregorio);      // mismo distrito
-        $this->candidato('Beto Miguel', $this->sanMiguel);         // misma provincia
-        $this->candidato('Carla Miguel', $this->sanMiguel);        // misma provincia
-        $this->candidato('Dario Cajamarca', $this->cajamarca);     // mismo depto, otra provincia
-        $this->candidato('Eva Cajamarca', $this->cajamarca);
-        $this->candidato('Fito Cajamarca', $this->cajamarca);      // 6º: queda fuera
-        $this->candidato('Gina Trujillo', $this->trujillo);        // otro departamento: nunca
+        return $this->putJson('/api/segmentacion/zona', ['visitor_id' => $visitor] + $ids);
+    }
+
+    private function nombres($res): array
+    {
+        return collect($res->json('candidatos'))->pluck('name')->sort()->values()->all();
+    }
+
+    private function sembrar(): void
+    {
+        $this->candidato('Ana Gregorio', $this->sanGregorio);      // Cajamarca > San Miguel > San Gregorio
+        $this->candidato('Beto Miguel', $this->sanMiguel);         // Cajamarca > San Miguel > San Miguel
+        $this->candidato('Carla Miguel', $this->sanMiguel);
+        $this->candidato('Dario Cajamarca', $this->cajamarca);     // Cajamarca > Cajamarca > Cajamarca
+        $this->candidato('Gina Trujillo', $this->trujillo);        // La Libertad
+    }
+
+    public function test_district_shows_only_that_districts_candidates_even_if_just_one(): void
+    {
+        $this->sembrar();
 
         $res = $this->zona(self::V1, $this->sanGregorio)->assertOk();
 
-        $names = collect($res->json('candidatos'))->pluck('name')->all();
-        $this->assertSame(['Ana Gregorio', 'Beto Miguel', 'Carla Miguel', 'Dario Cajamarca', 'Eva Cajamarca'], $names);
-        $this->assertSame(
-            ['distrito', 'provincia', 'provincia', 'departamento', 'departamento'],
-            collect($res->json('candidatos'))->pluck('alcance')->all()
-        );
+        $this->assertSame(['Ana Gregorio'], $this->nombres($res));
+        $this->assertSame('distrito', $res->json('zona.nivel'));
         $this->assertSame('SAN GREGORIO', $res->json('zona.distrito'));
+        $this->assertSame('SAN MIGUEL', $res->json('zona.provincia'));
         $this->assertSame('CAJAMARCA', $res->json('zona.departamento'));
     }
 
-    public function test_never_mixes_other_departments_even_if_fewer_than_five(): void
+    public function test_district_with_several_candidates_lists_all_of_them_without_a_cap(): void
     {
-        $this->candidato('Ana Gregorio', $this->sanGregorio);
-        $this->candidato('Gina Trujillo', $this->trujillo);
+        foreach (range(1, 7) as $i) {
+            $this->candidato("Cand {$i}", $this->sanMiguel);
+        }
+        $this->candidato('De otro distrito', $this->sanGregorio);
 
-        $names = collect($this->zona(self::V1, $this->sanGregorio)->json('candidatos'))->pluck('name')->all();
+        $res = $this->zona(self::V1, $this->sanMiguel)->assertOk();
 
-        $this->assertSame(['Ana Gregorio'], $names);
+        $this->assertCount(7, $res->json('candidatos'));
+        $this->assertNotContains('De otro distrito', $this->nombres($res));
+    }
+
+    public function test_province_shows_candidates_of_all_its_districts_and_no_other_province(): void
+    {
+        $this->sembrar();
+
+        $res = $this->zonaNivel(self::V1, ['provincia_id' => $this->sanMiguel->provincia_id])->assertOk();
+
+        $this->assertSame(['Ana Gregorio', 'Beto Miguel', 'Carla Miguel'], $this->nombres($res));
+        $this->assertSame('provincia', $res->json('zona.nivel'));
+        $this->assertNull($res->json('zona.distrito'));
+        $this->assertSame('SAN MIGUEL', $res->json('zona.provincia'));
+        $this->assertSame('CAJAMARCA', $res->json('zona.departamento'));
+    }
+
+    public function test_department_shows_every_candidate_of_the_department_and_no_other(): void
+    {
+        $this->sembrar();
+
+        $res = $this->zonaNivel(self::V1, ['departamento_id' => $this->sanMiguel->departamento_id])->assertOk();
+
+        $this->assertSame(['Ana Gregorio', 'Beto Miguel', 'Carla Miguel', 'Dario Cajamarca'], $this->nombres($res));
+        $this->assertSame('departamento', $res->json('zona.nivel'));
+        $this->assertNull($res->json('zona.provincia'));
+        $this->assertNull($res->json('zona.distrito'));
+    }
+
+    public function test_parents_are_derived_from_the_most_specific_level(): void
+    {
+        $this->zonaNivel(self::V1, ['distrito_id' => $this->sanGregorio->id])->assertOk();
+
+        $seg = VisitorSegment::first();
+        $this->assertSame($this->sanGregorio->id, $seg->distrito_id);
+        $this->assertSame($this->sanGregorio->provincia_id, $seg->provincia_id);
+        $this->assertSame($this->sanGregorio->departamento_id, $seg->departamento_id);
+
+        // Un ID de departamento inconsistente no pisa a la provincia elegida.
+        $this->zonaNivel(self::V1, ['provincia_id' => $this->cajamarca->provincia_id, 'departamento_id' => $this->trujillo->departamento_id])->assertOk();
+        $seg = VisitorSegment::first();
+        $this->assertNull($seg->distrito_id);
+        $this->assertSame($this->cajamarca->provincia_id, $seg->provincia_id);
+        $this->assertSame($this->cajamarca->departamento_id, $seg->departamento_id);
+    }
+
+    public function test_only_published_candidates_with_ready_documents_appear(): void
+    {
+        $this->candidato('Publicado', $this->sanGregorio);
+        $b = $this->candidato('Borrador', $this->sanGregorio);
+        $b->update(['estado_publicacion' => 'borrador']);
+
+        $res = $this->zona(self::V1, $this->sanGregorio)->assertOk();
+
+        $this->assertSame(['Publicado'], $this->nombres($res));
     }
 
     public function test_zone_is_remembered_per_visitor_and_restored_by_get(): void
@@ -222,6 +289,8 @@ class SegmentacionTest extends TestCase
     public function test_rejects_unknown_district(): void
     {
         $this->putJson('/api/segmentacion/zona', ['visitor_id' => self::V1, 'distrito_id' => 99999])->assertStatus(422);
+        $this->putJson('/api/segmentacion/zona', ['visitor_id' => self::V1, 'provincia_id' => 99999])->assertStatus(422);
+        $this->putJson('/api/segmentacion/zona', ['visitor_id' => self::V1, 'departamento_id' => 99999])->assertStatus(422);
         $this->putJson('/api/segmentacion/zona', ['visitor_id' => self::V1])->assertStatus(422);
         $this->assertSame(0, VisitorSegment::count());
     }

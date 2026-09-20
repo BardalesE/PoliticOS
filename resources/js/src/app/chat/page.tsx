@@ -11,7 +11,7 @@ import { LiveAlert } from "@/components/live/LiveAlert";
 import { useCandidate } from "@/context/CandidateContext";
 import { resolveTenantSlug, normalizeApiBase, tenantHeaders } from "@/lib/api";
 import { tenantStorageKey } from "@/lib/utils";
-import { getVisitorId, getZona, setZona as saveZona, votarApoyo, type SegmentacionEstado, type ZonaInfo } from "@/lib/segmentacion";
+import { getVisitorId, getZona, setZona as saveZona, votarApoyo, type SegmentacionEstado, type ZonaInfo, type ZonaSeleccion } from "@/lib/segmentacion";
 import type { Ubicaciones } from "@/lib/directorio";
 import { SupportPoll, ZoneBadge, ZonePicker } from "@/components/chat/ZonaYApoyo";
 import { TenantLink } from "@/components/ui/TenantLink";
@@ -787,7 +787,10 @@ export default function ChatPage() {
     setCandidates(est.candidatos.map((c) => ({ slug: c.slug, name: c.name, party: c.party })));
     setPollEnabled(est.poll_enabled);
     setVotes(est.votos ?? {});
+    // Con segmentación el chat SIEMPRE consulta sobre un candidato de la zona (no hay "Todos":
+    // el RAG sin candidato mezclaría documentos de otras zonas). Si la zona tiene uno solo, se elige solo.
     if (wanted && est.candidatos.some((c) => c.slug === wanted)) setCandidateSlug(wanted);
+    else if (est.candidatos.length === 1) setCandidateSlug(est.candidatos[0].slug);
     else setCandidateSlug((cur) => (cur && est.candidatos.some((c) => c.slug === cur) ? cur : null));
   };
 
@@ -820,7 +823,7 @@ export default function ChatPage() {
         if (ubi && est) {
           // Llegó desde la ficha de un candidato y aún no dijo dónde vota: usar su distrito.
           const deep = wanted ? list.find((c) => c.slug === wanted) : undefined;
-          if (!est.zona && deep?.distrito?.id) est = (await saveZona(deep.distrito.id)) ?? est;
+          if (!est.zona && deep?.distrito?.id) est = (await saveZona({ distrito_id: deep.distrito.id })) ?? est;
           if (cancelled) return;
           setUbicaciones(ubi);
           applyEstado(est, wanted);
@@ -838,9 +841,9 @@ export default function ChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const pickZone = async (distritoId: number) => {
+  const pickZone = async (sel: ZonaSeleccion) => {
     setZoneBusy(true);
-    const est = await saveZona(distritoId);
+    const est = await saveZona(sel);
     setZoneBusy(false);
     if (!est) return;
     setChangingZone(false);
@@ -1441,10 +1444,13 @@ export default function ChatPage() {
     if (regPhase === "email")      return "Tu correo o escribe 'omitir'...";
     if (regPhase === "registering")return "Registrando...";
     if (blocked)                   return "Escribe 'hola', 'menú' o 'inicio' para continuar...";
+    if (needsCandidate)            return "Elige un candidato arriba...";
     return "Escribe tu pregunta...";
   };
 
-  const inputDisabled = streaming || autoStarting || regPhase === "registering";
+  // Zona elegida con varios candidatos y ninguno seleccionado: no se consulta a ciegas (mezclaría zonas).
+  const needsCandidate = zoneMode && !!zona && candidates.length > 0 && !candidateSlug && regPhase === null;
+  const inputDisabled = streaming || autoStarting || regPhase === "registering" || needsCandidate;
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
@@ -1489,6 +1495,7 @@ export default function ChatPage() {
               Consultar sobre
             </p>
             <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1" role="group" aria-label="Elegir candidato">
+              {!zoneMode && (
               <button
                 type="button"
                 onClick={() => chooseCandidate(null)}
@@ -1501,6 +1508,7 @@ export default function ChatPage() {
               >
                 Todos
               </button>
+              )}
               {candidates.map((c) => (
                 <button
                   key={c.slug}
@@ -1518,6 +1526,14 @@ export default function ChatPage() {
                 </button>
               ))}
             </div>
+            {zoneMode && zona && candidates.length === 0 && (
+              <p className="mt-1 text-[11px] text-gray-500">
+                Aún no hay candidatos publicados en esta zona. Prueba con otra o con el departamento completo.
+              </p>
+            )}
+            {needsCandidate && (
+              <p className="mt-1 text-[11px] font-medium text-amber-700">Elige un candidato para empezar a consultar.</p>
+            )}
             {candidateSlug && (
               <p className="mt-1 text-[11px] text-gray-500">
                 Las respuestas usan solo los documentos de{" "}

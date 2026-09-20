@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { MapPin, ThumbsDown, ThumbsUp } from "lucide-react";
 import { prettyPlace, type Ubicaciones } from "@/lib/directorio";
-import type { ZonaInfo } from "@/lib/segmentacion";
+import type { ZonaInfo, ZonaSeleccion } from "@/lib/segmentacion";
 
 const selectCls =
   "w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 " +
@@ -17,7 +17,7 @@ export function ZonePicker({
 }: {
   ubicaciones: Ubicaciones;
   busy: boolean;
-  onPick: (distritoId: number) => void;
+  onPick: (sel: ZonaSeleccion) => void;
   onCancel?: () => void;
 }) {
   const [dep, setDep] = useState("");
@@ -36,7 +36,10 @@ export function ZonePicker({
   return (
     <div className="max-w-3xl mx-auto mt-2.5 rounded-xl border border-gray-200 bg-gray-50 p-3">
       <p className="flex items-center gap-1.5 text-xs font-semibold text-gray-700">
-        <MapPin size={13} aria-hidden /> ¿Dónde votas? Te mostramos los candidatos de tu zona
+        <MapPin size={13} aria-hidden /> ¿Dónde votas? Elige tu zona y te mostramos sus candidatos
+      </p>
+      <p className="mt-0.5 text-[11px] text-gray-500">
+        Solo departamento: todos los de ese departamento. Con provincia: los de toda la provincia. Con distrito: solo los de ese distrito.
       </p>
       <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
         <select aria-label="Departamento" className={selectCls} value={dep}
@@ -46,23 +49,23 @@ export function ZonePicker({
         </select>
         <select aria-label="Provincia" className={selectCls} value={prov} disabled={!dep}
           onChange={(e) => { setProv(e.target.value); setDist(""); }}>
-          <option value="">Provincia</option>
+          <option value="">Todas las provincias</option>
           {provincias.map((p) => <option key={p.id} value={p.id}>{prettyPlace(p.nombre)}</option>)}
         </select>
         <select aria-label="Distrito" className={selectCls} value={dist} disabled={!prov}
           onChange={(e) => setDist(e.target.value)}>
-          <option value="">Distrito</option>
+          <option value="">Todos los distritos</option>
           {distritos.map((d) => <option key={d.id} value={d.id}>{prettyPlace(d.nombre)}</option>)}
         </select>
       </div>
       <div className="mt-2.5 flex items-center gap-2">
         <button
           type="button"
-          disabled={!dist || busy}
-          onClick={() => onPick(Number(dist))}
+          disabled={!dep || busy}
+          onClick={() => onPick(dist ? { distrito_id: Number(dist) } : prov ? { provincia_id: Number(prov) } : { departamento_id: Number(dep) })}
           className="rounded-full bg-gray-900 px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {busy ? "Buscando..." : "Ver candidatos de mi zona"}
+          {busy ? "Buscando..." : "Ver candidatos"}
         </button>
         {onCancel && (
           <button type="button" onClick={onCancel} className="text-xs text-gray-500 underline hover:text-gray-700">
@@ -81,7 +84,7 @@ export function ZoneBadge({ zona, onChange }: { zona: ZonaInfo; onChange: () => 
       <MapPin size={11} aria-hidden />
       <span>
         Tu zona: <span className="font-semibold text-gray-700">
-          {[zona.distrito, zona.provincia].filter(Boolean).map((n) => prettyPlace(String(n))).join(", ")}
+          {[zona.distrito, zona.provincia, zona.departamento].filter(Boolean).map((n) => prettyPlace(String(n))).join(", ")}
         </span>
       </span>
       <button type="button" onClick={onChange} className="underline hover:text-gray-700">Cambiar</button>

@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\AiSetting;
 use App\Models\CandidateProfile;
 use App\Models\CandidateSupportVote;
+use App\Models\UbigeoDepartamento;
 use App\Models\UbigeoDistrito;
+use App\Models\UbigeoProvincia;
 use App\Models\VisitorSegment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,7 +16,8 @@ use Illuminate\Http\Request;
  * Segmentador del chat + mini encuesta de apoyo. API PÚBLICA (anónima).
  *
  *   GET  /api/segmentacion/zona          → zona guardada del visitante + candidatos + sus votos
- *   PUT  /api/segmentacion/zona          → declara su distrito; devuelve lo mismo
+ *   PUT  /api/segmentacion/zona          → declara su zona (departamento, provincia o distrito);
+ *                                          devuelve lo mismo
  *   POST /api/segmentacion/apoyo         → voto sí/no a un candidato (uno por visitante)
  *
  * El visitante se identifica solo por el UUID estable de su navegador (`visitor_id`,
@@ -24,31 +27,33 @@ use Illuminate\Http\Request;
  */
 class SegmentacionController extends Controller
 {
-    /** Candidatos que se ofrecen por zona: los 5 más cercanos. */
-    public const MAX_CANDIDATOS = 5;
-
     public function show(Request $request): JsonResponse
     {
         return response()->json($this->estado($this->visitor($request)));
     }
 
+    /**
+     * La zona puede ser de cualquier nivel: basta con mandar el más específico que
+     * conozca el visitante (los superiores se derivan). Elegir un distrito muestra
+     * SOLO los candidatos de ese distrito; una provincia, los de todos sus
+     * distritos; un departamento, todos los del departamento.
+     */
     public function update(Request $request): JsonResponse
     {
-        $data = $request->validate(['distrito_id' => ['required', 'integer']]);
-
-        $distrito = UbigeoDistrito::find($data['distrito_id']);
-        if (! $distrito) {
-            return response()->json(['message' => 'Distrito no válido.'], 422);
-        }
-
-        $uuid = $this->visitor($request);
-        VisitorSegment::updateOrCreate(['visitor_uuid' => $uuid], [
-            'departamento_id' => $distrito->departamento_id,
-            'provincia_id'    => $distrito->provincia_id,
-            'distrito_id'     => $distrito->id,
+        $data = $request->validate([
+            'departamento_id' => ['nullable', 'integer', 'required_without_all:provincia_id,distrito_id'],
+            'provincia_id'    => ['nullable', 'integer'],
+            'distrito_id'     => ['nullable', 'integer'],
         ]);
 
-        return response()->json($this->estado($uuid));
+        $zona = $this->resolverZona($data);
+        if (! $zona) {
+            return response()->json(['message' => 'Zona no válida.'], 422);
+        }
+
+        VisitorSegment::updateOrCreate(['visitor_uuid' => $this->visitor($request)], $zona);
+
+        return response()->json($this->estado($this->visitor($request)));
     }
 
     public function apoyo(Request $request): JsonResponse
@@ -105,55 +110,78 @@ class SegmentacionController extends Controller
             ->all();
     }
 
+    /** @return array{departamento_id:int,provincia_id:?int,distrito_id:?int}|null */
+    private function resolverZona(array $data): ?array
+    {
+        if (! empty($data['distrito_id'])) {
+            $d = UbigeoDistrito::find($data['distrito_id']);
+
+            return $d ? ['departamento_id' => $d->departamento_id, 'provincia_id' => $d->provincia_id, 'distrito_id' => $d->id] : null;
+        }
+
+        if (! empty($data['provincia_id'])) {
+            $p = UbigeoProvincia::find($data['provincia_id']);
+
+            return $p ? ['departamento_id' => $p->departamento_id, 'provincia_id' => $p->id, 'distrito_id' => null] : null;
+        }
+
+        $dep = UbigeoDepartamento::find($data['departamento_id'] ?? 0);
+
+        return $dep ? ['departamento_id' => $dep->id, 'provincia_id' => null, 'distrito_id' => null] : null;
+    }
+
     private function estado(string $uuid): array
     {
         $segmento = VisitorSegment::where('visitor_uuid', $uuid)->first();
         $pollOn   = (bool) AiSetting::current()->support_poll_enabled;
 
-        if (! $segmento || ! $segmento->distrito_id) {
+        if (! $segmento || ! $segmento->departamento_id) {
             return ['zona' => null, 'candidatos' => [], 'poll_enabled' => $pollOn, 'votos' => (object) []];
         }
 
-        $distrito = UbigeoDistrito::with(['provincia:id,provincia', 'departamento:id,departamento'])->find($segmento->distrito_id);
+        $dep  = UbigeoDepartamento::find($segmento->departamento_id);
+        $prov = $segmento->provincia_id ? UbigeoProvincia::find($segmento->provincia_id) : null;
+        $dist = $segmento->distrito_id ? UbigeoDistrito::find($segmento->distrito_id) : null;
+
+        if (! $dep) {
+            return ['zona' => null, 'candidatos' => [], 'poll_enabled' => $pollOn, 'votos' => (object) []];
+        }
 
         return [
-            'zona' => $distrito ? [
-                'distrito_id'     => $distrito->id,
-                'provincia_id'    => $distrito->provincia_id,
-                'departamento_id' => $distrito->departamento_id,
-                'distrito'        => $distrito->distrito,
-                'provincia'       => $distrito->provincia?->provincia,
-                'departamento'    => $distrito->departamento?->departamento,
-            ] : null,
-            'candidatos'   => $distrito ? $this->candidatosCercanos($distrito) : [],
+            'zona' => [
+                'nivel'           => $dist ? 'distrito' : ($prov ? 'provincia' : 'departamento'),
+                'departamento_id' => $dep->id,
+                'provincia_id'    => $prov?->id,
+                'distrito_id'     => $dist?->id,
+                'departamento'    => $dep->departamento,
+                'provincia'       => $prov?->provincia,
+                'distrito'        => $dist?->distrito,
+            ],
+            'candidatos'   => $this->candidatosDe($segmento),
             'poll_enabled' => $pollOn,
             'votos'        => (object) $this->votosDe($uuid),
         ];
     }
 
     /**
-     * Hasta 5 candidatos: primero los del distrito, luego los de la provincia y, si
-     * aún faltan, los del departamento. Nunca de otro departamento.
+     * Candidatos EXACTOS de la zona elegida, sin relleno ni tope:
+     *   distrito     → solo los de ese distrito (aunque sea uno)
+     *   provincia    → los de todos los distritos de la provincia
+     *   departamento → los de todos los distritos del departamento
      */
-    private function candidatosCercanos(UbigeoDistrito $d): array
+    private function candidatosDe(VisitorSegment $z): array
     {
-        $candidatos = CandidateProfile::query()
+        return CandidateProfile::query()
             ->visibleInDirectory()
-            ->whereHas('distrito', fn ($q) => $q->where('departamento_id', $d->departamento_id))
-            ->with('distrito:id,provincia_id,departamento_id')
+            ->with('distrito:id,distrito')
+            ->when($z->distrito_id, fn ($q) => $q->where('distrito_id', $z->distrito_id), function ($q) use ($z) {
+                $q->whereHas('distrito', fn ($d) => $z->provincia_id
+                    ? $d->where('provincia_id', $z->provincia_id)
+                    : $d->where('departamento_id', $z->departamento_id));
+            })
             ->orderBy('name')
             ->limit(200)
-            ->get();
-
-        $alcance = fn (CandidateProfile $c): int => match (true) {
-            $c->distrito_id === $d->id                   => 0,
-            $c->distrito?->provincia_id === $d->provincia_id => 1,
-            default                                      => 2,
-        };
-
-        return $candidatos
-            ->sortBy(fn (CandidateProfile $c) => sprintf('%d|%s', $alcance($c), mb_strtolower($c->name)))
-            ->take(self::MAX_CANDIDATOS)
+            ->get()
             ->map(fn (CandidateProfile $c) => [
                 'slug'        => $c->slug,
                 'name'        => $c->name,
@@ -161,9 +189,8 @@ class SegmentacionController extends Controller
                 'title'       => $c->title,
                 'list_number' => $c->list_number,
                 'photo_url'   => $c->photo_url,
-                'alcance'     => ['distrito', 'provincia', 'departamento'][$alcance($c)],
+                'distrito'    => $c->distrito?->distrito,
             ])
-            ->values()
             ->all();
     }
 }
