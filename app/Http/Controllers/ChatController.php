@@ -13,6 +13,7 @@ use App\Models\CitizenPoint;
 use App\Services\PlanService;
 use App\Models\CitizenData;
 use App\Models\VisitorProfile;
+use App\Services\ChatQuotaService;
 use App\Services\CivicAIService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,7 +23,13 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ChatController extends Controller
 {
-    public function __construct(private CivicAIService $ai) {}
+    public function __construct(private CivicAIService $ai, private ?ChatQuotaService $quotaService = null) {}
+
+    // Opcional en el constructor: hay tests y código que construyen el controlador a mano con solo la IA.
+    private function quota(): ChatQuotaService
+    {
+        return $this->quotaService ??= app(ChatQuotaService::class);
+    }
 
     /** POST /api/chat — respuesta completa, no streaming */
     public function send(Request $request): JsonResponse
@@ -72,6 +79,13 @@ class ChatController extends Controller
                     return $this->jsonChatResponse($limitResponse, $session, $request);
                 }
             }
+        }
+
+        // ── 0b. Tope de mensajes por conversación / visitante / red ──────
+        // Antes de tocar la IA: un mensaje rechazado aquí no cuesta nada.
+        $quota = $this->quota()->evaluate($session);
+        if ($quota['blocked']) {
+            return $this->jsonChatResponse($this->quota()->blockedResponse($quota), $session, $request);
         }
 
         // ── 1. Sesión bloqueada ───────────────────────────────────────────
@@ -210,6 +224,12 @@ class ChatController extends Controller
             }
         }
 
+        // ── 0b. Tope de mensajes por conversación / visitante / red ──────
+        $quota = $this->quota()->evaluate($session);
+        if ($quota['blocked']) {
+            return $this->streamPrebuilt($this->quota()->blockedResponse($quota), $session);
+        }
+
         // ── 1. Sesión bloqueada ───────────────────────────────────────────
         if ($session->blocked_at) {
             if (!$this->isResetKeyword($data['message'])) {
@@ -321,6 +341,7 @@ class ChatController extends Controller
                         'mode'           => $this->assistantMode(),
                         'pepa'           => $this->pepaPayload($meta['pepa_metadata'] ?? null),
                         'citations'      => $meta['citations'] ?? [],
+                        'quota'          => $this->quota()->evaluate($session),
                     ])."\n\n";
                     flush();
                 } catch (\Throwable $e) {
@@ -358,6 +379,7 @@ class ChatController extends Controller
 
         return response()->json([
             'sessionId' => $session->session_id,
+            'quota'     => $this->quota()->evaluate($session),
             'messages'  => $session->messages->map(fn($m) => [
                 'id'        => (string) $m->id,
                 'role'      => $m->role,
@@ -368,6 +390,14 @@ class ChatController extends Controller
                 'timestamp' => $m->created_at->timestamp * 1000,
             ]),
         ]);
+    }
+
+    /** GET /api/chat/quota/{id} — mensajes usados/restantes de una conversación (sin cargar el historial). */
+    public function quotaStatus(string $id): JsonResponse
+    {
+        $session = ChatSession::where('session_id', $id)->first();
+
+        return response()->json(['quota' => $session ? $this->quota()->evaluate($session) : null]);
     }
 
     /** POST /api/chat/consent — registrar consentimiento explícito */
@@ -515,6 +545,7 @@ class ChatController extends Controller
             'mode'           => $this->assistantMode(),
             'pepa'           => $this->pepaPayload($response['pepa_metadata'] ?? null),
             'citations'      => $response['citations'] ?? [],
+            'quota'          => $response['quota'] ?? $this->quota()->evaluate($session),
         ])->cookie(
             'politicos_visitor_id',
             $session->visitor_uuid,
@@ -543,6 +574,7 @@ class ChatController extends Controller
                     'quickReplies'   => $response['quickReplies'] ?? [],
                     'mode'           => $this->assistantMode(),
                     'pepa'           => $this->pepaPayload($response['pepa_metadata'] ?? null),
+                    'quota'          => $response['quota'] ?? $this->quota()->evaluate($session),
                 ])."\n\n";
                 flush();
             },
@@ -577,6 +609,12 @@ class ChatController extends Controller
                 'device_type'  => \App\Services\GeoIPService::detectDevice($request->userAgent()),
             ]
         );
+
+        // El visitor_id estable viene del navegador (localStorage); una sesión creada
+        // antes de que existiera conserva un UUID aleatorio del servidor: se la adopta.
+        if (!empty($ctx['visitor_from_client']) && $session->visitor_uuid !== $ctx['visitor_uuid']) {
+            $session->update(['visitor_uuid' => $ctx['visitor_uuid']]);
+        }
 
         if ($consent === true && !$session->consent_data_capture) {
             $session->update(['consent_data_capture' => true, 'consent_at' => now()]);
