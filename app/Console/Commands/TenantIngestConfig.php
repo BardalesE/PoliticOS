@@ -119,7 +119,7 @@ class TenantIngestConfig extends Command
         string $ingestKey,
     ): string {
         $groqKey    = config('services.ai.groq_key') ?? '';
-        $groqModel  = 'llama-3.1-8b-instant'; // clasificación rápida, no el modelo del chat
+        $groqModel  = \App\Models\AiSetting::effectiveGroqModel('llama-3.1-8b-instant'); // clasificación rápida, no el modelo del chat
         $openaiKey  = config('services.ai.openai_key') ?? '';
         $embedModel = config('services.ai.embeddings_model', 'text-embedding-3-small');
         $qdrantKey  = config('services.qdrant.api_key') ?? '';

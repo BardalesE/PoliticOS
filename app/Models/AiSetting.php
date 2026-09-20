@@ -23,6 +23,27 @@ class AiSetting extends Model
         'chat_btn_shape', 'chat_btn_color', 'chat_btn_size', 'chat_btn_position',
     ];
 
+    // Groq retiró estos modelos (docs: console.groq.com/docs/deprecations). Si un
+    // tenant, el .env o un script los sigue apuntando, Groq responde 404 y cada
+    // mensaje cae en silencio al proveedor de respaldo (Claude, de pago). Se
+    // reemplazan en tiempo de llamada por el equivalente vigente que recomienda Groq.
+    public const RETIRED_GROQ_MODELS = [
+        'llama-3.3-70b-versatile' => 'openai/gpt-oss-120b',
+        'llama-3.1-8b-instant'    => 'openai/gpt-oss-20b',
+        'mixtral-8x7b-32768'      => 'openai/gpt-oss-20b',
+        'gemma2-9b-it'            => 'openai/gpt-oss-20b',
+    ];
+
+    public const DEFAULT_GROQ_MODEL = 'openai/gpt-oss-120b';
+
+    /** Modelo Groq realmente usable: sustituye los retirados; vacío → el default de config. */
+    public static function effectiveGroqModel(?string $configured = null): string
+    {
+        $model = trim((string) ($configured ?: config('services.ai.groq_model', self::DEFAULT_GROQ_MODEL)));
+
+        return self::RETIRED_GROQ_MODELS[$model] ?? ($model !== '' ? $model : self::DEFAULT_GROQ_MODEL);
+    }
+
     protected $fillable = [
         'provider', 'api_key', 'model', 'max_tokens', 'temperature',
         'fallback_provider', 'system_prompt', 'system_prompt_customizado', 'mode',
@@ -48,7 +69,7 @@ class AiSetting extends Model
     {
         return static::firstOrCreate([], [
             'provider'         => config('services.ai.provider', 'groq'),
-            'model'            => config('services.ai.groq_model', 'llama-3.3-70b-versatile'),
+            'model'            => self::effectiveGroqModel(),
             'max_tokens'       => 1200,
             'temperature'      => 0.4,
             'fallback_provider' => 'claude',

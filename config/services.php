@@ -50,7 +50,7 @@ return [
         //   OPENAI_MODEL=gemini-3.7-flash
         'openai_url'    => env('OPENAI_BASE_URL', 'https://api.openai.com/v1/chat/completions'),
         'groq_key'      => env('GROQ_API_KEY'),
-        'groq_model'    => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
+        'groq_model'    => env('GROQ_MODEL', 'openai/gpt-oss-120b'),
 
         // ─── Embeddings (RAG real) ──────────────────────────────────
         'embeddings_driver' => env('AI_EMBEDDINGS_DRIVER', 'mysql_fulltext'),

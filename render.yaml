@@ -90,7 +90,7 @@ services:
       - key: GROQ_API_KEY
         sync: false               # pegar: tu key gsk_... de console.groq.com
       - key: GROQ_MODEL
-        value: llama-3.3-70b-versatile
+        value: openai/gpt-oss-120b
       # El límite de tokens de salida NO se configura por env — vive en
       # AiSetting.max_tokens (BD del tenant, editable desde /admin/ai-settings).
 

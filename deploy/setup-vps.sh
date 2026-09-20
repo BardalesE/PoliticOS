@@ -115,7 +115,7 @@ MAIL_FROM_NAME="PoliticOS"
 # ─── IA ───────────────────────────────────────────────────────────────────────
 AI_PROVIDER=groq
 GROQ_API_KEY=${GROQ_KEY}
-GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_MODEL=openai/gpt-oss-120b
 ANTHROPIC_API_KEY=${ANTHROPIC_KEY}
 CLAUDE_MODEL=claude-haiku-4-5-20251001
 OPENAI_API_KEY=

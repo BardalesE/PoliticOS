@@ -111,7 +111,7 @@ class ClusterTopQuestionsJob implements ShouldQueue
                 ? 'https://api.groq.com/openai/v1/chat/completions'
                 : 'https://api.openai.com/v1/chat/completions';
 
-            $model = config('services.ai.groq_key') ? 'llama-3.1-8b-instant' : 'gpt-4o-mini';
+            $model = config('services.ai.groq_key') ? \App\Models\AiSetting::effectiveGroqModel('llama-3.1-8b-instant') : 'gpt-4o-mini';
 
             $r = Http::timeout(10)->withToken($apiKey)->post($url, [
                 'model' => $model,
