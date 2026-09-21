@@ -12,7 +12,7 @@ import { useCandidate } from "@/context/CandidateContext";
 import { resolveTenantSlug, normalizeApiBase, tenantHeaders } from "@/lib/api";
 import { tenantStorageKey } from "@/lib/utils";
 import { getVisitorId, getZona, setZona as saveZona, votarApoyo, type SegmentacionEstado, type ZonaInfo, type ZonaSeleccion } from "@/lib/segmentacion";
-import type { Ubicaciones } from "@/lib/directorio";
+import { DIRECTORY_TENANT, type Ubicaciones } from "@/lib/directorio";
 import { SupportPoll, ZoneBadge, ZonePicker } from "@/components/chat/ZonaYApoyo";
 import { TenantLink } from "@/components/ui/TenantLink";
 
@@ -52,13 +52,14 @@ interface Citation {
 
 /** Tope de mensajes de la conversación (lo calcula y aplica el servidor). */
 interface Quota {
-  base: number;                 // mensajes por bloque (10–50, lo fija la plataforma)
-  max: number;                  // tope de esta conversación (base, o 2×base si ya dejó sus datos)
+  base: number;                 // mensajes por conversación (10–50, lo fija la plataforma)
+  bonus: number;                // mensajes extra que gana al dejar sus datos (10–100)
+  max: number;                  // tope de esta conversación (base, o base+bonus si ya dejó sus datos)
   used: number;
   remaining: number;
   registered: boolean;
   blocked: "session" | "daily" | "network" | null;
-  can_unlock: boolean;          // puede dejar sus datos para ganar `base` mensajes más
+  can_unlock: boolean;          // puede dejar sus datos para ganar `bonus` mensajes más
   can_new_session: boolean;     // aún le queda margen diario para otra conversación
   resets_at: string | null;
 }
@@ -92,6 +93,11 @@ const LS_REG_DONE       = "politicos_reg_done";
 const LS_CANDIDATE      = "politicos_chat_candidate";
 const LS_CITIZEN_NAME   = "politicos_citizen_name";
 const LS_CITIZEN_POINTS = "politicos_citizen_points";
+
+// La invitación a la rifa (registro conversacional al abrir el chat) está apagada:
+// se reactivará más adelante con otro nombre. Mientras, el chat abre con la
+// presentación del asistente y el registro solo aparece al agotar los mensajes.
+const RAFFLE_ENABLED = false;
 
 // Fases del flujo de registro conversacional
 type RegPhase =
@@ -610,7 +616,7 @@ function QuotaWall({
       {quota.blocked === "session" && (
         <p className="text-xs text-gray-600 mt-1">
           Usaste los {quota.max} mensajes de esta conversación.
-          {quota.can_unlock ? ` Deja tus datos y te damos ${quota.base} mensajes más.` : ""}
+          {quota.can_unlock ? ` Regístrate y te damos ${quota.bonus} mensajes más.` : ""}
         </p>
       )}
       {quota.blocked === "daily" && (
@@ -629,7 +635,7 @@ function QuotaWall({
           onClick={() => setShowForm(true)}
           className="mt-3 w-full bg-chat-500 text-white text-sm font-medium py-2.5 rounded-full hover:bg-chat-600 transition"
         >
-          Dejar mis datos y conseguir {quota.base} mensajes más
+          Registrarme y conseguir {quota.bonus} mensajes más
         </button>
       )}
 
@@ -654,7 +660,7 @@ function QuotaWall({
           {error && <p className="text-xs text-red-600">{error}</p>}
           <button type="submit" disabled={!canSubmit}
             className="w-full bg-chat-500 text-white text-sm font-medium py-2.5 rounded-full hover:bg-chat-600 disabled:opacity-40 transition">
-            {busy ? "Guardando…" : `Desbloquear ${quota.base} mensajes`}
+            {busy ? "Guardando…" : `Desbloquear ${quota.bonus} mensajes`}
           </button>
         </form>
       )}
@@ -904,7 +910,7 @@ export default function ChatPage() {
       });
     } else {
       const regDone = localStorage.getItem(tenantStorageKey(LS_REG_DONE));
-      if (regDone) {
+      if (RAFFLE_ENABLED && regDone) {
         setChatInitialized(true);
         setRegPhase("done");
       } else {
@@ -1001,15 +1007,51 @@ export default function ChatPage() {
     const typingId = `auto-typing-${Date.now()}`;
     setMessages([{ id: typingId, role: "assistant", content: "", pending: true }]);
 
-    setTimeout(() => {
+    setTimeout(async () => {
+      if (RAFFLE_ENABLED) {
+        setAutoStarting(false);
+        // startRegistrationFlow reemplaza todos los mensajes con el mensaje de bienvenida
+        startRegistrationFlow();
+        setRegPhase("offered");
+        return;
+      }
+
+      const limits = await fetchLimits();
       setAutoStarting(false);
-      // startRegistrationFlow reemplaza todos los mensajes con el mensaje de bienvenida
-      startRegistrationFlow();
-      setRegPhase("offered");
+      showWelcome(limits);
+      setChatInitialized(true);
+      setRegPhase("done");
     }, 800);
   }
 
-  // ── Paso 1+2: bienvenida + invitación a la rifa ──────────────────────────────
+  // Topes vigentes del tenant, para decirle al ciudadano cuántos mensajes tiene.
+  async function fetchLimits(): Promise<{ base: number; bonus: number } | null> {
+    try {
+      const r = await fetch(`${API}/chat/limits`, { headers: { ...tenantHeaders() } });
+      if (!r.ok) return null;
+      const j = await r.json();
+      return typeof j.base === "number" && typeof j.bonus === "number" ? { base: j.base, bonus: j.bonus } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // ── Bienvenida: quién soy, cómo usarme y cuántos mensajes tiene ───────────────
+
+  function showWelcome(limits: { base: number; bonus: number } | null) {
+    const isDirectory = !!DIRECTORY_TENANT && resolveTenantSlug() === DIRECTORY_TENANT;
+    const limitLine = limits
+      ? `\n\n⏳ Tienes **${limits.base} mensajes** por conversación. Si quieres seguir chateando, te registras y te damos **${limits.bonus} más**.`
+      : "";
+
+    const content = isDirectory
+      ? `¡Hola! 👋 Soy **PoliticOSIA**.\n\n**Elige un candidato** y pregúntame lo que quieras saber. Soy un asistente inteligente que busca información en el Jurado Nacional de Elecciones y te responde al toque, en base a los documentos que tengo de tu candidato.${limitLine}`
+      : `¡Hola! 👋 Soy el asistente de **${profile.name || "tu candidato"}**.\n\nPregúntame lo que quieras saber: te respondo al toque, en base a los documentos oficiales que tengo de ${profile.name || "este candidato"}.${limitLine}`;
+
+    setMessages([{ id: `welcome-${Date.now()}`, role: "assistant", content }]);
+  }
+
+  // ── Paso 1+2: bienvenida + invitación a la rifa (apagada: RAFFLE_ENABLED) ─────
 
   function startRegistrationFlow() {
     const name  = profile.name || "el candidato";

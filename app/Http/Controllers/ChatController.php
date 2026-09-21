@@ -449,6 +449,20 @@ class ChatController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    /**
+     * GET /api/chat/limits — topes vigentes del tenant (para el mensaje de
+     * bienvenida: "tienes N mensajes; si te registras, B más"). Solo números.
+     */
+    public function limits(): JsonResponse
+    {
+        $setting = AiSetting::current();
+
+        return response()->json([
+            'base'  => $setting->sessionMessageLimit(),
+            'bonus' => $setting->registrationBonus(),
+        ]);
+    }
+
     // ─── Helpers privados ─────────────────────────────────────────────────
 
     /**

@@ -59,6 +59,7 @@ class ChatLimiteMensajesTest extends TestCase
             $t->string('chat_btn_position')->nullable();
             $t->integer('attack_spike_threshold')->default(10);
             $t->unsignedSmallInteger('max_messages_per_session')->default(20);
+            $t->unsignedSmallInteger('registration_bonus_messages')->default(50);
             $t->timestamps();
         });
         Schema::create('chat_sessions', function (Blueprint $t) {
@@ -155,9 +156,9 @@ class ChatLimiteMensajesTest extends TestCase
         $this->assertTrue($q['can_unlock']);
     }
 
-    public function test_leaving_data_unlocks_another_block_of_messages(): void
+    public function test_leaving_data_unlocks_the_registration_bonus(): void
     {
-        AiSetting::current()->update(['max_messages_per_session' => 10]);
+        AiSetting::current()->update(['max_messages_per_session' => 10, 'registration_bonus_messages' => 50]);
         $s = $this->makeSession();
         $this->userMessages($s, 10);
         $this->assertSame('session', $this->svc()->evaluate($s)['blocked']);
@@ -166,14 +167,44 @@ class ChatLimiteMensajesTest extends TestCase
 
         $q = $this->svc()->evaluate($s);
         $this->assertNull($q['blocked']);
-        $this->assertSame(20, $q['max']);
-        $this->assertSame(10, $q['remaining']);
+        $this->assertSame(60, $q['max'], '10 iniciales + 50 al registrarse');
+        $this->assertSame(50, $q['remaining']);
+        $this->assertSame(50, $q['bonus']);
         $this->assertTrue($q['registered']);
 
-        $this->userMessages($s, 10);
+        $this->userMessages($s, 50);
         $q = $this->svc()->evaluate($s);
         $this->assertSame('session', $q['blocked']);
         $this->assertFalse($q['can_unlock'], 'ya dejó sus datos: no se ofrece de nuevo');
+    }
+
+    public function test_bonus_is_configurable_and_clamped_to_10_100(): void
+    {
+        $s = AiSetting::current();
+        $this->assertSame(50, $s->registrationBonus());
+
+        foreach ([[3, 10], [10, 10], [75, 75], [100, 100], [900, 100]] as [$stored, $expected]) {
+            $s->registration_bonus_messages = $stored;
+            $this->assertSame($expected, $s->registrationBonus(), "guardado {$stored}");
+        }
+    }
+
+    public function test_exhausted_message_promises_the_configured_bonus(): void
+    {
+        AiSetting::current()->update(['max_messages_per_session' => 10, 'registration_bonus_messages' => 50]);
+        $s = $this->makeSession('s-msg');
+        $this->userMessages($s, 10);
+
+        $res = $this->postJson('/api/chat', ['message' => 'x', 'session_id' => 's-msg', 'visitor_id' => self::V1, 'initialized' => true])->assertOk();
+
+        $this->assertStringContainsString('50 mensajes más', $res->json('reply'));
+    }
+
+    public function test_limits_endpoint_exposes_only_the_two_numbers(): void
+    {
+        AiSetting::current()->update(['max_messages_per_session' => 10, 'registration_bonus_messages' => 50]);
+
+        $this->getJson('/api/chat/limits')->assertOk()->assertExactJson(['base' => 10, 'bonus' => 50]);
     }
 
     public function test_someone_elses_registration_does_not_unlock_me(): void
@@ -217,10 +248,10 @@ class ChatLimiteMensajesTest extends TestCase
 
     public function test_network_cap_stops_someone_rotating_visitor_ids(): void
     {
-        AiSetting::current()->update(['max_messages_per_session' => 10]);
+        AiSetting::current()->update(['max_messages_per_session' => 10, 'registration_bonus_messages' => 50]);
 
-        // 10N = 100 mensajes desde la misma IP repartidos entre muchos "visitantes".
-        for ($i = 0; $i < 10; $i++) {
+        // 5(N+B) = 300 mensajes desde la misma IP repartidos entre muchos "visitantes".
+        for ($i = 0; $i < 30; $i++) {
             $v = sprintf('aaaaaaaa-aaaa-4aaa-8aaa-%012d', $i);
             $this->userMessages($this->makeSession("r{$i}", $v, '203.0.113.9'), 10);
         }
@@ -231,9 +262,9 @@ class ChatLimiteMensajesTest extends TestCase
 
     public function test_a_team_behind_one_ip_is_not_blocked_by_normal_use(): void
     {
-        AiSetting::current()->update(['max_messages_per_session' => 20]);
+        AiSetting::current()->update(['max_messages_per_session' => 20, 'registration_bonus_messages' => 50]);
 
-        // 8 personas de una oficina con 15 mensajes c/u = 120 < 10N (200).
+        // 8 personas de una oficina con 15 mensajes c/u = 120 < 5(N+B) (350).
         for ($i = 0; $i < 8; $i++) {
             $v = sprintf('bbbbbbbb-bbbb-4bbb-8bbb-%012d', $i);
             $this->userMessages($this->makeSession("p{$i}", $v, '198.51.100.7'), 15);
@@ -309,6 +340,11 @@ class ChatLimiteMensajesTest extends TestCase
 
         $this->withHeaders($h)->putJson($url, ['max_messages_per_session' => 9])->assertStatus(422);
         $this->withHeaders($h)->putJson($url, ['max_messages_per_session' => 51])->assertStatus(422);
+
+        $this->withHeaders($h)->putJson($url, ['registration_bonus_messages' => 50])
+            ->assertOk()->assertJsonPath('registration_bonus_messages', 50);
+        $this->withHeaders($h)->putJson($url, ['registration_bonus_messages' => 9])->assertStatus(422);
+        $this->withHeaders($h)->putJson($url, ['registration_bonus_messages' => 101])->assertStatus(422);
     }
 
     public function test_a_candidate_admin_cannot_raise_their_own_limit(): void
@@ -330,9 +366,10 @@ class ChatLimiteMensajesTest extends TestCase
         $user->role = 'admin';
         Sanctum::actingAs($user);
 
-        $this->withHeaders(['X-Tenant' => 'rigo'])->putJson('/api/admin/ai-settings', ['max_messages_per_session' => 50, 'chat_subtitle' => 'Hola'])
+        $this->withHeaders(['X-Tenant' => 'rigo'])->putJson('/api/admin/ai-settings', ['max_messages_per_session' => 50, 'registration_bonus_messages' => 100, 'chat_subtitle' => 'Hola'])
             ->assertOk();
 
         $this->assertSame(10, AiSetting::first()->sessionMessageLimit());
+        $this->assertSame(50, AiSetting::first()->registrationBonus());
     }
 }
