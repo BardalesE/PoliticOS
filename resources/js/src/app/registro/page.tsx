@@ -5,11 +5,12 @@ import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { useCandidate } from "@/context/CandidateContext";
 import { request } from "@/lib/api";
+import ContactVerifyField from "@/components/ContactVerifyField";
+import { getVerificationConfig, type VerificationConfig } from "@/lib/verification";
+import { getVisitorId } from "@/lib/segmentacion";
 import { TenantLink } from "@/components/ui/TenantLink";
 import {
     User,
-    Phone,
-    Mail,
     MapPin,
     CheckCircle2,
     Loader2,
@@ -57,6 +58,9 @@ function RegistroContent() {
         consent: false,
     });
     const [referralInfo, setReferralInfo] = useState<ReferralInfo | null>(null);
+    const [vcfg, setVcfg] = useState<VerificationConfig | null>(null);
+    const [verifiedPhone, setVerifiedPhone] = useState<string | null>(null);
+    const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<RegisterResult | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -69,6 +73,16 @@ function RegistroContent() {
         candidateName !== "la campaña"
             ? candidateName.split(" ")[0]
             : "el candidato";
+
+    useEffect(() => {
+        getVerificationConfig().then(setVcfg);
+    }, []);
+
+    const needEmail = !!vcfg?.channels.email;
+    const needPhone = !!vcfg?.channels.whatsapp;
+    const contactsOk =
+        (!needEmail || verifiedEmail === form.email.trim()) &&
+        (!needPhone || verifiedPhone === form.phone_whatsapp.trim());
 
     useEffect(() => {
         if (!refCode) return;
@@ -87,17 +101,18 @@ function RegistroContent() {
             setError("Debes aceptar los términos para continuar.");
             return;
         }
+        if (!contactsOk) {
+            setError("Verifica tu correo y tu WhatsApp con el código que te enviamos.");
+            return;
+        }
         setLoading(true);
         setError(null);
         try {
-            const visitorCookie = document.cookie.match(
-                /politicos_visitor_id=([^;]+)/,
-            )?.[1];
             const body: Record<string, unknown> = {
                 ...form,
                 consent: true,
                 source: refCode ? "referral" : "web_form",
-                visitor_uuid: visitorCookie ?? null,
+                visitor_uuid: getVisitorId() || null,
             };
             if (refCode) body.referred_by_code = refCode;
 
@@ -274,47 +289,37 @@ function RegistroContent() {
                             <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
                                 WhatsApp{" "}
                                 <span className="text-gray-400 normal-case font-normal">
-                                    (recomendado)
+                                    {needPhone ? "(te enviamos un código)" : "(recomendado)"}
                                 </span>
                             </label>
-                            <div className="relative">
-                                <Phone
-                                    size={14}
-                                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                                />
-                                <input
-                                    value={form.phone_whatsapp}
-                                    onChange={(e) =>
-                                        set("phone_whatsapp", e.target.value)
-                                    }
-                                    placeholder="+51 987 654 321"
-                                    type="tel"
-                                    className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
-                                />
-                            </div>
+                            <ContactVerifyField
+                                channel="whatsapp"
+                                value={form.phone_whatsapp}
+                                onChange={(v) => set("phone_whatsapp", v)}
+                                verifiedValue={verifiedPhone}
+                                onVerified={setVerifiedPhone}
+                                placeholder="987 654 321"
+                                verificationEnabled={needPhone}
+                                tone="brand"
+                            />
                         </div>
                         <div>
                             <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
                                 Correo electrónico{" "}
                                 <span className="text-gray-400 normal-case font-normal">
-                                    (opcional)
+                                    {needEmail ? "(te enviamos un código)" : "(opcional)"}
                                 </span>
                             </label>
-                            <div className="relative">
-                                <Mail
-                                    size={14}
-                                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                                />
-                                <input
-                                    value={form.email}
-                                    onChange={(e) =>
-                                        set("email", e.target.value)
-                                    }
-                                    placeholder="tu@correo.com"
-                                    type="email"
-                                    className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15"
-                                />
-                            </div>
+                            <ContactVerifyField
+                                channel="email"
+                                value={form.email}
+                                onChange={(v) => set("email", v)}
+                                verifiedValue={verifiedEmail}
+                                onVerified={setVerifiedEmail}
+                                placeholder="tu@correo.com"
+                                verificationEnabled={needEmail}
+                                tone="brand"
+                            />
                         </div>
                         <div>
                             <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
@@ -388,7 +393,7 @@ function RegistroContent() {
                         )}
                         <button
                             type="submit"
-                            disabled={loading || !form.name}
+                            disabled={loading || !form.name || !vcfg || !contactsOk}
                             className="w-full flex items-center justify-center gap-2 py-3 bg-brand-600 hover:bg-brand-500 disabled:opacity-60 text-white font-semibold text-sm rounded-xl transition shadow-sm"
                         >
                             {loading ? (

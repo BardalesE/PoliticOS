@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Jobs\ReverseGeocodeJob;
 use App\Models\CitizenProfile;
 use App\Models\CitizenPoint;
+use App\Services\Verification\ContactVerificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -12,6 +13,8 @@ use Illuminate\Support\Facades\Log;
 
 class CitizenController extends Controller
 {
+    public function __construct(private readonly ContactVerificationService $verification) {}
+
     // ─── POST /api/citizen/register ──────────────────────────────────────
     // Registro público — desde el chat, formulario web o QR
     public function register(Request $request): JsonResponse
@@ -20,7 +23,6 @@ class CitizenController extends Controller
             'name'             => ['required', 'string', 'max:150'],
             'phone_whatsapp'   => ['nullable', 'string', 'max:20'],
             'email'            => ['nullable', 'email', 'max:255'],
-            'dni'              => ['nullable', 'string', 'max:20'],
             'district'         => ['nullable', 'string', 'max:100'],
             'age_range'        => ['nullable', 'string', 'max:20'],
             'occupation'       => ['nullable', 'string', 'max:100'],
@@ -34,12 +36,41 @@ class CitizenController extends Controller
             'accuracy'         => ['nullable', 'numeric', 'min:0'],
         ]);
 
+        // El DNI ya no se pide: sin sorteo no tiene finalidad (Ley 29733, minimización de datos).
+
+        // Verificación de contactos: los canales activos (correo y/o WhatsApp) deben
+        // haberse confirmado con su código antes de aceptar el registro.
+        $visitor = $data['visitor_uuid'] ?? null;
+        $email   = $this->verification->normalize(ContactVerificationService::EMAIL, $data['email'] ?? null);
+        $phone   = $this->verification->normalize(ContactVerificationService::WHATSAPP, $data['phone_whatsapp'] ?? null);
+
+        if (!empty($data['email']) && $email === null) {
+            return response()->json(['message' => 'Ese correo no parece válido.'], 422);
+        }
+        if (!empty($data['phone_whatsapp']) && $phone === null) {
+            return response()->json(['message' => 'Ese número de WhatsApp no parece válido.'], 422);
+        }
+
+        $verified = [];
+        foreach ($this->verification->activeChannels() as $channel) {
+            $contact = $channel === ContactVerificationService::EMAIL ? $email : $phone;
+            $label   = $channel === ContactVerificationService::EMAIL ? 'correo' : 'WhatsApp';
+
+            if ($contact === null) {
+                return response()->json(['message' => "Necesitamos tu {$label} para verificarlo.", 'reason' => 'contact_required'], 422);
+            }
+            if (!$this->verification->isVerified($channel, $contact, $visitor)) {
+                return response()->json(['message' => "Confirma tu {$label} con el código que te enviamos.", 'reason' => 'contact_not_verified'], 422);
+            }
+            $verified[$channel] = $contact;
+        }
+
         // Anti-duplicados: buscar por contacto existente
-        $existing = CitizenProfile::findByContact(
-            $data['phone_whatsapp'] ?? null,
-            $data['email']          ?? null,
-            $data['dni']            ?? null
-        );
+        $existing = CitizenProfile::findByContact($phone, $email);
+
+        foreach ($verified as $channel => $contact) {
+            $this->verification->consume($channel, $contact, $visitor);
+        }
 
         if ($existing) {
             // Solo si la petición viene del mismo dispositivo (visitor_uuid ya
@@ -86,9 +117,11 @@ class CitizenController extends Controller
             $citizen = CitizenProfile::create([
                 'visitor_uuid'        => $data['visitor_uuid']     ?? null,
                 'name'                => $data['name'],
-                'phone_whatsapp'      => $data['phone_whatsapp']   ?? null,
-                'email'               => $data['email']            ?? null,
-                'dni'                 => $data['dni']              ?? null,
+                'phone_whatsapp'      => $phone,
+                'email'               => $email,
+                'phone_verified_at'   => isset($verified[ContactVerificationService::WHATSAPP]) ? now() : null,
+                'email_verified_at'   => isset($verified[ContactVerificationService::EMAIL])    ? now() : null,
+                'is_verified'         => $verified !== [],
                 'district'            => $data['district']         ?? null,
                 'age_range'           => $data['age_range']        ?? null,
                 'occupation'          => $data['occupation']       ?? null,
