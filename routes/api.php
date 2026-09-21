@@ -22,6 +22,7 @@ use App\Http\Controllers\DistrictController;
 use App\Http\Controllers\TopicController;
 use App\Http\Controllers\SuggestedQuestionController;
 use App\Http\Controllers\CitizenController;
+use App\Http\Controllers\CitizenVerificationController;
 use App\Http\Controllers\PlanController;
 use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\IntelligenceController;
@@ -82,6 +83,11 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
 
     // ─── Registro ciudadano (público) ────────────────────────────────
     Route::post('/citizen/register',        [CitizenController::class, 'register'])->middleware('throttle:5,1,citizen-register');
+    Route::prefix('citizen/verify')->group(function () {
+        Route::get ('/config',  [CitizenVerificationController::class, 'config']);
+        Route::post('/start',   [CitizenVerificationController::class, 'start'])->middleware('throttle:10,1,citizen-verify-start');
+        Route::post('/confirm', [CitizenVerificationController::class, 'confirm'])->middleware('throttle:20,1,citizen-verify-confirm');
+    });
     Route::get ('/citizen/profile/{uuid}',  [CitizenController::class, 'showByUuid']);
     Route::get ('/citizen/referral/{code}', [CitizenController::class, 'referralInfo']);
 

@@ -15,6 +15,8 @@ import { getVisitorId, getZona, setZona as saveZona, votarApoyo, type Segmentaci
 import { DIRECTORY_TENANT, type Ubicaciones } from "@/lib/directorio";
 import { SupportPoll, ZoneBadge, ZonePicker } from "@/components/chat/ZonaYApoyo";
 import { TenantLink } from "@/components/ui/TenantLink";
+import ContactVerifyField from "@/components/ContactVerifyField";
+import { getVerificationConfig, type VerificationConfig } from "@/lib/verification";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -601,13 +603,26 @@ function QuotaWall({
   const [name, setName]       = useState("");
   const [phone, setPhone]     = useState("");
   const [email, setEmail]     = useState("");
+  const [verifiedPhone, setVerifiedPhone] = useState<string | null>(null);
+  const [verifiedEmail, setVerifiedEmail] = useState<string | null>(null);
+  const [vcfg, setVcfg]       = useState<VerificationConfig | null>(null);
   const [agree, setAgree]     = useState(false);
   const [showForm, setShowForm] = useState(false);
+
+  // Qué canales se verifican hoy (correo siempre que haya mail; WhatsApp cuando Meta esté listo).
+  useEffect(() => {
+    if (showForm && !vcfg) getVerificationConfig().then(setVcfg);
+  }, [showForm, vcfg]);
 
   const resets = quota.resets_at
     ? new Date(quota.resets_at).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" })
     : null;
-  const canSubmit = name.trim().length > 1 && (phone.trim().length >= 6 || email.includes("@")) && agree && !busy;
+  const needEmail = !!vcfg?.channels.email;
+  const needPhone = !!vcfg?.channels.whatsapp;
+  const contactOk = (needEmail || needPhone)
+    ? (!needEmail || verifiedEmail === email.trim()) && (!needPhone || verifiedPhone === phone.trim())
+    : (phone.trim().length >= 6 || email.includes("@"));
+  const canSubmit = name.trim().length > 1 && !!vcfg && contactOk && agree && !busy;
 
   return (
     <div className="max-w-3xl mx-auto rounded-2xl border border-chat-400 bg-chat-50 p-4">
@@ -647,12 +662,16 @@ function QuotaWall({
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre"
             autoComplete="name" required
             className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-chat-500" />
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Tu WhatsApp"
-            inputMode="tel" autoComplete="tel"
-            className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-chat-500" />
-          <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Tu correo (opcional si diste WhatsApp)"
-            type="email" autoComplete="email"
-            className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-chat-500" />
+          <ContactVerifyField
+            channel="whatsapp" value={phone} onChange={setPhone}
+            verifiedValue={verifiedPhone} onVerified={setVerifiedPhone}
+            placeholder="Tu WhatsApp (ej. 987654321)" verificationEnabled={needPhone}
+          />
+          <ContactVerifyField
+            channel="email" value={email} onChange={setEmail}
+            verifiedValue={verifiedEmail} onVerified={setVerifiedEmail}
+            placeholder={needEmail ? "Tu correo" : "Tu correo (opcional si diste WhatsApp)"} verificationEnabled={needEmail}
+          />
           <label className="flex items-start gap-2 text-[11px] text-gray-500">
             <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5" />
             Acepto que usen mis datos para contactarme y mejorar las propuestas para mi zona.
@@ -660,7 +679,7 @@ function QuotaWall({
           {error && <p className="text-xs text-red-600">{error}</p>}
           <button type="submit" disabled={!canSubmit}
             className="w-full bg-chat-500 text-white text-sm font-medium py-2.5 rounded-full hover:bg-chat-600 disabled:opacity-40 transition">
-            {busy ? "Guardando…" : `Desbloquear ${quota.bonus} mensajes`}
+            {busy ? "Guardando…" : !vcfg ? "Cargando…" : `Desbloquear ${quota.bonus} mensajes`}
           </button>
         </form>
       )}

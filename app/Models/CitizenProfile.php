@@ -10,6 +10,7 @@ class CitizenProfile extends Model
 {
     protected $fillable = [
         'visitor_uuid', 'name', 'phone_whatsapp', 'email', 'dni',
+        'email_verified_at', 'phone_verified_at',
         'district', 'age_range', 'occupation', 'voting_intention',
         'points_balance', 'referral_code', 'referred_by_code', 'source',
         'consented', 'consent_at', 'consent_ip',
@@ -23,6 +24,8 @@ class CitizenProfile extends Model
         'consented'    => 'boolean',
         'is_verified'  => 'boolean',
         'consent_at'   => 'datetime',
+        'email_verified_at' => 'datetime',
+        'phone_verified_at' => 'datetime',
     ];
 
     protected $hidden = ['dni'];
