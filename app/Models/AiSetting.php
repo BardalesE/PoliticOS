@@ -49,12 +49,17 @@ class AiSetting extends Model
     public const MESSAGE_LIMIT_MAX     = 50;
     public const MESSAGE_LIMIT_DEFAULT = 20;
 
+    // Mensajes que gana quien deja sus datos al agotar el bloque inicial.
+    public const BONUS_MIN     = 10;
+    public const BONUS_MAX     = 100;
+    public const BONUS_DEFAULT = 50;
+
     protected $fillable = [
         'provider', 'api_key', 'model', 'max_tokens', 'temperature',
         'fallback_provider', 'system_prompt', 'system_prompt_customizado', 'mode',
         'chat_subtitle', 'chat_btn_text', 'chat_btn_image_url',
         'chat_btn_shape', 'chat_btn_color', 'chat_btn_size', 'chat_btn_position',
-        'attack_spike_threshold', 'max_messages_per_session', 'support_poll_enabled',
+        'attack_spike_threshold', 'max_messages_per_session', 'registration_bonus_messages', 'support_poll_enabled',
     ];
 
     // api_key nunca sale de la BD en texto plano — Laravel cifra/descifra
@@ -69,6 +74,7 @@ class AiSetting extends Model
         'attack_spike_threshold'    => 'integer',
         'max_messages_per_session'  => 'integer',
         'support_poll_enabled'      => 'boolean',
+        'registration_bonus_messages' => 'integer',
         'system_prompt_customizado' => 'boolean',
     ];
 
@@ -99,6 +105,14 @@ class AiSetting extends Model
         $value = (int) ($this->max_messages_per_session ?: self::MESSAGE_LIMIT_DEFAULT);
 
         return max(self::MESSAGE_LIMIT_MIN, min(self::MESSAGE_LIMIT_MAX, $value));
+    }
+
+    /** Mensajes extra al registrarse, siempre dentro de 10–100. */
+    public function registrationBonus(): int
+    {
+        $value = (int) ($this->registration_bonus_messages ?: self::BONUS_DEFAULT);
+
+        return max(self::BONUS_MIN, min(self::BONUS_MAX, $value));
     }
 
     // Prompt de fábrica para un modo dado (DEFAULT_PROMPT_FILES). Usado al

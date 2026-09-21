@@ -12,11 +12,13 @@ use App\Models\CitizenProfile;
  *
  * Tres capas, todas contando mensajes del USUARIO en el servidor:
  *  1. Por conversación: N mensajes (N = ai_settings.max_messages_per_session,
- *     10–50, lo fija el superadmin por candidato). Quien deja sus datos
- *     (perfil ciudadano ligado a su visitor_id) recibe otros N: 2N.
- *  2. Por visitante en 24 h: 3N (6N si está registrado). Sin esta capa, "iniciar
- *     conversación nueva" reiniciaría el tope y no limitaría nada.
- *  3. Por red (IP) en 24 h: 10N. Cortafuegos contra quien rota de visitor_id;
+ *     10–50). Quien deja sus datos (perfil ciudadano ligado a su visitor_id)
+ *     recibe B más (B = ai_settings.registration_bonus_messages, 10–100): N+B.
+ *     Ambos los fija el superadmin por candidato.
+ *  2. Por visitante en 24 h: 3N (2 conversaciones completas, 2(N+B), si está
+ *     registrado). Sin esta capa, "iniciar conversación nueva" reiniciaría el
+ *     tope y no limitaría nada.
+ *  3. Por red (IP) en 24 h: 5(N+B). Cortafuegos contra quien rota de visitor_id;
  *     lo bastante holgado para una oficina/equipo detrás de la misma IP.
  *
  * El session_id y el visitor_id los manda el cliente (falsificables), por eso la
@@ -24,9 +26,9 @@ use App\Models\CitizenProfile;
  */
 class ChatQuotaService
 {
-    public const VISITOR_DAILY_FACTOR            = 3;
-    public const REGISTERED_VISITOR_DAILY_FACTOR = 6;
-    public const NETWORK_DAILY_FACTOR            = 10;
+    public const VISITOR_DAILY_FACTOR             = 3;   // × N
+    public const REGISTERED_VISITOR_DAILY_BLOCKS  = 2;   // × (N + B)
+    public const NETWORK_DAILY_BLOCKS             = 5;   // × (N + B)
 
     public const BLOCK_SESSION = 'session';
     public const BLOCK_DAILY   = 'daily';
@@ -34,24 +36,26 @@ class ChatQuotaService
 
     /**
      * @return array{
-     *   base:int, max:int, used:int, remaining:int, registered:bool,
+     *   base:int, bonus:int, max:int, used:int, remaining:int, registered:bool,
      *   blocked:?string, can_unlock:bool, can_new_session:bool, resets_at:?string
      * }
      */
     public function evaluate(ChatSession $session): array
     {
-        $base       = AiSetting::current()->sessionMessageLimit();
+        $setting    = AiSetting::current();
+        $base       = $setting->sessionMessageLimit();
+        $bonus      = $setting->registrationBonus();
         $registered = $this->isRegistered($session);
 
-        $sessionCap  = $registered ? $base * 2 : $base;
+        $sessionCap  = $registered ? $base + $bonus : $base;
         $sessionUsed = $this->countUserMessages(fn ($q) => $q->where('chat_sessions.id', $session->id));
 
-        $dailyCap  = $base * ($registered ? self::REGISTERED_VISITOR_DAILY_FACTOR : self::VISITOR_DAILY_FACTOR);
+        $dailyCap  = $registered ? self::REGISTERED_VISITOR_DAILY_BLOCKS * ($base + $bonus) : $base * self::VISITOR_DAILY_FACTOR;
         $dailyUsed = $session->visitor_uuid
             ? $this->countUserMessages(fn ($q) => $q->where('chat_sessions.visitor_uuid', $session->visitor_uuid), 24)
             : 0;
 
-        $networkCap  = $base * self::NETWORK_DAILY_FACTOR;
+        $networkCap  = self::NETWORK_DAILY_BLOCKS * ($base + $bonus);
         $networkUsed = $session->ip
             ? $this->countUserMessages(fn ($q) => $q->where('chat_sessions.ip', $session->ip), 24)
             : 0;
@@ -84,6 +88,7 @@ class ChatQuotaService
 
         return [
             'base'            => $base,
+            'bonus'           => $bonus,
             'max'             => $sessionCap,
             'used'            => $sessionUsed,
             'remaining'       => min($sessionLeft, $dailyLeft, $networkLeft),
@@ -102,7 +107,7 @@ class ChatQuotaService
     {
         $reply = match ($quota['blocked']) {
             self::BLOCK_SESSION => $quota['can_unlock']
-                ? "⏳ **Mensajes agotados.** Llegaste al límite de {$quota['max']} mensajes de esta conversación.\n\nDeja tus datos y te habilito **{$quota['base']} mensajes más**, o inicia una conversación nueva."
+                ? "⏳ **Mensajes agotados.** Llegaste al límite de {$quota['max']} mensajes de esta conversación.\n\nDeja tus datos y te habilito **{$quota['bonus']} mensajes más**, o inicia una conversación nueva."
                 : "⏳ **Mensajes agotados.** Llegaste al límite de {$quota['max']} mensajes de esta conversación." . ($quota['can_new_session'] ? "\n\nPuedes iniciar una conversación nueva para seguir." : "\n\nVuelve mañana para seguir conversando."),
             self::BLOCK_DAILY   => "⏳ **Mensajes agotados por hoy.** Alcanzaste el límite diario de mensajes. Vuelve mañana para seguir conversando.",
             default             => "⏳ **Límite de mensajes alcanzado** desde tu red por hoy. Intenta de nuevo más tarde.",

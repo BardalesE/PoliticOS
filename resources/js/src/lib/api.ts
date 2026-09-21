@@ -769,6 +769,8 @@ export type AiSetting = {
   max_tokens: number;
   /** Mensajes por conversación (10–50). Solo lo edita el superadmin. */
   max_messages_per_session?: number;
+  /** Mensajes extra al registrarse (10–100). Solo superadmin. */
+  registration_bonus_messages?: number;
   /** Mini encuesta "¿apoyas a este candidato?" del chat. Solo superadmin. */
   support_poll_enabled?: boolean;
   temperature: number;

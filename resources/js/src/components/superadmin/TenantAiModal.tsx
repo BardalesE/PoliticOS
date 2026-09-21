@@ -63,6 +63,7 @@ export default function TenantAiModal({
         max_tokens: Number(form.max_tokens), temperature: Number(form.temperature),
         mode: form.mode, system_prompt: form.system_prompt ?? "",
         max_messages_per_session: Math.min(50, Math.max(10, Number(form.max_messages_per_session) || 20)),
+        registration_bonus_messages: Math.min(100, Math.max(10, Number(form.registration_bonus_messages) || 50)),
         support_poll_enabled: !!form.support_poll_enabled,
       };
       if (clearKey) payload.api_key = "";
@@ -165,26 +166,36 @@ export default function TenantAiModal({
                 </label>
               </div>
 
-              <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <label htmlFor="max-msgs" className="text-xs font-semibold text-gray-700">
-                    Mensajes por conversación
-                  </label>
-                  <span className="text-sm font-bold text-trust-700 tabular-nums">
-                    {form.max_messages_per_session ?? 20}
-                  </span>
+              <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 space-y-3">
+                <div>
+                  <div className="flex items-center justify-between gap-3">
+                    <label htmlFor="max-msgs" className="text-xs font-semibold text-gray-700">Mensajes por conversación</label>
+                    <span className="text-sm font-bold text-trust-700 tabular-nums">{form.max_messages_per_session ?? 20}</span>
+                  </div>
+                  <input id="max-msgs" type="range" min={10} max={50} step={1}
+                    className="w-full mt-2 accent-trust-700"
+                    value={form.max_messages_per_session ?? 20}
+                    onChange={(e) => set("max_messages_per_session", Number(e.target.value))} />
+                  <div className="flex justify-between text-[10px] text-gray-400"><span>10</span><span>50</span></div>
                 </div>
-                <input id="max-msgs" type="range" min={10} max={50} step={1}
-                  className="w-full mt-2 accent-trust-700"
-                  value={form.max_messages_per_session ?? 20}
-                  onChange={(e) => set("max_messages_per_session", Number(e.target.value))} />
-                <div className="flex justify-between text-[10px] text-gray-400"><span>10</span><span>50</span></div>
-                <p className="text-[11px] text-gray-500 mt-2 leading-relaxed">
-                  Al llegar al límite el chat muestra «Mensajes agotados». El visitante puede{" "}
-                  <b>dejar sus datos</b> (nombre y contacto) para ganar otro bloque igual, o iniciar una
-                  conversación nueva. Topes anti-abuso automáticos por visitante en 24 h:{" "}
-                  <b>{(form.max_messages_per_session ?? 20) * 3}</b> mensajes ({(form.max_messages_per_session ?? 20) * 6} si
-                  ya dejó sus datos) y <b>{(form.max_messages_per_session ?? 20) * 10}</b> por red/IP, para que una
+                <div>
+                  <div className="flex items-center justify-between gap-3">
+                    <label htmlFor="bonus-msgs" className="text-xs font-semibold text-gray-700">Mensajes extra al registrarse</label>
+                    <span className="text-sm font-bold text-trust-700 tabular-nums">+{form.registration_bonus_messages ?? 50}</span>
+                  </div>
+                  <input id="bonus-msgs" type="range" min={10} max={100} step={5}
+                    className="w-full mt-2 accent-trust-700"
+                    value={form.registration_bonus_messages ?? 50}
+                    onChange={(e) => set("registration_bonus_messages", Number(e.target.value))} />
+                  <div className="flex justify-between text-[10px] text-gray-400"><span>10</span><span>100</span></div>
+                </div>
+                <p className="text-[11px] text-gray-500 leading-relaxed">
+                  El visitante tiene <b>{form.max_messages_per_session ?? 20}</b> mensajes por conversación. Al agotarlos el chat
+                  muestra «Mensajes agotados» y, si deja sus datos (nombre y contacto), gana <b>{form.registration_bonus_messages ?? 50} más</b>
+                  ({(form.max_messages_per_session ?? 20) + (form.registration_bonus_messages ?? 50)} en total). Topes anti-abuso en 24 h:{" "}
+                  <b>{(form.max_messages_per_session ?? 20) * 3}</b> por visitante sin registrar,{" "}
+                  <b>{((form.max_messages_per_session ?? 20) + (form.registration_bonus_messages ?? 50)) * 2}</b> si ya se registró y{" "}
+                  <b>{((form.max_messages_per_session ?? 20) + (form.registration_bonus_messages ?? 50)) * 5}</b> por red/IP, para que una
                   oficina o equipo compartiendo internet no se bloquee entre sí.
                 </p>
               </div>
