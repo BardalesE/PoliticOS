@@ -41,11 +41,10 @@ class AnalyticsController extends Controller
         // El dashboard admin usa /admin/analytics, que sí las incluye.
         $topTopics = ChatMessage::where('role', 'assistant')
             ->where('created_at', '>=', $start)
-            ->select(
-                DB::raw("COALESCE(topic, 'general') as topic"),
-                DB::raw('COUNT(*) as count')
-            )
-            ->groupBy(DB::raw("COALESCE(topic, 'general')"))
+            ->whereNotNull('topic')
+            ->whereNotIn('topic', ['general', 'otro'])
+            ->select('topic', DB::raw('COUNT(*) as count'))
+            ->groupBy('topic')
             ->orderByDesc('count')
             ->limit(8)
             ->get();
@@ -105,20 +104,27 @@ class AnalyticsController extends Controller
         // ── Serie temporal scopeada al periodo ───────────────────
         $days = $this->buildSeries($start, $unit);
 
-        // ── Top topics (incluye mensajes sin topic como "general") ──
+        // ── Top topics ──
+        // Solo respuestas con tema: las sin tema (bienvenida, "mensajes
+        // agotados", saludos) inflaban un "general" de ~75 % que no le decía
+        // nada al candidato. Van aparte en `untagged_messages`.
         // Antes esta consulta ignoraba $start: cambiar el selector de
         // periodo en el dashboard no movía este bloque, lo que se lee como
         // "los números no cuadran". Ver informe de QA.
         $topTopics = ChatMessage::where('role', 'assistant')
             ->where('created_at', '>=', $start)
-            ->select(
-                DB::raw("COALESCE(topic, 'general') as topic"),
-                DB::raw('COUNT(*) as count')
-            )
-            ->groupBy(DB::raw("COALESCE(topic, 'general')"))
+            ->whereNotNull('topic')
+            ->whereNotIn('topic', ['general', 'otro'])
+            ->select('topic', DB::raw('COUNT(*) as count'))
+            ->groupBy('topic')
             ->orderByDesc('count')
             ->limit(8)
             ->get();
+
+        $untaggedMessages = ChatMessage::where('role', 'assistant')
+            ->where('created_at', '>=', $start)
+            ->where(fn ($q) => $q->whereNull('topic')->orWhereIn('topic', ['general', 'otro']))
+            ->count();
 
         // ── Top preguntas (usa clusters si existen, sino concerns) ──
         // ClusterTopQuestionsJob genera un snapshot POR DÍA (analyzed_date).
@@ -202,6 +208,7 @@ class AnalyticsController extends Controller
             ],
             'conversations_per_day' => $days,
             'top_topics'            => $topTopics,
+            'untagged_messages'     => $untaggedMessages,
             'top_questions'         => $topQuestions,
             'recent_sessions'       => $recentSessions,
             'period'                => $period,
