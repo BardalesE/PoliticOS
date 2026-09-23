@@ -163,7 +163,7 @@ class CivicAIService
         return [
             'reply'           => $reply,
             'citations'       => $this->citationsForReply($reply),
-            'topic'           => $parsed['pepa_metadata']['tema_dominante'] ?? $topic,
+            'topic'           => $this->analyticsTopic($userMessage, $parsed['pepa_metadata']['tema_dominante'] ?? null, $topic, $session),
             'media'           => $media,
             'attack_detected' => $attack !== null,
             'attack_category' => $attack['category'] ?? null,
@@ -353,7 +353,7 @@ class CivicAIService
         }
 
         return [
-            'topic'           => $parsed['pepa_metadata']['tema_dominante'] ?? $topic,
+            'topic'           => $this->analyticsTopic($userMessage, $parsed['pepa_metadata']['tema_dominante'] ?? null, $topic, $session),
             'citations'       => $this->citationsForReply($parsed['reply']),
             'media'           => $media,
             'attack_detected' => $attack !== null,
@@ -444,6 +444,30 @@ class CivicAIService
             }
         }
         return null;
+    }
+
+    /**
+     * Tema que se GUARDA en chat_messages.topic (métricas del panel).
+     * Independiente del $ragTopic que filtra documentos/medios, que no cambia.
+     * Ver App\Services\TopicClassifier.
+     */
+    private function analyticsTopic(string $userMessage, ?string $aiTopic, ?string $ragTopic, ChatSession $session): ?string
+    {
+        try {
+            $previous = ChatMessage::where('session_id', $session->id)
+                ->where('role', 'assistant')
+                ->whereNotNull('topic')
+                ->latest('id')
+                ->value('topic');
+
+            // Sin fallback al $ragTopic: ese viene de detectTopic() por subcadena
+            // ("ia" ⊂ "historia") y reintroducía falsos positivos.
+            return app(TopicClassifier::class)->classify($userMessage, $aiTopic, $previous);
+        } catch (\Throwable $e) {
+            Log::warning('TopicClassifier falló; se usa el tema del RAG', ['error' => $e->getMessage()]);
+
+            return $ragTopic;
+        }
     }
 
     // ─── DETECCIÓN DE TEMA/DISTRITO ───────────────────────────────────────

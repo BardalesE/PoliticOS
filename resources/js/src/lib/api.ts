@@ -638,6 +638,8 @@ export type AdminAnalytics = {
   messages: { total: number; by_role: Record<string, number> };
   conversations_per_day: { date: string; count: number }[];
   top_topics: { topic: string; count: number }[];
+  /** Respuestas sin tema (saludos, bienvenida, "mensajes agotados"). */
+  untagged_messages?: number;
   top_questions: { question: string; count: number }[];
   recent_sessions: { id: number; session_id: string; ip: string | null; created_at: string; messages_count: number }[];
   period: "day" | "week" | "month" | "year";

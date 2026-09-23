@@ -418,6 +418,11 @@ export default function AdminDashboard() {
           ) : (
             <div className="h-32 flex items-center justify-center text-gray-400 text-sm">Sin datos.</div>
           )}
+          {(data.untagged_messages ?? 0) > 0 && (
+            <p className="mt-2 text-[11px] text-gray-400">
+              + {data.untagged_messages} respuestas sin tema (saludos, bienvenida, límite de mensajes).
+            </p>
+          )}
         </Section>
 
         {/* Propuestas por estado */}
