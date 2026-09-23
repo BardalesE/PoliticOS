@@ -290,7 +290,6 @@ export type Paginated<T> = {
 export type AnalyticsSummary = {
   total_conversations: number;
   total_messages: number;
-  top_questions: { question: string; count: number }[];
   top_topics: { topic: string; count: number }[];
   conversations_per_day: { date: string; count: number }[];
 };

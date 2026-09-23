@@ -34,18 +34,11 @@ class AnalyticsController extends Controller
         $totalConversations = $this->activeSessionsQuery($start)->count();
         $totalMessages      = ChatMessage::where('created_at', '>=', $start)->count();
 
-        // Agrupado normalizado en PHP, no GROUP BY sobre el texto crudo —
-        // "¿Cuál es tu propuesta de seguridad?" y "cual es tu propuesta de
-        // seguridad" antes contaban como preguntas distintas. Ver informe de QA.
-        $topQuestions = ChatMessage::where('role', 'user')
-            ->where('created_at', '>=', $start)
-            ->get(['content'])
-            ->countBy(fn ($m) => $this->normalizeQuestionForGrouping($m->content))
-            ->sortDesc()
-            ->take(10)
-            ->map(fn ($count, $question) => ['question' => $question, 'count' => $count])
-            ->values();
-
+        // Endpoint PÚBLICO: nunca devolver texto de mensajes de ciudadanos.
+        // Antes exponía top_questions (texto literal) a cualquiera, cargando
+        // todos los mensajes del mes en memoria en cada request (DoS en el
+        // plan free) y permitiendo que un troll "plante" preguntas repitiéndolas.
+        // El dashboard admin usa /admin/analytics, que sí las incluye.
         $topTopics = ChatMessage::where('role', 'assistant')
             ->where('created_at', '>=', $start)
             ->select(
@@ -62,7 +55,6 @@ class AnalyticsController extends Controller
         return response()->json([
             'total_conversations'   => $totalConversations,
             'total_messages'        => $totalMessages,
-            'top_questions'         => $topQuestions,
             'top_topics'            => $topTopics,
             'conversations_per_day' => $perDay,
             'period'                => $period,
