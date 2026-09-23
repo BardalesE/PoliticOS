@@ -70,6 +70,20 @@ if [ -n "${PAGES_TENANTS}" ]; then
         || echo "[entrypoint] WARN: knowledge:backfill-pages falló — no bloquea el arranque"
 fi
 
+# 3d ─ reclasificar temas del chat (panel "Mensajes por tema") ──────────────
+# Render free no tiene Shell: se dispara con variables de entorno.
+#   RECLASSIFY_TOPICS_TENANTS="politicosperu"   (varios separados por espacio)
+#   RECLASSIFY_TOPICS_APPLY=true                (sin esto es SIMULACRO: solo
+#                                                imprime la tabla antes/después
+#                                                en los logs, no escribe nada)
+# Idempotente. Cuando termines, borra RECLASSIFY_TOPICS_TENANTS.
+if [ -n "${RECLASSIFY_TOPICS_TENANTS:-}" ]; then
+    RECLASSIFY_FLAG=""
+    [ "${RECLASSIFY_TOPICS_APPLY:-false}" = "true" ] && RECLASSIFY_FLAG="--apply"
+    php artisan chat:reclassify-topics ${RECLASSIFY_TOPICS_TENANTS} ${RECLASSIFY_FLAG} \
+        || echo "[entrypoint] WARN: chat:reclassify-topics falló — no bloquea el arranque"
+fi
+
 # 4 ── seed inicial (solo primer deploy: RUN_SEED=true) ───────────────────────
 if [ "${RUN_SEED:-false}" = "true" ]; then
     php artisan db:seed --force \
