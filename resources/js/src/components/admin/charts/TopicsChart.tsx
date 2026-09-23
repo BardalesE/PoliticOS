@@ -38,9 +38,9 @@ function CustomLegend({ payload }: { payload?: { value: string; color: string }[
   );
 }
 
-type TopicsChartProps = { data: DataPoint[] };
+type TopicsChartProps = { data: DataPoint[]; onSelect?: (topic: string) => void };
 
-export function TopicsChart({ data }: TopicsChartProps) {
+export function TopicsChart({ data, onSelect }: TopicsChartProps) {
   const { profile } = useCandidate();
   const COLORS = [profile.color_primary || "#DC2626", ...STATIC_COLORS];
 
@@ -57,6 +57,8 @@ export function TopicsChart({ data }: TopicsChartProps) {
           outerRadius={88}
           paddingAngle={3}
           strokeWidth={0}
+          cursor={onSelect ? "pointer" : undefined}
+          onClick={(d: { payload?: DataPoint }) => d?.payload && onSelect?.(d.payload.topic)}
         >
           {data.map((_, i) => (
             <Cell key={i} fill={COLORS[i % COLORS.length]} />

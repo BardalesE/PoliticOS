@@ -254,6 +254,26 @@ class AnalyticsController extends Controller
         return mb_substr($normalized, 0, 60);
     }
 
+    // GET /api/admin/analytics/topics/{topic}?period=month  (admin)
+    // Detalle de un tema al hacer clic en el gráfico "Mensajes por tema".
+    public function topicDetail(Request $request, string $topic, \App\Services\TopicInsightsService $insights): JsonResponse
+    {
+        if (!preg_match('/^[a-z0-9_-]{1,40}$/', $topic)) {
+            return response()->json(['message' => 'Tema inválido.'], 422);
+        }
+
+        $period = $request->query('period', 'month');
+        if (!in_array($period, ['day', 'week', 'month', 'year'])) {
+            $period = 'month';
+        }
+        [$start, $unit] = $this->resolvePeriod($period);
+
+        return response()->json($insights->build($topic, $start, $unit) + [
+            'period'      => $period,
+            'granularity' => $unit,
+        ]);
+    }
+
     // ─── Helpers de periodo ───────────────────────────────────────────
 
     private function resolvePeriod(string $period): array

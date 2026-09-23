@@ -184,6 +184,7 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
 
         // Analytics
         Route::get('/analytics', [AnalyticsController::class, 'adminSummary']);
+        Route::get('/analytics/topics/{topic}', [AnalyticsController::class, 'topicDetail'])->middleware('throttle:60,1,analytics-topic');
 
         // ━━━ INTELIGENCIA ELECTORAL (NUEVO en v2) ━━━━━━━━━━━━━━━━━━━━
         Route::prefix('intelligence')->group(function () {

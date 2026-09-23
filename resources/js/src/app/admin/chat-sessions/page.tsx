@@ -32,6 +32,14 @@ export default function ChatSessionsPage() {
 
   useEffect(() => { load(1); }, [load]);
 
+  // Deep-link desde el detalle de tema del dashboard: /admin/chat-sessions?session=<id>
+  // (window.location y no useSearchParams: este último exige un <Suspense> en build).
+  useEffect(() => {
+    if (!token) return;
+    const id = Number(new URLSearchParams(window.location.search).get("session"));
+    if (Number.isInteger(id) && id > 0) openSession(id);
+  }, [token]);
+
   async function openSession(id: number) {
     if (!token) return;
     setLoadingDetail(true);
