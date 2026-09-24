@@ -16,6 +16,7 @@ import { TopicsChart } from "@/components/admin/charts/TopicsChart";
 import { ProposalsStatusChart } from "@/components/admin/charts/ProposalsStatusChart";
 import { WeeklyBarChart } from "@/components/admin/charts/WeeklyBarChart";
 import { HorizontalTopicsChart } from "@/components/admin/charts/HorizontalTopicsChart";
+import { TopicDetailDrawer } from "@/components/admin/TopicDetailDrawer";
 import { cn } from "@/lib/utils";
 
 // ─── Periodo ──────────────────────────────────────────────────────────────
@@ -166,6 +167,7 @@ export default function AdminDashboard() {
   const [error, setError]     = useState(false);
   const [onboarding, setOnboarding] = useState<OnboardingStatus | null>(null);
   const [period, setPeriod]   = useState<Period>("month");
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -412,9 +414,9 @@ export default function AdminDashboard() {
         )}
 
         {/* Temas por mensajes */}
-        <Section title="Mensajes por tema" sub="Temas">
+        <Section title="Mensajes por tema" sub="Temas · clic para ver detalle">
           {data.top_topics.length > 0 ? (
-            <HorizontalTopicsChart data={data.top_topics} />
+            <HorizontalTopicsChart data={data.top_topics} onSelect={setSelectedTopic} />
           ) : (
             <div className="h-32 flex items-center justify-center text-gray-400 text-sm">Sin datos.</div>
           )}
@@ -552,7 +554,7 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
           <div className="lg:col-span-2">
             <Section title="Distribución por tema" sub="Temas">
-              <TopicsChart data={data.top_topics} />
+              <TopicsChart data={data.top_topics} onSelect={setSelectedTopic} />
             </Section>
           </div>
           <div className="lg:col-span-3">
@@ -566,7 +568,13 @@ export default function AdminDashboard() {
                     const RANK_COLORS = [brandColor,"#2563EB","#16A34A","#F59E0B","#7C3AED","#0891B2","#DB2777","#E85D04"];
                     const color = RANK_COLORS[i % RANK_COLORS.length];
                     return (
-                      <div key={t.topic} className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        key={t.topic}
+                        onClick={() => setSelectedTopic(t.topic)}
+                        className="w-full flex items-center gap-3 rounded-lg -mx-2 px-2 py-1 hover:bg-gray-50 text-left"
+                        title={`Ver detalle de ${t.topic}`}
+                      >
                         <span className="text-[10px] text-gray-400 w-4 shrink-0 text-right">#{i + 1}</span>
                         <p className="text-xs text-gray-700 capitalize w-24 shrink-0">{t.topic}</p>
                         <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -581,7 +589,7 @@ export default function AdminDashboard() {
                         <span className="text-xs font-bold text-gray-600 w-10 text-right shrink-0">
                           {t.count}
                         </span>
-                      </div>
+                      </button>
                     );
                   })}
               </div>
@@ -590,6 +598,12 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      <TopicDetailDrawer
+        topic={selectedTopic}
+        period={period}
+        token={token}
+        onClose={() => setSelectedTopic(null)}
+      />
     </div>
   );
 }

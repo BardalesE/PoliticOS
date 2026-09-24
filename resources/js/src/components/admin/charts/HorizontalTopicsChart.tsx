@@ -27,9 +27,9 @@ function CustomTooltip({ active, payload }: TooltipRenderProps) {
   );
 }
 
-type Props = { data: DataPoint[] };
+type Props = { data: DataPoint[]; onSelect?: (topic: string) => void };
 
-export function HorizontalTopicsChart({ data }: Props) {
+export function HorizontalTopicsChart({ data, onSelect }: Props) {
   const { profile } = useCandidate();
   const brandColor   = profile.color_primary || "#DC2626";
   const COLORS       = [brandColor, ...STATIC_COLORS];
@@ -61,7 +61,12 @@ export function HorizontalTopicsChart({ data }: Props) {
           tickFormatter={(v) => v.charAt(0).toUpperCase() + v.slice(1)}
         />
         <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(0,0,0,0.04)" }} />
-        <Bar dataKey="count" radius={[0, 6, 6, 0]}>
+        <Bar
+          dataKey="count"
+          radius={[0, 6, 6, 0]}
+          cursor={onSelect ? "pointer" : undefined}
+          onClick={(d: { payload?: DataPoint }) => d?.payload && onSelect?.(d.payload.topic)}
+        >
           {sorted.map((_, i) => (
             <Cell key={i} fill={COLORS[i % COLORS.length]} />
           ))}

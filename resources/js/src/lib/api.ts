@@ -287,6 +287,23 @@ export type Paginated<T> = {
   total: number;
 };
 
+/** Detalle de un tema (clic en "Mensajes por tema" del dashboard). */
+export type TopicDetail = {
+  topic: string;
+  total_messages: number;
+  total_conversations: number;
+  /** % sobre las respuestas con tema del periodo. */
+  share: number;
+  previous_total: number;
+  series: { date: string; count: number }[];
+  questions: { question: string; count: number }[];
+  sentiment: { positivo: number; neutral: number; negativo: number; sin_analizar: number };
+  zones: { name: string; count: number }[];
+  conversations: { id: number; session_id: string; created_at: string | null; messages_count: number; question: string }[];
+  period: "day" | "week" | "month" | "year";
+  granularity: "hour" | "day" | "month";
+};
+
 export type AnalyticsSummary = {
   total_conversations: number;
   total_messages: number;
@@ -399,6 +416,8 @@ export const adminApi = {
   analytics: {
     summary: (token: string, period = "month") =>
       request<AdminAnalytics>(`/admin/analytics?period=${period}`, {}, token, 5_000),
+    topic: (token: string, topic: string, period = "month") =>
+      request<TopicDetail>(`/admin/analytics/topics/${encodeURIComponent(topic)}?period=${period}`, {}, token, 10_000),
   },
 
   gallery: {
