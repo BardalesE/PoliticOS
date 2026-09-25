@@ -34,6 +34,7 @@ export interface CandidatoResumen {
   party: string;
   list_number: string | null;
   photo_url: string | null;
+  logo_url?: string | null;   // símbolo del partido
   location: string;
   distrito: { id: number; nombre: string; provincia: string | null; departamento: string | null } | null;
   documentos_count: number;
@@ -121,6 +122,7 @@ export interface AdminCandidato {
   list_number: string | null;
   slug: string | null;
   photo_url: string | null;
+  logo_url: string | null;
   bio: string | null;
   tagline: string | null;
   tiktok_url: string | null;
@@ -149,6 +151,7 @@ export interface AdminCandidatoInput {
   bio?: string | null;
   tagline?: string | null;
   photo_url?: string | null;
+  logo_url?: string | null;
   tiktok_url?: string | null;
   facebook_url?: string | null;
   instagram_url?: string | null;

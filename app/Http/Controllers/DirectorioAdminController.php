@@ -7,6 +7,7 @@ use App\Models\UbigeoDistrito;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -18,6 +19,7 @@ use Illuminate\Support\Str;
  *   POST   /api/admin/directorio/candidatos/{id}/publicar
  *   POST   /api/admin/directorio/candidatos/{id}/despublicar
  *   DELETE /api/admin/directorio/candidatos/{id}
+ *   POST   /api/admin/directorio/foto            → sube una foto o el símbolo del partido desde el dispositivo, devuelve { url }
  *
  * Los PDF (Hoja de Vida, Plan de Gobierno) NO se suben aquí: se reutiliza
  * POST /api/admin/knowledge con `candidate_id`, que ya extrae e indexa.
@@ -27,6 +29,25 @@ use Illuminate\Support\Str;
  */
 class DirectorioAdminController extends Controller
 {
+    /**
+     * Foto del candidato subida desde el dispositivo. Devuelve la URL pública
+     * (disco de media: R2 en producción) para guardarla en photo_url.
+     */
+    public function uploadFoto(Request $request): JsonResponse
+    {
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'], // 5 MB
+        ], [
+            'file.mimes' => 'La foto debe ser JPG, PNG o WEBP.',
+            'file.max'   => 'La foto pesa más de 5 MB.',
+        ]);
+
+        $disk = config('filesystems.media');
+        $path = $request->file('file')->store('candidatos', $disk);
+
+        return response()->json(['url' => Storage::disk($disk)->url($path)], 201);
+    }
+
     public function index(): JsonResponse
     {
         $ready = fn (Builder $d) => $d->where('is_active', true)->where('status', 'ready');
@@ -152,6 +173,7 @@ class DirectorioAdminController extends Controller
             'bio'           => ['nullable', 'string', 'max:5000'],
             'tagline'       => ['nullable', 'string', 'max:300'],
             'photo_url'     => ['nullable', 'url', 'max:500'],
+            'logo_url'      => ['nullable', 'url', 'max:500'],   // símbolo del partido / organización
             'tiktok_url'    => ['nullable', 'url', 'max:500'],
             'facebook_url'  => ['nullable', 'url', 'max:500'],
             'instagram_url' => ['nullable', 'url', 'max:500'],
@@ -209,6 +231,7 @@ class DirectorioAdminController extends Controller
             'list_number'        => $c->list_number,
             'slug'               => $c->slug,
             'photo_url'          => $c->photo_url,
+            'logo_url'           => $c->logo_url,
             'bio'                => $c->bio,
             'tagline'            => $c->tagline,
             'tiktok_url'         => $c->tiktok_url,

@@ -78,6 +78,7 @@ class CompareController extends Controller
                 'name'  => $c->name,
                 'party' => $c->party,
                 'photo_url' => $c->photo_url,
+                'logo_url'  => $c->logo_url,
             ] + $summary;
         }
 

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, Loader2, Scale, X } from "lucide-react";
 import { normalizeApiBase, tenantHeaders } from "@/lib/api";
+import { PartySymbol } from "@/components/ui/PartySymbol";
 
 /**
  * Comparador 1 vs 1: dos candidatos de la zona, un tema, dos columnas.
@@ -11,7 +12,7 @@ import { normalizeApiBase, tenantHeaders } from "@/lib/api";
 
 const API = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
 
-export interface CompareCandidate { slug: string; name: string; party?: string | null }
+export interface CompareCandidate { slug: string; name: string; party?: string | null; logo_url?: string | null }
 
 export interface CompareCitation {
   id: string;
@@ -26,6 +27,7 @@ interface Side {
   slug: string;
   name: string;
   party: string | null;
+  logo_url?: string | null;
   found: boolean;
   points: string[];
   concrete: string;
@@ -71,8 +73,13 @@ function PointText({ text, citations, onCite }: { text: string; citations: Compa
 function Column({ side, onCite }: { side: Side; onCite: (c: CompareCitation) => void }) {
   return (
     <section className="flex min-w-0 flex-col rounded-2xl border border-gray-200 bg-white p-4" aria-label={side.name}>
-      <h3 className="text-[15px] font-bold leading-tight text-gray-900">{side.name}</h3>
-      {side.party && <p className="mt-0.5 truncate text-[11px] text-gray-500">{side.party}</p>}
+      <div className="flex items-center gap-2.5">
+        <PartySymbol src={side.logo_url} party={side.party} size={40} />
+        <div className="min-w-0">
+          <h3 className="text-[15px] font-bold leading-tight text-gray-900">{side.name}</h3>
+          {side.party && <p className="mt-0.5 truncate text-[11px] text-gray-500">{side.party}</p>}
+        </div>
+      </div>
 
       {side.found ? (
         <>

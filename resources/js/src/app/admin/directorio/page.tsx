@@ -1,9 +1,9 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, CheckCircle2, ExternalLink, Loader2, MapPin, Pencil, Trash2, Upload, X } from "lucide-react";
+import { AlertCircle, Camera, CheckCircle2, ExternalLink, Link2, Loader2, MapPin, Pencil, Trash2, Upload, X } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { adminApi } from "@/lib/api";
+import { adminApi, normalizeApiBase, tenantHeaders } from "@/lib/api";
 import {
   directorioAdmin, ubigeoApi, prettyPlace,
   type AdminCandidato, type UbigeoItem,
@@ -27,7 +27,7 @@ const inputCls =
   "focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:bg-gray-50 disabled:text-gray-400";
 
 const EMPTY = {
-  name: "", title: "", party: "", list_number: "", photo_url: "", tagline: "", bio: "",
+  name: "", title: "", party: "", list_number: "", photo_url: "", logo_url: "", tagline: "", bio: "",
   facebook_url: "", instagram_url: "", tiktok_url: "",
 };
 
@@ -111,6 +111,97 @@ function DocUpload({ candidato, onDone }: { candidato: AdminCandidato; onDone: (
   );
 }
 
+// ─── Foto: subir desde el dispositivo (o pegar un enlace) ─────────────
+
+const API_BASE = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
+const MAX_MB = 5;
+
+function PhotoField({
+  value, onChange, token, label = "Foto del candidato", noun = "foto", square = false,
+}: {
+  value: string; onChange: (url: string) => void; token: string | null;
+  label?: string; noun?: string; square?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy]       = useState(false);
+  const [error, setError]     = useState<string | null>(null);
+  const [showUrl, setShowUrl] = useState(false);
+  const [drag, setDrag]       = useState(false);
+
+  async function subir(file: File) {
+    setError(null);
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { setError(`El archivo debe ser JPG, PNG o WEBP.`); return; }
+    if (file.size > MAX_MB * 1024 * 1024) { setError(`El archivo pesa más de ${MAX_MB} MB.`); return; }
+    if (!token) { setError("Tu sesión expiró. Vuelve a ingresar."); return; }
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const r = await fetch(`${API_BASE}/admin/directorio/foto`, {
+        method: "POST",
+        headers: { Accept: "application/json", Authorization: `Bearer ${token}`, ...tenantHeaders() },
+        body: fd,
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j?.errors?.file?.[0] ?? j?.message ?? "No se pudo subir la foto.");
+      onChange(j.url as string);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo subir la foto.");
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  return (
+    <div>
+      <span className="mb-1 block text-xs font-semibold text-gray-600">{label}</span>
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+        onDragLeave={() => setDrag(false)}
+        onDrop={(e) => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files?.[0]; if (f) subir(f); }}
+        className={cn("flex items-center gap-3 rounded-xl border-2 border-dashed p-3 transition-colors",
+          drag ? "border-brand-500 bg-brand-50" : "border-gray-200 bg-white")}
+      >
+        <button type="button" onClick={() => inputRef.current?.click()} disabled={busy}
+          className={cn("relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden bg-gray-100 ring-1 ring-gray-200 hover:ring-brand-500",
+            square ? "rounded-xl bg-white" : "rounded-full")}
+          aria-label={value ? `Cambiar ${noun}` : `Subir ${noun}`}>
+          {value
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={value} alt="" className={cn("h-full w-full", square ? "object-contain p-1" : "object-cover")} />
+            : <Camera className="h-6 w-6 text-gray-400" aria-hidden />}
+          {busy && <span className="absolute inset-0 flex items-center justify-center bg-white/70"><Loader2 className="h-5 w-5 animate-spin text-brand-600" /></span>}
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => inputRef.current?.click()} disabled={busy}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50">
+              <Upload className="h-3.5 w-3.5" aria-hidden /> {value ? `Cambiar ${noun}` : `Subir ${noun}`}
+            </button>
+            {value && (
+              <button type="button" onClick={() => onChange("")} disabled={busy}
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50">
+                <X className="h-3.5 w-3.5" aria-hidden /> Quitar
+              </button>
+            )}
+          </div>
+          <p className="mt-1 text-[11px] text-gray-400">JPG, PNG o WEBP, hasta {MAX_MB} MB. También puedes arrastrarla aquí.</p>
+        </div>
+        <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) subir(f); }} />
+      </div>
+      {error && <p className="mt-1 text-[11px] font-medium text-red-600">{error}</p>}
+      <button type="button" onClick={() => setShowUrl((v) => !v)} className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 hover:text-gray-700">
+        <Link2 className="h-3 w-3" aria-hidden /> {showUrl ? "Ocultar enlace" : "O pegar un enlace"}
+      </button>
+      {showUrl && (
+        <input type="url" className={cn(inputCls, "mt-1.5")} value={value} onChange={(e) => onChange(e.target.value)} placeholder="https://…" />
+      )}
+    </div>
+  );
+}
+
 // ─── Página ────────────────────────────────────────────────────────────
 
 export default function DirectorioAdminPage() {
@@ -161,7 +252,7 @@ export default function DirectorioAdminPage() {
   async function startEdit(c: AdminCandidato) {
     setEditing(c);
     setForm({
-      name: c.name, title: c.title, party: c.party, list_number: c.list_number ?? "", photo_url: c.photo_url ?? "",
+      name: c.name, title: c.title, party: c.party, list_number: c.list_number ?? "", photo_url: c.photo_url ?? "", logo_url: c.logo_url ?? "",
       tagline: c.tagline ?? "", bio: c.bio ?? "", facebook_url: c.facebook_url ?? "",
       instagram_url: c.instagram_url ?? "", tiktok_url: c.tiktok_url ?? "",
     });
@@ -184,7 +275,7 @@ export default function DirectorioAdminPage() {
     const nullIfEmpty = (v: string) => (v.trim() === "" ? null : v.trim());
     const payload = {
       name: form.name.trim(), title: form.title.trim(), party: form.party.trim(), distrito_id: Number(distId),
-      list_number: nullIfEmpty(form.list_number), photo_url: nullIfEmpty(form.photo_url),
+      list_number: nullIfEmpty(form.list_number), photo_url: nullIfEmpty(form.photo_url), logo_url: nullIfEmpty(form.logo_url),
       tagline: nullIfEmpty(form.tagline), bio: nullIfEmpty(form.bio),
       facebook_url: nullIfEmpty(form.facebook_url), instagram_url: nullIfEmpty(form.instagram_url),
       tiktok_url: nullIfEmpty(form.tiktok_url),
@@ -270,7 +361,11 @@ export default function DirectorioAdminPage() {
             </select>
           </fieldset>
 
-          <Field label="URL de la foto" hint="Enlace público a la imagen (opcional)."><input type="url" className={inputCls} value={form.photo_url} onChange={set("photo_url")} placeholder="https://…" /></Field>
+          <PhotoField value={form.photo_url} onChange={(url) => setForm((f) => ({ ...f, photo_url: url }))} token={token} />
+          <PhotoField
+            label="Símbolo del partido" noun="símbolo" square
+            value={form.logo_url} onChange={(url) => setForm((f) => ({ ...f, logo_url: url }))} token={token}
+          />
           <Field label="Lema (opcional)"><input className={inputCls} value={form.tagline} onChange={set("tagline")} maxLength={300} /></Field>
           <Field label="Biografía breve (opcional)"><textarea rows={3} className={inputCls} value={form.bio} onChange={set("bio")} maxLength={5000} /></Field>
           <details className="rounded-xl bg-gray-50 p-3">
@@ -317,10 +412,16 @@ export default function DirectorioAdminPage() {
                   return (
                     <li key={c.id} className="px-5 py-4">
                       <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0">
+                        <div className="flex min-w-0 items-start gap-2.5">
+                          {c.logo_url && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={c.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-md bg-white object-contain p-0.5 ring-1 ring-gray-200" />
+                          )}
+                          <div className="min-w-0">
                           <p className="truncate text-sm font-bold text-gray-900">{c.name}</p>
                           <p className="truncate text-xs text-gray-500">{c.title} · {c.party}</p>
                           <p className="mt-0.5 text-xs text-gray-400">{c.distrito_id ? c.location : "Sin distrito asignado"}</p>
+                          </div>
                         </div>
                         <span className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold", estado.cls)}>{estado.t}</span>
                       </div>

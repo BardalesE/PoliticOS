@@ -367,6 +367,7 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
         // Directorio público: alta manual de candidatos y publicación.
         // (Los PDF se suben por /knowledge con candidate_id.)
         Route::prefix('directorio')->group(function () {
+            Route::post  ('/foto',                          [DirectorioAdminController::class, 'uploadFoto'])->middleware('throttle:30,1,directorio-foto');
             Route::get   ('/candidatos',                    [DirectorioAdminController::class, 'index']);
             Route::post  ('/candidatos',                    [DirectorioAdminController::class, 'store']);
             Route::put   ('/candidatos/{id}',               [DirectorioAdminController::class, 'update']);

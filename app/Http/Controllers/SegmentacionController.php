@@ -189,6 +189,7 @@ class SegmentacionController extends Controller
                 'title'       => $c->title,
                 'list_number' => $c->list_number,
                 'photo_url'   => $c->photo_url,
+                'logo_url'    => $c->logo_url,
                 'distrito'    => $c->distrito?->distrito,
             ])
             ->all();
