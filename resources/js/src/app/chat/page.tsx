@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { FileText, Play, Link as LinkIcon, X, ImageIcon, ShieldAlert, AlertTriangle, Mic, Square, Send, MapPin, Lock, Clock, MessagesSquare, ChevronDown, ThumbsUp, ThumbsDown, History } from "lucide-react";
+import { FileText, Play, Link as LinkIcon, X, ImageIcon, ShieldAlert, AlertTriangle, Mic, Square, Send, MapPin, Lock, Clock, MessagesSquare, ChevronDown, ThumbsUp, ThumbsDown, History, Scale } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import ConsentModal from "@/components/chat/ConsentModal";
@@ -22,6 +22,7 @@ import { getVerificationConfig, type VerificationConfig } from "@/lib/verificati
 
 // El visor (pdf.js) pesa: solo se descarga cuando el ciudadano abre una fuente.
 const PdfCitationViewer = dynamic(() => import("@/components/chat/PdfCitationViewer"), { ssr: false });
+const CompareModal = dynamic(() => import("@/components/chat/CompareModal"), { ssr: false });
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -960,6 +961,7 @@ export default function ChatPage() {
   // (o cuando falta elegir); el historial en móvil es un panel lateral.
   const [pickerOpen, setPickerOpen]   = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
 
   // ── Micrófono (Web Speech API) ───────────────────────────────────────────────
   const [listening, setListening] = useState(false);
@@ -1874,6 +1876,16 @@ export default function ChatPage() {
                 </button>
               </div>
             )}
+            {candidates.length >= 2 && (
+              <button
+                type="button"
+                onClick={() => setCompareOpen(true)}
+                className="flex h-8 shrink-0 items-center gap-1 rounded-full border border-brand-600/40 bg-brand-50 px-2.5 text-[12px] font-bold text-brand-600 hover:bg-brand-100"
+                aria-label="Comparar dos candidatos"
+              >
+                <Scale size={14} aria-hidden /> <span className="hidden sm:inline">Comparar</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setHistoryOpen(true)}
@@ -2278,6 +2290,15 @@ export default function ChatPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {compareOpen && (
+        <CompareModal
+          candidates={candidates}
+          initialA={candidateSlug}
+          onClose={() => setCompareOpen(false)}
+          onCite={(c) => setViewerCite(c)}
+        />
+      )}
 
       {viewerCite && <PdfCitationViewer cite={viewerCite} onClose={() => setViewerCite(null)} />}
 
