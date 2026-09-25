@@ -40,6 +40,7 @@ use App\Http\Controllers\DirectorioController;
 use App\Http\Controllers\DirectorioAdminController;
 use App\Http\Controllers\UbigeoController;
 use App\Http\Controllers\PrivacyRequestController;
+use App\Http\Controllers\CompareController;
 
 /*
 |--------------------------------------------------------------------------
@@ -68,6 +69,9 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
         Route::get('/session/{id}',  [ChatController::class, 'session']);
         Route::get('/quota/{id}',    [ChatController::class, 'quotaStatus']);
         Route::get('/limits',        [ChatController::class, 'limits']);
+        // Comparador 1 vs 1 (resúmenes cacheados por candidato y tema).
+        Route::get('/compare/topics', [CompareController::class, 'topics']);
+        Route::post('/compare',       [CompareController::class, 'compare'])->middleware('throttle:10,1,compare');
         Route::post('/consent',      [ChatController::class, 'consent']);
         Route::post('/location',     [ChatController::class, 'saveLocation']);
     });

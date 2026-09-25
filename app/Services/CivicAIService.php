@@ -96,6 +96,70 @@ class CivicAIService
         $this->systemPromptTemplate = $this->config->system_prompt ?: $this->defaultPrompt();
     }
 
+    // ─── Comparador 1 vs 1 (decisión 2026-09-25) ──────────────────────────
+    /**
+     * Resumen neutral de lo que UN candidato propone sobre UN tema, solo con sus
+     * documentos. El comparador llama esto una vez por candidato con la MISMA
+     * pregunta y el MISMO prompt: ninguno recibe un trato distinto. No califica
+     * ni compara (eso lo hace el ciudadano mirando las dos columnas).
+     *
+     * @return array{found: bool, points: array<int,string>, concrete: string, citations: array<int, array<string,mixed>>}|null
+     *         null = todos los proveedores de IA fallaron (no se debe cachear).
+     */
+    public function summarizeTopicFor(CandidateProfile $candidate, string $topicLabel, string $question): ?array
+    {
+        $this->ensureInitialized();
+        $this->scopeToCandidate($candidate);
+
+        $docs    = $this->embeddings->search($question, 3, ['candidate_id' => $candidate->id]);
+        $section = $this->buildDocumentationSection($docs, false);
+
+        if (empty($this->retrievedCitations)) {
+            // Sin fragmentos del tema: no se gasta una llamada a la IA.
+            return ['found' => false, 'points' => [], 'concrete' => '', 'citations' => []];
+        }
+
+        $system = "Eres un analista NEUTRAL de planes de gobierno. Tema: {$topicLabel}.\n"
+            . "Usa SOLO los fragmentos de abajo, que son de {$candidate->name}. No opines, no califiques, "
+            . "no uses adjetivos valorativos (bueno, ambicioso, débil) y no menciones a otros candidatos.\n"
+            . "Responde ÚNICAMENTE un JSON válido, sin texto antes ni después:\n"
+            . '{"propone": true|false, "puntos": ["frase breve y concreta de lo que propone [S1]"], '
+            . '"detalle_concreto": "metas, montos, plazos o lugares que menciona; o \"No especifica metas, montos ni plazos.\""}' . "\n"
+            . "Reglas: máximo 4 puntos, cada uno de 25 palabras o menos y terminado con su etiqueta [S#]. "
+            . "Si los fragmentos no tratan el tema, responde {\"propone\": false, \"puntos\": [], \"detalle_concreto\": \"\"}."
+            . SensitiveData::PROMPT_RULE
+            . "\n\n--- FRAGMENTOS ---\n{$section}\n--- FIN ---";
+
+        $raw = null;
+        foreach ($this->usableProviders() as $provider) {
+            try {
+                $raw = $this->callProvider($provider, "¿Qué propone sobre {$topicLabel}? Devuelve solo el JSON.", $system, []);
+                if (trim((string) $raw) !== '') break;
+            } catch (\Throwable $e) {
+                Log::warning('Comparador: proveedor falló', ['provider' => $provider, 'error' => $e->getMessage()]);
+            }
+        }
+        if ($raw === null || trim($raw) === '') {
+            return null;
+        }
+
+        $json   = $this->extractJsonObject($raw) ?? [];
+        $points = array_values(array_filter(array_map(
+            fn ($p) => SensitiveData::redact($this->stripUnknownCitations(trim((string) $p))),
+            array_slice((array) ($json['puntos'] ?? []), 0, 4),
+        ), fn ($p) => $p !== ''));
+
+        $concrete = SensitiveData::redact(trim((string) ($json['detalle_concreto'] ?? '')));
+        $found    = (bool) ($json['propone'] ?? false) && $points !== [];
+
+        return [
+            'found'     => $found,
+            'points'    => $found ? $points : [],
+            'concrete'  => $found ? $concrete : '',
+            'citations' => $found ? $this->citationsForReply(implode(' ', $points)) : [],
+        ];
+    }
+
     // ─── Punto de entrada (sincrónico) ────────────────────────────────────
     public function respond(string $userMessage, ChatSession $session): array
     {
