@@ -194,6 +194,7 @@ class DirectorioController extends Controller
             'party'       => $c->party,
             'list_number' => $c->list_number,
             'photo_url'   => $c->photo_url,
+            'logo_url'    => $c->logo_url,    // símbolo del partido: así lo reconoce el votante
             'location'    => $c->location,
             'distrito'    => $c->distrito ? [
                 'id'           => $c->distrito->id,

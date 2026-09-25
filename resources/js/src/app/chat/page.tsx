@@ -17,6 +17,7 @@ import { DIRECTORY_TENANT, prettyPlace, type Ubicaciones } from "@/lib/directori
 import { SupportPoll, ZoneBadge, ZonePicker } from "@/components/chat/ZonaYApoyo";
 import { TenantLink } from "@/components/ui/TenantLink";
 import ContactVerifyField from "@/components/ContactVerifyField";
+import { PartySymbol } from "@/components/ui/PartySymbol";
 import dynamic from "next/dynamic";
 import { getVerificationConfig, type VerificationConfig } from "@/lib/verification";
 
@@ -38,6 +39,7 @@ interface ChatCandidate {
   slug: string;
   name: string;
   party?: string | null;
+  logo_url?: string | null;
   distrito?: { id: number } | null;
 }
 
@@ -1087,7 +1089,7 @@ export default function ChatPage() {
   // ── Candidatos disponibles para acotar el chat ───────────────────────────────
   const applyEstado = (est: SegmentacionEstado, wanted: string | null) => {
     setZona(est.zona);
-    setCandidates(est.candidatos.map((c) => ({ slug: c.slug, name: c.name, party: c.party })));
+    setCandidates(est.candidatos.map((c) => ({ slug: c.slug, name: c.name, party: c.party, logo_url: c.logo_url })));
     setPollEnabled(est.poll_enabled);
     setVotes(est.votos ?? {});
     // Con segmentación el chat SIEMPRE consulta sobre un candidato de la zona (no hay "Todos":
@@ -1849,6 +1851,7 @@ export default function ChatPage() {
               className="group flex min-w-0 flex-1 items-center gap-2 rounded-full border border-gray-200 bg-white py-1.5 pl-3 pr-2 text-left shadow-sm hover:border-brand-600/40"
             >
               <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Consultando</span>
+              <PartySymbol src={candidates.find((c) => c.slug === candidateSlug)?.logo_url} party={candidates.find((c) => c.slug === candidateSlug)?.party} size={22} />
               <span className="min-w-0 truncate text-[13px] font-semibold text-gray-800">
                 {activeName ?? "Todos los candidatos"}
               </span>
@@ -1933,13 +1936,16 @@ export default function ChatPage() {
                   onClick={() => chooseCandidate(c.slug)}
                   aria-pressed={candidateSlug === c.slug}
                   title={c.party ? `${c.name} · ${c.party}` : c.name}
-                  className={`shrink-0 max-w-[16rem] truncate rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  className={`inline-flex shrink-0 max-w-[16rem] items-center gap-1.5 rounded-full border py-1 text-xs font-medium transition-colors ${
+                    c.logo_url ? "pl-1 pr-3" : "px-3"
+                  } ${
                     candidateSlug === c.slug
                       ? "border-brand-600 bg-brand-600 text-white"
                       : "border-gray-300 bg-white text-gray-600 hover:border-gray-400"
                   }`}
                 >
-                  {c.name}
+                  <PartySymbol src={c.logo_url} party={c.party} size={20} className="rounded-full" />
+                  <span className="truncate">{c.name}</span>
                 </button>
               ))}
             </div>

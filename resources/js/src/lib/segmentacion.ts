@@ -31,6 +31,7 @@ export interface CandidatoCercano {
   title?: string | null;
   list_number?: string | null;
   photo_url?: string | null;
+  logo_url?: string | null;
   distrito?: string | null;
 }
 

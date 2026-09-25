@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, FileText, MapPin, MessageCircle, MessagesSquare, Search, X } from "lucide-react";
+import { PartySymbol } from "@/components/ui/PartySymbol";
 import {
   DIRECTORY_TENANT,
   getCandidatos,
@@ -117,18 +118,22 @@ function CandidatoCard({ c }: { c: CandidatoResumen }) {
         className="group flex items-center gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5 transition hover:shadow-md hover:ring-[#2F7D4F]/30 motion-safe:hover:-translate-y-0.5
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
       >
-        {c.photo_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={c.photo_url} alt="" loading="lazy" className="h-16 w-16 shrink-0 rounded-full object-cover ring-2 ring-[#2F7D4F]/20" />
-        ) : (
-          <span
-            className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full font-condensed text-[22px] text-white"
-            style={{ background: PRIMARY }}
-            aria-hidden
-          >
-            {initials(c.name)}
-          </span>
-        )}
+        <span className="relative shrink-0">
+          {c.photo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={c.photo_url} alt="" loading="lazy" className="h-16 w-16 rounded-full object-cover ring-2 ring-[#2F7D4F]/20" />
+          ) : (
+            <span
+              className="flex h-16 w-16 items-center justify-center rounded-full font-condensed text-[22px] text-white"
+              style={{ background: PRIMARY }}
+              aria-hidden
+            >
+              {initials(c.name)}
+            </span>
+          )}
+          {/* El símbolo del partido: así lo reconoce la mayoría en la cédula */}
+          <PartySymbol src={c.logo_url} party={c.party} size={30} className="absolute -bottom-1 -right-2" />
+        </span>
         <span className="min-w-0 flex-1">
           <span className="block text-[16px] font-bold leading-snug text-ink-800">{c.name}</span>
           <span className="block text-[13px] leading-snug text-ink-500">{c.title}</span>
