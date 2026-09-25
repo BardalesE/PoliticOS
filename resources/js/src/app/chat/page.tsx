@@ -17,7 +17,11 @@ import { DIRECTORY_TENANT, prettyPlace, type Ubicaciones } from "@/lib/directori
 import { SupportPoll, ZoneBadge, ZonePicker } from "@/components/chat/ZonaYApoyo";
 import { TenantLink } from "@/components/ui/TenantLink";
 import ContactVerifyField from "@/components/ContactVerifyField";
+import dynamic from "next/dynamic";
 import { getVerificationConfig, type VerificationConfig } from "@/lib/verification";
+
+// El visor (pdf.js) pesa: solo se descarga cuando el ciudadano abre una fuente.
+const PdfCitationViewer = dynamic(() => import("@/components/chat/PdfCitationViewer"), { ssr: false });
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -51,6 +55,7 @@ interface Citation {
   page: number | null;   // página del visor de PDF (1 = primera hoja)
   excerpt: string;
   url: string | null;
+  document_id?: number | null;
 }
 
 /** Tope de mensajes de la conversación (lo calcula y aplica el servidor). */
@@ -502,7 +507,7 @@ function QuickReplyButtons({ replies, onSelect }: { replies: QuickReply[]; onSel
 // ─── Citas verificables [S1] → chips con página ───────────────────────────────
 
 /** [S1] o [S1, S2] — el mismo formato que valida el backend. */
-const CITATION_GROUP_RE = /\[\s*(S\d+(?:\s*[,;]\s*S\d+)*)\s*\]/g;
+const CITATION_GROUP_RE = /[\[【［〔]\s*(S\s?\d+(?:\s*[,;、，]\s*S\s?\d+)*)\s*[\]】］〕]/g;
 
 /**
  * Convierte las etiquetas [S1] del texto en enlaces internos `#cite-S1` que
@@ -513,7 +518,7 @@ function linkifyCitations(text: string, citations: Citation[] | undefined): stri
   const known = new Set((citations ?? []).map((c) => c.id));
   return text
     .replace(CITATION_GROUP_RE, (_m, group: string) =>
-      (group.match(/S\d+/g) ?? [])
+      (group.replace(/\s+/g, "").match(/S\d+/g) ?? [])
         .filter((id) => known.has(id))
         .map((id) => `[${id}](#cite-${id})`)
         .join(" ")
@@ -916,6 +921,12 @@ export default function ChatPage() {
 
   // Cita abierta (mensaje + etiqueta), para mostrar el texto del documento.
   const [openCite, setOpenCite] = useState<{ msgId: string; id: string } | null>(null);
+  // Fuente con PDF → visor con el fragmento resaltado; sin PDF (p. ej. hoja de vida) → texto en línea.
+  const [viewerCite, setViewerCite] = useState<Citation | null>(null);
+  const showSource = (msgId: string, c: Citation) => {
+    if (c.url && c.document_id) setViewerCite(c);
+    else toggleCite(msgId, c.id);
+  };
   const toggleCite = (msgId: string, id: string) =>
     setOpenCite((cur) => (cur && cur.msgId === msgId && cur.id === id ? null : { msgId, id }));
   const endRef                   = useRef<HTMLDivElement>(null);
@@ -2015,7 +2026,7 @@ export default function ChatPage() {
                                       return (
                                         <button
                                           type="button"
-                                          onClick={() => toggleCite(msg.id, cite.id)}
+                                          onClick={() => showSource(msg.id, cite)}
                                           aria-expanded={active}
                                           title={`${cite.title}${cite.page ? ` — pág. ${cite.page}` : ""}`}
                                           className={`mx-0.5 inline-flex -translate-y-0.5 items-center rounded px-1 text-[10px] font-bold leading-4 transition-colors ${
@@ -2057,7 +2068,7 @@ export default function ChatPage() {
                                     key={c.id}
                                     c={c}
                                     active={openCite?.msgId === msg.id && openCite.id === c.id}
-                                    onClick={() => toggleCite(msg.id, c.id)}
+                                    onClick={() => showSource(msg.id, c)}
                                   />
                                 ))}
                               </div>
@@ -2267,6 +2278,8 @@ export default function ChatPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {viewerCite && <PdfCitationViewer cite={viewerCite} onClose={() => setViewerCite(null)} />}
 
       {consent === null && (
         <ConsentModal

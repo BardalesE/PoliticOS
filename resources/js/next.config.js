@@ -58,6 +58,13 @@ const nextConfig = {
   reactStrictMode: true,
   compress: true,
 
+  // pdf.js (visor de fuentes del chat) referencia módulos de Node que no existen
+  // en el navegador; se desactivan para el bundle del cliente.
+  webpack(config) {
+    config.resolve.alias = { ...(config.resolve.alias || {}), canvas: false, "@napi-rs/canvas": false };
+    return config;
+  },
+
   async headers() {
     return [
       {

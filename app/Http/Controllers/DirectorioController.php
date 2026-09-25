@@ -3,7 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\CandidateProfile;
+use App\Models\KnowledgeDocument;
 use App\Models\UbigeoDistrito;
+use App\Support\SensitiveData;
+use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,6 +20,9 @@ use Illuminate\Http\Request;
  *                                            publicado + base de conocimiento lista
  *   GET /api/directorio/candidatos         → candidatos visibles (filtros por lugar)
  *   GET /api/directorio/candidatos/{slug}  → ficha de un candidato + sus documentos
+ *   GET /api/directorio/documentos/{id}/pdf → el PDF de un documento (para el visor
+ *                                            del chat que resalta la cita). Nunca
+ *                                            una hoja de vida: trae DNI y patrimonio.
  *
  * Toda la visibilidad sale de CandidateProfile::visibleInDirectory(): el
  * frontend nunca decide qué mostrar. Las respuestas son listas blancas de
@@ -125,7 +132,15 @@ class DirectorioController extends Controller
             ->where('is_active', true)->where('status', 'ready')
             ->orderBy('created_at')
             // Nunca `content` (texto completo extraído para el RAG).
-            ->get(['id', 'title', 'description', 'topic', 'file_url', 'source_url', 'source_type', 'file_size', 'created_at']);
+            ->get(['id', 'title', 'description', 'topic', 'file_url', 'source_url', 'source_type', 'file_size', 'created_at'])
+            // La hoja de vida original trae DNI y patrimonio: no se publica su enlace.
+            ->map(function ($d) {
+                if (SensitiveData::isHojaDeVida($d->topic, $d->title)) {
+                    $d->file_url = null;
+                    $d->source_url = null;
+                }
+                return $d;
+            });
 
         return response()->json($this->resumen($c) + [
             'bio'          => $c->bio,
@@ -134,6 +149,37 @@ class DirectorioController extends Controller
             'facebook_url' => $c->facebook_url,
             'instagram_url' => $c->instagram_url,
             'documentos'   => $documentos,
+        ]);
+    }
+
+    /**
+     * Sirve el PDF desde el mismo origen del API: el bucket público (R2) no
+     * permite CORS, así que el visor del chat (pdf.js) no podía leerlo directo.
+     */
+    public function documentoPdf(int $id): Response
+    {
+        $doc = KnowledgeDocument::query()
+            ->where('is_active', true)
+            ->where('status', 'ready')
+            ->whereNotNull('candidate_id')
+            ->findOrFail($id, ['id', 'title', 'topic', 'file_url', 'source_type', 'candidate_id']);
+
+        abort_if(SensitiveData::isHojaDeVida($doc->topic, $doc->title), 404);
+        abort_if(($doc->source_type ?? 'pdf') !== 'pdf' || ! $doc->file_url, 404);
+        // Solo documentos de candidatos visibles en el directorio.
+        abort_unless(CandidateProfile::query()->visibleInDirectory()->whereKey($doc->candidate_id)->exists(), 404);
+
+        $disk = config('filesystems.media');
+        $base = Storage::disk($disk)->url('');
+        $path = ltrim(str_replace($base, '', (string) $doc->file_url), '/');
+        $raw  = Storage::disk($disk)->get($path);
+        abort_if($raw === null, 404);
+
+        return response($raw, 200, [
+            'Content-Type'           => 'application/pdf',
+            'Content-Disposition'    => 'inline; filename="documento-' . $doc->id . '.pdf"',
+            'Cache-Control'          => 'public, max-age=86400',
+            'X-Content-Type-Options' => 'nosniff',
         ]);
     }
 
