@@ -206,7 +206,42 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
         'turism'    => ['turism','turista','atractivo','patrimonio','cultural'],
         'ambient'   => ['ambient','residuos','basura','contaminac','reciclaj','relleno'],
         'basura'    => ['ambient','residuos','basura','reciclaj','relleno'],
+        // Hoja de vida (formato JNE): la pregunta dice "estudios"; el documento, "FORMACIÓN ACADÉMICA".
+        'estudi'    => ['estudio','formacion academica','universitari','tecnico','posgrado','bachiller','titulo','educacion basica','primari','secundari'],
+        'formac'    => ['formacion academica','estudio','universitari','tecnico','posgrado','bachiller','titulo'],
+        'profesi'   => ['profesion','ocupacion','oficio','experiencia de trabajo','experiencia laboral','centro de trabajo'],
+        'experien'  => ['experiencia de trabajo','experiencia laboral','ocupacion','oficio','profesion','centro de trabajo','cargo'],
+        'trabaj'    => ['experiencia de trabajo','experiencia laboral','ocupacion','oficio','centro de trabajo','empleo','trabajo'],
+        'trayect'   => ['trayectoria','cargos partidarios','eleccion popular','renuncia','organizacion politica'],
+        'sentenc'   => ['sentencia','condenatori','demanda','obligaciones','violencia familiar'],
+        'antecede'  => ['sentencia','condenatori','demanda','obligaciones'],
     ];
+
+    /**
+     * Palabras que piden un TIPO de documento: "muéstrame su hoja de vida" no trae
+     * términos de tema (hoja/vida están en el título y se descartan), así que sin
+     * esto ninguna página "hablaba del tema" y el chat respondía que no había
+     * hoja de vida teniéndola cargada (bug 2026-09-24).
+     */
+    private const DOC_TYPE_HINTS = [
+        'hoja_de_vida'     => ['hoja de vida','hoja','curricul','cv','trayectoria','estudi','formacion','profesion','experiencia','biografi','quien es','de donde es','sentencia','antecedente','partido'],
+        'plan_de_gobierno' => ['plan de gobierno','plan','propuesta','propone','programa'],
+    ];
+
+    /** ¿La pregunta pide justamente este documento (por su tema o su título)? */
+    private function queryTargetsDocument(string $query, ?string $topic, string $title): bool
+    {
+        $q = $this->fold($query);
+        $t = $this->fold($title);
+        foreach (self::DOC_TYPE_HINTS as $docTopic => $hints) {
+            $isThisType = $topic === $docTopic || str_contains($t, str_replace('_', ' ', $docTopic));
+            if (! $isThisType) continue;
+            foreach ($hints as $h) {
+                if (str_contains($q, $h)) return true;
+            }
+        }
+        return false;
+    }
 
     /** minúsculas + sin tildes: para comparar "agrícola" con "agricola". */
     private function fold(string $s): string
@@ -406,12 +441,25 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
                 }
             }
 
+            // Ninguna página "habla del tema", pero la pregunta pide este documento
+            // ("su hoja de vida", "su plan"): se sirven sus primeras páginas con texto.
+            if ($ranked === [] && $pages && $this->queryTargetsDocument($query, $d->topic ?? null, (string) $d->title)) {
+                foreach ($pages as $i => $text) {
+                    if (trim((string) $text) !== '') {
+                        $ranked[$i + 1] = 0.0;
+                    }
+                    if (count($ranked) >= self::PAGES_PER_DOC) break;
+                }
+            }
+
             if ($ranked === []) {
                 continue;
             }
 
             if ($ranked === null) {
-                if ($requireHit && ! $this->contentMentionsQuery((string) $d->content, $query, (string) $d->title)) {
+                if ($requireHit
+                    && ! $this->contentMentionsQuery((string) $d->content, $query, (string) $d->title)
+                    && ! $this->queryTargetsDocument($query, $d->topic ?? null, (string) $d->title)) {
                     continue;
                 }
                 $primary[] = [

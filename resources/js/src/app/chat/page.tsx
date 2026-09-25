@@ -735,6 +735,86 @@ function QuotaWall({
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 
+// ─── Preguntas sugeridas (tipo Voto Informado) ────────────────────────────────
+// Las mismas para TODOS los candidatos: neutralidad. Rotan cada 4 s en grupos de 3
+// y se pausan mientras el ciudadano pasa el mouse o toca el bloque.
+
+const SUGERENCIAS: QuickReply[] = [
+  { label: "📋 Hoja de vida",          value: "Muéstrame su hoja de vida: estudios, experiencia y trayectoria política" },
+  { label: "🌾 Agricultura",           value: "¿Qué propone para la agricultura y los productores?" },
+  { label: "🏥 Salud",                 value: "¿Cómo trabajará en salud?" },
+  { label: "📚 Educación",             value: "¿Qué propone para la educación?" },
+  { label: "💧 Agua y desagüe",        value: "¿Qué hará con el agua potable y el desagüe?" },
+  { label: "🛡️ Seguridad",             value: "¿Qué propone en seguridad ciudadana?" },
+  { label: "🛣️ Vías y transporte",     value: "¿Qué propone para carreteras, trochas y transporte?" },
+  { label: "♻️ Medio ambiente",        value: "¿Qué propone para el medio ambiente y la basura?" },
+  { label: "💼 Empleo",                value: "¿Qué propone para generar empleo?" },
+  { label: "🎓 Estudios",              value: "¿Qué estudios tiene?" },
+  { label: "⚖️ Sentencias declaradas", value: "¿Declaró alguna sentencia en su hoja de vida?" },
+  { label: "🏛️ Trayectoria política",  value: "¿Qué cargos políticos o partidarios ha tenido?" },
+];
+const SUG_POR_VEZ = 3;
+const SUG_MS      = 4000;
+
+function SuggestionCarousel({ name, disabled, onPick }: { name: string; disabled: boolean; onPick: (value: string) => void }) {
+  const [page, setPage]     = useState(0);
+  const [paused, setPaused] = useState(false);
+  const pages = Math.ceil(SUGERENCIAS.length / SUG_POR_VEZ);
+
+  useEffect(() => {
+    if (paused || disabled) return;
+    const id = setInterval(() => setPage((p) => (p + 1) % pages), SUG_MS);
+    return () => clearInterval(id);
+  }, [paused, disabled, pages]);
+
+  const visibles = SUGERENCIAS.slice(page * SUG_POR_VEZ, page * SUG_POR_VEZ + SUG_POR_VEZ);
+
+  return (
+    <div
+      className="mb-3 ml-10 max-w-[85%]"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+      onTouchStart={() => { setPaused(true); setTimeout(() => setPaused(false), 8000); }}
+    >
+      <p className="mb-1.5 text-xs text-gray-500">
+        ¿Qué quieres saber de <span className="font-semibold text-gray-700">{name}</span>? Toca una opción:
+      </p>
+      <div className="flex min-h-[36px] flex-wrap gap-1.5" aria-live="off">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={page}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.25 }}
+            className="flex flex-wrap gap-1.5"
+          >
+            {visibles.map((s) => (
+              <button
+                key={s.value}
+                type="button"
+                disabled={disabled}
+                onClick={() => onPick(s.value)}
+                className="rounded-full border border-brand-600/30 bg-white px-3 py-1.5 text-xs font-semibold text-brand-600 shadow-sm transition-colors hover:bg-brand-50 disabled:opacity-40"
+              >
+                {s.label}
+              </button>
+            ))}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+      <div className="mt-1.5 flex items-center gap-1" aria-hidden>
+        {Array.from({ length: pages }, (_, i) => (
+          <span key={i} className={`h-1 rounded-full transition-all ${i === page ? "w-4 bg-brand-600" : "w-1.5 bg-gray-300"}`} />
+        ))}
+        {paused && <span className="ml-1.5 text-[10px] text-gray-400">En pausa</span>}
+      </div>
+    </div>
+  );
+}
+
 // ─── Historial por candidato (se cierra a la hora) ─────────────────────────────
 
 function ThreadsPanel({
@@ -863,7 +943,6 @@ export default function ChatPage() {
   const [dirLoaded, setDirLoaded]     = useState(false);
   const [threads, setThreads]         = useState<Record<string, Thread>>({});
   const threadsRef                    = useRef<Record<string, Thread>>({});
-  const [threadsLoaded, setThreadsLoaded] = useState(false);
   const [now, setNow]                 = useState(() => Date.now());
   const [expiredNotice, setExpiredNotice] = useState<string | null>(null);
 
@@ -927,18 +1006,15 @@ export default function ChatPage() {
     const t = loadThreads();
     threadsRef.current = t;
     setThreads(t);
-    setThreadsLoaded(true);
   }, []);
 
   useEffect(() => {
-    if (!threadsLoaded) return; // no pisar lo guardado con el estado inicial vacío
     threadsRef.current = threads;
     try { localStorage.setItem(tenantStorageKey(LS_THREADS), JSON.stringify(threads)); } catch {}
-  }, [threads, threadsLoaded]);
+  }, [threads]);
 
   // Al cambiar de candidato se abre SU hilo (si sigue vivo) con SU sesión.
   useEffect(() => {
-    if (!threadsLoaded) return;
     const t = threadsRef.current[threadKey];
     const alive = t && isAlive(t) ? t : null;
     setMessages(alive?.messages ?? []);
@@ -946,7 +1022,7 @@ export default function ChatPage() {
     setQuota(null);
     setOpenCite(null);
     setExpiredNotice(null);
-  }, [threadKey, threadsLoaded]);
+  }, [threadKey]);
 
   // Guardar el hilo activo cuando hay al menos una pregunta.
   useEffect(() => {
@@ -1956,6 +2032,16 @@ export default function ChatPage() {
                 </motion.div>
               ))}
             </AnimatePresence>
+
+            {/* Preguntas sugeridas: debajo del último mensaje, siempre listas para tocar */}
+            {welcomed && regPhase === "done" && !quota?.blocked && !needsCandidate
+              && !(zoneMode && (!zona || changingZone)) && (activeName || !zoneMode) && (
+              <SuggestionCarousel
+                name={activeName ?? (profile.name || "este candidato")}
+                disabled={streaming || autoStarting}
+                onPick={sendQuickReply}
+              />
+            )}
 
             {/* Zona: aparece vacía al entrar (y al tocar "Cambiar"), dentro del chat */}
             {zoneMode && (!zona || changingZone) && ubicaciones && consent && (
