@@ -3,7 +3,8 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { SuperAdminProvider, useSuperAdmin } from "@/context/SuperAdminContext";
-import { ShieldCheck, LogOut } from "lucide-react";
+import Link from "next/link";
+import { ShieldCheck, LogOut, Lock } from "lucide-react";
 
 function SuperAdminGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, logout } = useSuperAdmin();
@@ -32,6 +33,14 @@ function SuperAdminGuard({ children }: { children: React.ReactNode }) {
             PLATFORM OWNER
           </span>
         </div>
+        <nav className="ml-auto mr-3 flex items-center gap-1 text-xs font-semibold">
+          <Link href="/superadmin" className={`rounded-lg px-2.5 py-1.5 ${pathname === "/superadmin" ? "bg-gray-100 text-gray-900" : "text-gray-500 hover:text-gray-900"}`}>
+            Tenants
+          </Link>
+          <Link href="/superadmin/privacidad" className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 ${pathname?.startsWith("/superadmin/privacidad") ? "bg-gray-100 text-gray-900" : "text-gray-500 hover:text-gray-900"}`}>
+            <Lock className="w-3.5 h-3.5" /> Privacidad
+          </Link>
+        </nav>
         <button
           onClick={() => { logout(); router.replace("/superadmin/login"); }}
           className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-red-600 transition-colors shrink-0"

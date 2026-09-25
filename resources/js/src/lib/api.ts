@@ -1094,6 +1094,37 @@ async function saRequest<T>(path: string, saKey: string, options: RequestInit = 
   return res.json();
 }
 
+// ─── Solicitudes ARCO (Ley 29733) ──────────────────────────────────────
+export type PrivacyRequestType   = "acceso" | "rectificacion" | "cancelacion" | "oposicion" | "reclamo";
+export type PrivacyRequestStatus = "recibida" | "en_proceso" | "atendida" | "rechazada";
+
+export type PrivacyRequestItem = {
+  id: number;
+  code: string;
+  tenant_slug: string | null;
+  type: PrivacyRequestType;
+  status: PrivacyRequestStatus;
+  visitor_uuid: string | null;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  description: string | null;
+  erased_automatically: boolean;
+  erased_counts: Record<string, number> | null;
+  due_at: string | null;
+  resolved_at: string | null;
+  resolution_note: string | null;
+  created_at: string;
+};
+
+export type PrivacyRequestList = {
+  data: PrivacyRequestItem[];
+  total: number;
+  last_page: number;
+  counts: Partial<Record<PrivacyRequestStatus, number>>;
+  overdue: number;
+};
+
 export type TenantStats = {
   chat_sessions: number;
   chat_messages: number;
@@ -1175,6 +1206,19 @@ export const superadminApi = {
       saRequest<Tenant>(`/superadmin/tenants/${id}/plan`, saKey, {
         method: "PUT", body: JSON.stringify(data),
       }),
+  },
+
+  privacy: {
+    list: (saKey: string, params: { status?: string; type?: string; q?: string } = {}) => {
+      const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => !!v) as [string, string][]).toString();
+      return saRequest<PrivacyRequestList>(`/superadmin/privacy-requests${qs ? `?${qs}` : ""}`, saKey);
+    },
+    update: (saKey: string, id: number, data: { status: PrivacyRequestStatus; resolution_note?: string | null }) =>
+      saRequest<PrivacyRequestItem>(`/superadmin/privacy-requests/${id}`, saKey, {
+        method: "PUT", body: JSON.stringify(data),
+      }),
+    erase: (saKey: string, id: number) =>
+      saRequest<PrivacyRequestItem>(`/superadmin/privacy-requests/${id}/erase`, saKey, { method: "POST" }),
   },
 
   plans: {
