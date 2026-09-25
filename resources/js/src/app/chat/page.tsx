@@ -1327,7 +1327,7 @@ export default function ChatPage() {
     const limitLine = l
       ? `\n\n⏳ Tienes **${l.base} mensajes** por conversación. Si quieres seguir, te registras y te damos **${l.bonus} más**.`
       : "";
-    const ttlLine = "\n\n🕐 Tu conversación con cada candidato se guarda **1 hora** en este dispositivo. Después se cierra y se borra para siempre.";
+    const ttlLine = "\n\n🕐 Tu conversación con cada candidato queda **1 hora** en este dispositivo y luego se borra de aquí. Cómo guardamos tus datos y cómo borrarlos: [Privacidad](/privacidad).";
 
     let content: string;
     if (isPlatform) {
@@ -2179,6 +2179,8 @@ export default function ChatPage() {
             <p className="text-[10px] text-gray-400 text-center mt-1.5">
               IA basada en información pública. Verifica decisiones electorales en{" "}
               <a className="underline" href="https://infogob.jne.gob.pe" target="_blank" rel="noopener noreferrer">infogob.jne.gob.pe</a>
+              {" · "}
+              <Link className="underline" href="/privacidad">Privacidad y tus datos</Link>
             </p>
             </>)}
           </footer>

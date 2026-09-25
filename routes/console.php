@@ -37,6 +37,19 @@ Schedule::call(function () {
     });
 })->dailyAt('03:00')->name('purge-bot-sessions-per-tenant');
 
+// Diario 3:30 AM: retención (Ley 29733, principio de proporcionalidad). Las
+// conversaciones se guardan como máximo PRIVACY_RETENTION_MONTHS meses (12 por
+// defecto) y luego se borran con sus mensajes. Lo publicado en /privacidad debe
+// coincidir con este valor.
+Schedule::call(function () {
+    $months = max(1, (int) env('PRIVACY_RETENTION_MONTHS', 12));
+    TenantContext::forEachTenant(function (?string $slug) use ($months) {
+        TenantContext::run($slug, function () use ($months) {
+            \App\Models\ChatSession::where('updated_at', '<', now()->subMonths($months))->delete();
+        });
+    });
+})->dailyAt('03:30')->name('privacy-retention-per-tenant');
+
 // Cada 5 min: retomar merges de "En vivo" que quedaron pendientes/a medias
 // (streams largos con QUEUE_CONNECTION=sync — ver ContinueLiveStreamMerges).
 Schedule::command('livestreams:continue-merges')

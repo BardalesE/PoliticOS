@@ -39,6 +39,7 @@ use App\Http\Controllers\SiteVisitController;
 use App\Http\Controllers\DirectorioController;
 use App\Http\Controllers\DirectorioAdminController;
 use App\Http\Controllers\UbigeoController;
+use App\Http\Controllers\PrivacyRequestController;
 
 /*
 |--------------------------------------------------------------------------
@@ -70,6 +71,11 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
         Route::post('/consent',      [ChatController::class, 'consent']);
         Route::post('/location',     [ChatController::class, 'saveLocation']);
     });
+
+    // ─── Derechos ARCO (Ley 29733): borrar mis datos, acceso, reclamos ────
+    // 5 por hora por IP: borrar reinicia los topes del chat, no debe ser un atajo.
+    Route::post('/privacidad/solicitudes', [PrivacyRequestController::class, 'store'])
+        ->middleware('throttle:5,60,privacy');
 
     // ─── Segmentador por zona + mini encuesta de apoyo (público, anónimo) ─
     Route::prefix('segmentacion')->middleware([
@@ -397,6 +403,10 @@ Route::middleware(['throttle:30,1,superadmin', \App\Http\Middleware\EnsureSuperA
         Route::get   ('/tenants/{id}/ai-settings',    [SuperAdminController::class, 'tenantAiSettings']);
         Route::put   ('/tenants/{id}/ai-settings',    [SuperAdminController::class, 'updateTenantAiSettings']);
         Route::get   ('/tenants-audit',               [SuperAdminController::class, 'auditTenants']);
+        // Solicitudes ARCO / reclamos de ciudadanos (Ley 29733).
+        Route::get   ('/privacy-requests',            [PrivacyRequestController::class, 'index']);
+        Route::put   ('/privacy-requests/{id}',       [PrivacyRequestController::class, 'update'])->whereNumber('id');
+        Route::post  ('/privacy-requests/{id}/erase', [PrivacyRequestController::class, 'erase'])->whereNumber('id');
     });
 
 // ─── Cron externo (sin tenant) ──────────────────────────────────────────

@@ -56,8 +56,9 @@ export default function ConsentModal({ onAccept, onDecline }: ConsentModalProps)
             <p className="text-sm text-gray-600 leading-relaxed mb-3">
               Para mejorar tus respuestas, este chat puede almacenar tus mensajes y datos opcionales
               que tú elijas compartir (edad, lugar, preferencias). Operado conforme a la Ley 29733
-              de Protección de Datos Personales. Puedes solicitar borrado en{" "}
-              <a href="/privacidad" className="text-brand-600 underline">privacidad@politicos.pe</a>.
+              de Protección de Datos Personales. Guardamos las conversaciones como máximo 12 meses y puedes
+              borrarlas cuando quieras desde{" "}
+              <a href="/privacidad" className="text-brand-600 underline">Privacidad y tus datos</a>.
             </p>
             <p className="flex items-start gap-2 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 mb-4 border border-gray-200">
               <MapPin size={13} className="shrink-0 mt-0.5" />
