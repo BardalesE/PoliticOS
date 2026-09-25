@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ChevronDown, FileText, MapPin, MessageCircle, Search, X } from "lucide-react";
+import { ChevronDown, FileText, MapPin, MessageCircle, MessagesSquare, Search, X } from "lucide-react";
 import {
+  DIRECTORY_TENANT,
   getCandidatos,
   prettyPlace,
   type CandidatoResumen,
@@ -99,11 +100,20 @@ function LugarCard({ l, active, onPick }: { l: Lugar; active: boolean; onPick: (
   );
 }
 
+/** La home solo lleva al chat: tocar un candidato abre la conversación sobre él. */
+function chatHref(slug: string): string {
+  const p = new URLSearchParams();
+  if (DIRECTORY_TENANT) p.set("tenant", DIRECTORY_TENANT);
+  p.set("candidato", slug);
+  return `/chat?${p.toString()}`;
+}
+
 function CandidatoCard({ c }: { c: CandidatoResumen }) {
   return (
     <li className="min-w-0">
       <Link
-        href={`/candidato/${c.slug}`}
+        href={chatHref(c.slug)}
+        aria-label={`Preguntar a la IA sobre ${c.name}`}
         className="group flex items-center gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5 transition hover:shadow-md hover:ring-[#2F7D4F]/30 motion-safe:hover:-translate-y-0.5
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
       >
@@ -130,7 +140,10 @@ function CandidatoCard({ c }: { c: CandidatoResumen }) {
             </span>
           </span>
         </span>
-        <ArrowRight size={18} className="shrink-0 text-ink-300 transition group-hover:translate-x-0.5 group-hover:text-[#2F7D4F]" aria-hidden />
+        <span className="flex shrink-0 flex-col items-center gap-0.5 text-[10px] font-bold text-ink-400 transition group-hover:text-[#2F7D4F]">
+          <MessagesSquare size={18} aria-hidden />
+          Preguntar
+        </span>
       </Link>
     </li>
   );

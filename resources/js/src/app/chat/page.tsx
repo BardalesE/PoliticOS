@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { FileText, Play, Link as LinkIcon, X, ImageIcon, ShieldAlert, AlertTriangle, ArrowRight, RotateCcw, Mic, Square, Send, MapPin, Star, Lock } from "lucide-react";
+import { FileText, Play, Link as LinkIcon, X, ImageIcon, ShieldAlert, AlertTriangle, Mic, Square, Send, MapPin, Lock, Clock, MessagesSquare } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import ConsentModal from "@/components/chat/ConsentModal";
@@ -12,7 +13,7 @@ import { useCandidate } from "@/context/CandidateContext";
 import { resolveTenantSlug, normalizeApiBase, tenantHeaders } from "@/lib/api";
 import { tenantStorageKey } from "@/lib/utils";
 import { getVisitorId, getZona, setZona as saveZona, votarApoyo, type SegmentacionEstado, type ZonaInfo, type ZonaSeleccion } from "@/lib/segmentacion";
-import { DIRECTORY_TENANT, type Ubicaciones } from "@/lib/directorio";
+import { DIRECTORY_TENANT, prettyPlace, type Ubicaciones } from "@/lib/directorio";
 import { SupportPoll, ZoneBadge, ZonePicker } from "@/components/chat/ZonaYApoyo";
 import { TenantLink } from "@/components/ui/TenantLink";
 import ContactVerifyField from "@/components/ContactVerifyField";
@@ -88,9 +89,10 @@ interface WelcomeBack {
 
 const API = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api");
 
-const LS_HISTORY        = "politicos_chat_history";
-const LS_SAVED_AT       = "politicos_chat_saved_at";
-const LS_SESSION        = "politicos_session_id";
+const LS_HISTORY        = "politicos_chat_history";   // legado (antes de hilos por candidato): se borra al entrar
+const LS_SAVED_AT       = "politicos_chat_saved_at";  // legado
+const LS_SESSION        = "politicos_session_id";     // legado
+const LS_THREADS        = "politicos_chat_threads_v1";
 const LS_REG_DONE       = "politicos_reg_done";
 const LS_CANDIDATE      = "politicos_chat_candidate";
 const LS_CITIZEN_NAME   = "politicos_citizen_name";
@@ -100,6 +102,41 @@ const LS_CITIZEN_POINTS = "politicos_citizen_points";
 // se reactivará más adelante con otro nombre. Mientras, el chat abre con la
 // presentación del asistente y el registro solo aparece al agotar los mensajes.
 const RAFFLE_ENABLED = false;
+
+// ── Hilos por candidato (decisión 2026-09-24) ──────────────────────────────────
+// Cada candidato tiene su propia conversación (y su propia sesión en el servidor).
+// El historial vive SOLO en este navegador y se cierra 1 hora después de la
+// primera pregunta: pasado ese tiempo se borra y no se puede recuperar.
+const THREAD_TTL_MS   = 60 * 60 * 1000;
+const GENERAL_THREAD  = "__general";
+
+interface Thread {
+  key: string;               // slug del candidato o GENERAL_THREAD
+  name: string;
+  sessionId: string | null;
+  messages: ChatMessage[];
+  startedAt: number;         // primera pregunta: desde aquí corre la hora
+}
+
+const isAlive = (t: Thread, now = Date.now()) => now - t.startedAt < THREAD_TTL_MS;
+
+function loadThreads(): Record<string, Thread> {
+  try {
+    const raw = localStorage.getItem(tenantStorageKey(LS_THREADS));
+    const all = raw ? (JSON.parse(raw) as Record<string, Thread>) : {};
+    return Object.fromEntries(Object.entries(all).filter(([, t]) => t && isAlive(t)));
+  } catch {
+    return {};
+  }
+}
+
+function minutesLeft(t: Thread, now: number): number {
+  return Math.max(1, Math.ceil((t.startedAt + THREAD_TTL_MS - now) / 60_000));
+}
+
+// Primer mensaje al entrar al bot de la plataforma.
+const MANIFESTO =
+  "🌱 **El ser humano es la obra más importante, y el medio ambiente es el lugar donde vivimos.** Es nuestro deber cuidarlo.";
 
 // Fases del flujo de registro conversacional
 type RegPhase =
@@ -698,6 +735,69 @@ function QuotaWall({
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 
+// ─── Historial por candidato (se cierra a la hora) ─────────────────────────────
+
+function ThreadsPanel({
+  threads, activeKey, now, onOpen, compact = false,
+}: {
+  threads: Thread[];
+  activeKey: string;
+  now: number;
+  onOpen: (key: string) => void;
+  compact?: boolean;
+}) {
+  const item = (t: Thread) => {
+    const preguntas = t.messages.filter((m) => m.role === "user").length;
+    const active = t.key === activeKey;
+    return (
+      <button
+        key={t.key}
+        type="button"
+        onClick={() => onOpen(t.key)}
+        aria-current={active ? "true" : undefined}
+        className={`text-left rounded-xl border px-3 py-2 transition-colors ${
+          compact ? "shrink-0 max-w-[14rem]" : "w-full"
+        } ${active ? "border-brand-600 bg-brand-50" : "border-gray-200 bg-white hover:border-gray-300"}`}
+      >
+        <span className="block truncate text-[13px] font-semibold text-gray-800">{t.name}</span>
+        <span className="mt-0.5 flex items-center gap-2 text-[11px] text-gray-500">
+          <span>{preguntas} {preguntas === 1 ? "pregunta" : "preguntas"}</span>
+          <span className="inline-flex items-center gap-0.5"><Clock size={11} aria-hidden /> {minutesLeft(t, now)} min</span>
+        </span>
+      </button>
+    );
+  };
+
+  if (compact) {
+    return (
+      <div>
+        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Tus conversaciones · se cierran en 1 h</p>
+        <div className="flex gap-2 overflow-x-auto pb-1">{threads.map(item)}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="sticky top-24">
+      <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+        <MessagesSquare size={13} aria-hidden /> Tus conversaciones
+      </p>
+      {threads.length === 0 ? (
+        <p className="mt-2 text-xs leading-relaxed text-gray-400">
+          Aquí aparecerá lo que preguntes a cada candidato. Cada conversación se guarda 1 hora en este dispositivo y luego se borra.
+        </p>
+      ) : (
+        <>
+          <div className="mt-2 space-y-2">{threads.map(item)}</div>
+          <p className="mt-3 text-[11px] leading-relaxed text-gray-400">
+            Cada conversación se cierra 1 hora después de tu primera pregunta y no se puede recuperar.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function ChatPage() {
   const { profile }              = useCandidate();
   const shortName                = profile.name.split(" ")[0];
@@ -752,8 +852,20 @@ export default function ChatPage() {
   // ── Mejora 1: auto-start ─────────────────────────────────────────────────────
   const [autoStarting, setAutoStarting] = useState(false);
 
-  // ── Mejora 2: welcome back ───────────────────────────────────────────────────
-  const [welcomeBack, setWelcomeBack] = useState<WelcomeBack | null>(null);
+  // ── Entrada del bot + hilos por candidato ────────────────────────────────────
+  // `intro`: mensajes del sistema (manifiesto, bienvenida) que NO son parte de
+  // ninguna conversación; `messages` es SOLO el hilo del candidato activo.
+  const [intro, setIntro]             = useState<ChatMessage[]>([]);
+  const [welcomed, setWelcomed]       = useState(false);
+  const [limits, setLimits]           = useState<{ base: number; bonus: number } | null>(null);
+  const [platform, setPlatform]       = useState<boolean | null>(null); // null hasta montar (sin mismatch)
+  const [askZoneFirst, setAskZoneFirst] = useState(false);
+  const [dirLoaded, setDirLoaded]     = useState(false);
+  const [threads, setThreads]         = useState<Record<string, Thread>>({});
+  const threadsRef                    = useRef<Record<string, Thread>>({});
+  const [threadsLoaded, setThreadsLoaded] = useState(false);
+  const [now, setNow]                 = useState(() => Date.now());
+  const [expiredNotice, setExpiredNotice] = useState<string | null>(null);
 
   // ── Micrófono (Web Speech API) ───────────────────────────────────────────────
   const [listening, setListening] = useState(false);
@@ -796,14 +908,87 @@ export default function ChatPage() {
     recognition.start();
   }
 
-  // ── Guardar historial en localStorage al cambiar los mensajes ────────────────
+  // ── Hilos: cargar al montar, guardar el activo, cerrar a la hora ─────────────
+  const threadKey = candidateSlug ?? GENERAL_THREAD;
+  const candidateSlugRef = useRef<string | null>(null);
+  useEffect(() => { candidateSlugRef.current = candidateSlug; }, [candidateSlug]);
+
   useEffect(() => {
-    if (welcomeBack !== null) return; // no sobreescribir mientras se muestra la pantalla de bienvenida
-    const saveable = messages.filter((m) => !m.pending && m.content.length > 0);
-    if (saveable.length === 0) return;
-    localStorage.setItem(tenantStorageKey(LS_HISTORY), JSON.stringify(saveable));
-    localStorage.setItem(tenantStorageKey(LS_SAVED_AT), Date.now().toString());
-  }, [messages, welcomeBack]);
+    const deep = new URLSearchParams(window.location.search).get("candidato");
+    const isPlatform = !!DIRECTORY_TENANT && resolveTenantSlug() === DIRECTORY_TENANT;
+    setPlatform(isPlatform);
+    setAskZoneFirst(isPlatform && !deep);
+    // El historial único anterior ya no se usa: se descarta para no mezclar candidatos.
+    try {
+      localStorage.removeItem(tenantStorageKey(LS_HISTORY));
+      localStorage.removeItem(tenantStorageKey(LS_SAVED_AT));
+      localStorage.removeItem(tenantStorageKey(LS_SESSION));
+    } catch {}
+    const t = loadThreads();
+    threadsRef.current = t;
+    setThreads(t);
+    setThreadsLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!threadsLoaded) return; // no pisar lo guardado con el estado inicial vacío
+    threadsRef.current = threads;
+    try { localStorage.setItem(tenantStorageKey(LS_THREADS), JSON.stringify(threads)); } catch {}
+  }, [threads, threadsLoaded]);
+
+  // Al cambiar de candidato se abre SU hilo (si sigue vivo) con SU sesión.
+  useEffect(() => {
+    if (!threadsLoaded) return;
+    const t = threadsRef.current[threadKey];
+    const alive = t && isAlive(t) ? t : null;
+    setMessages(alive?.messages ?? []);
+    setSessionId(alive?.sessionId ?? null);
+    setQuota(null);
+    setOpenCite(null);
+    setExpiredNotice(null);
+  }, [threadKey, threadsLoaded]);
+
+  // Guardar el hilo activo cuando hay al menos una pregunta.
+  useEffect(() => {
+    const conv = messages.filter((m) => !m.pending && m.content.length > 0);
+    if (!conv.some((m) => m.role === "user")) return;
+    const name =
+      candidates.find((c) => c.slug === candidateSlug)?.name
+      ?? threadsRef.current[threadKey]?.name
+      ?? (candidateSlug ? candidateSlug : "Consulta general");
+    setThreads((all) => ({
+      ...all,
+      [threadKey]: {
+        key: threadKey,
+        name,
+        sessionId,
+        messages: conv,
+        startedAt: all[threadKey]?.startedAt ?? Date.now(),
+      },
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, sessionId]);
+
+  // Reloj: cada 30 s cierra los hilos vencidos (y el activo, si le tocó).
+  useEffect(() => {
+    const id = setInterval(() => {
+      const t = Date.now();
+      setNow(t);
+      const all = threadsRef.current;
+      const vencidos = Object.values(all).filter((x) => !isAlive(x, t));
+      if (vencidos.length === 0) return;
+      setThreads(Object.fromEntries(Object.entries(all).filter(([, x]) => isAlive(x, t))));
+      const activo = vencidos.find((x) => x.key === (candidateSlugRef.current ?? GENERAL_THREAD));
+      if (activo) {
+        setMessages([]);
+        setSessionId(null);
+        setQuota(null);
+        setExpiredNotice(activo.name);
+      }
+    }, 30_000);
+    return () => clearInterval(id);
+  }, []);
+
 
   // ── Init ────────────────────────────────────────────────────────────────────
   // ── Candidatos disponibles para acotar el chat ───────────────────────────────
@@ -846,9 +1031,11 @@ export default function ChatPage() {
         let est = ubi ? await getZona() : null;
 
         if (ubi && est) {
-          // Llegó desde la ficha de un candidato y aún no dijo dónde vota: usar su distrito.
+          // Llegó desde la home con un candidato (?candidato=): si su zona guardada no lo
+          // incluye (o no tiene zona), se pasa al distrito de ese candidato.
           const deep = wanted ? list.find((c) => c.slug === wanted) : undefined;
-          if (!est.zona && deep?.distrito?.id) est = (await saveZona({ distrito_id: deep.distrito.id })) ?? est;
+          const zonaLoIncluye = est.candidatos.some((c) => c.slug === wanted);
+          if (deep?.distrito?.id && (!est.zona || !zonaLoIncluye)) est = (await saveZona({ distrito_id: deep.distrito.id })) ?? est;
           if (cancelled) return;
           setUbicaciones(ubi);
           applyEstado(est, wanted);
@@ -860,6 +1047,8 @@ export default function ChatPage() {
         if (wanted && list.some((c) => c.slug === wanted)) setCandidateSlug(wanted);
       } catch {
         /* sin chips: el chat sigue consultando sobre todos */
+      } finally {
+        if (!cancelled) setDirLoaded(true);
       }
     })();
     return () => { cancelled = true; };
@@ -873,6 +1062,12 @@ export default function ChatPage() {
     if (!est) return;
     setChangingZone(false);
     applyEstado(est, null);
+    if (!welcomed) showWelcome(limits, est);
+  };
+
+  const cancelZone = () => {
+    setChangingZone(false);
+    if (!welcomed) showWelcome(limits, null);
   };
 
   const vote = async (supports: boolean) => {
@@ -884,6 +1079,7 @@ export default function ChatPage() {
   };
 
   const chooseCandidate = (slug: string | null) => {
+    if (streaming) return; // la respuesta en curso pertenece al hilo actual
     setCandidateSlug(slug);
     try {
       if (slug) localStorage.setItem(tenantStorageKey(LS_CANDIDATE), slug);
@@ -894,8 +1090,6 @@ export default function ChatPage() {
   useEffect(() => {
     const hasConsent = ConsentModal.hasConsent();
     setConsent(hasConsent);
-    const stored = localStorage.getItem(tenantStorageKey(LS_SESSION));
-    if (stored) setSessionId(stored);
 
     if (hasConsent) {
       initChatAfterConsent();
@@ -905,37 +1099,27 @@ export default function ChatPage() {
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, intro]);
 
   // ── Lógica de inicialización post-consent ───────────────────────────────────
 
   function initChatAfterConsent() {
     requestGeoLocation(); // pedir GPS siempre que el usuario tenga consentimiento
-    let savedMessages: ChatMessage[] = [];
-    try {
-      const raw = localStorage.getItem(tenantStorageKey(LS_HISTORY));
-      if (raw) savedMessages = JSON.parse(raw);
-    } catch {}
-
-    if (savedMessages.length > 0) {
-      // Hay historial → mostrar pantalla de bienvenida de regreso
-      const savedName   = localStorage.getItem(tenantStorageKey(LS_CITIZEN_NAME)) || "";
-      const savedPoints = localStorage.getItem(tenantStorageKey(LS_CITIZEN_POINTS));
-      const savedAt     = parseInt(localStorage.getItem(tenantStorageKey(LS_SAVED_AT)) || "0");
-      setWelcomeBack({
-        name:   savedName,
-        points: savedPoints ? parseInt(savedPoints) : null,
-        savedAt,
-      });
+    const regDone = localStorage.getItem(tenantStorageKey(LS_REG_DONE));
+    if (RAFFLE_ENABLED && regDone) {
+      setChatInitialized(true);
+      setRegPhase("done");
     } else {
-      const regDone = localStorage.getItem(tenantStorageKey(LS_REG_DONE));
-      if (RAFFLE_ENABLED && regDone) {
-        setChatInitialized(true);
-        setRegPhase("done");
-      } else {
-        autoStartRegistrationFlow();
-      }
+      autoStartRegistrationFlow();
     }
+  }
+
+  /** Plataforma (tenant del directorio) y si hay que pedir la zona antes de saludar. */
+  function entryMode(): { isPlatform: boolean; askZone: boolean } {
+    const isPlatform = !!DIRECTORY_TENANT && resolveTenantSlug() === DIRECTORY_TENANT;
+    let deep: string | null = null;
+    try { deep = new URLSearchParams(window.location.search).get("candidato"); } catch {}
+    return { isPlatform, askZone: isPlatform && !deep };
   }
 
   // ── Solicitar GPS del navegador ─────────────────────────────────────────────
@@ -1023,21 +1207,26 @@ export default function ChatPage() {
 
   function autoStartRegistrationFlow() {
     setAutoStarting(true);
-    const typingId = `auto-typing-${Date.now()}`;
-    setMessages([{ id: typingId, role: "assistant", content: "", pending: true }]);
+    setIntro([{ id: "sys-typing", role: "assistant", content: "", pending: true }]);
 
     setTimeout(async () => {
       if (RAFFLE_ENABLED) {
         setAutoStarting(false);
+        setIntro([]);
         // startRegistrationFlow reemplaza todos los mensajes con el mensaje de bienvenida
         startRegistrationFlow();
         setRegPhase("offered");
         return;
       }
 
-      const limits = await fetchLimits();
+      const l = await fetchLimits();
+      const { isPlatform, askZone } = entryMode();
+      setLimits(l);
       setAutoStarting(false);
-      showWelcome(limits);
+      // 1) Manifiesto (solo en la plataforma) → 2) zona vacía → 3) bienvenida.
+      setIntro(isPlatform ? [{ id: "sys-manifesto", role: "assistant", content: MANIFESTO }] : []);
+      if (askZone) setChangingZone(true);
+      else showWelcome(l, null);
       setChatInitialized(true);
       setRegPhase("done");
     }, 800);
@@ -1057,18 +1246,38 @@ export default function ChatPage() {
 
   // ── Bienvenida: quién soy, cómo usarme y cuántos mensajes tiene ───────────────
 
-  function showWelcome(limits: { base: number; bonus: number } | null) {
-    const isDirectory = !!DIRECTORY_TENANT && resolveTenantSlug() === DIRECTORY_TENANT;
-    const limitLine = limits
-      ? `\n\n⏳ Tienes **${limits.base} mensajes** por conversación. Si quieres seguir chateando, te registras y te damos **${limits.bonus} más**.`
+  function showWelcome(l: { base: number; bonus: number } | null, est: SegmentacionEstado | null) {
+    const { isPlatform } = entryMode();
+    const limitLine = l
+      ? `\n\n⏳ Tienes **${l.base} mensajes** por conversación. Si quieres seguir, te registras y te damos **${l.bonus} más**.`
       : "";
+    const ttlLine = "\n\n🕐 Tu conversación con cada candidato se guarda **1 hora** en este dispositivo. Después se cierra y se borra para siempre.";
 
-    const content = isDirectory
-      ? `¡Hola! 👋 Soy **PoliticOSIA**.\n\n**Elige un candidato** y pregúntame lo que quieras saber. Soy un asistente inteligente que busca información en el Jurado Nacional de Elecciones y te responde al toque, en base a los documentos que tengo de tu candidato.${limitLine}`
-      : `¡Hola! 👋 Soy el asistente de **${profile.name || "tu candidato"}**.\n\nPregúntame lo que quieras saber: te respondo al toque, en base a los documentos oficiales que tengo de ${profile.name || "este candidato"}.${limitLine}`;
+    let content: string;
+    if (isPlatform) {
+      const lugar = est?.zona
+        ? [est.zona.distrito, est.zona.provincia, est.zona.departamento].filter(Boolean).map((n) => prettyPlace(String(n))).join(", ")
+        : null;
+      const n = est?.candidatos.length ?? 0;
+      const zonaLine = lugar
+        ? n > 0
+          ? `En **${lugar}** encontré **${n} ${n === 1 ? "candidato" : "candidatos"}**. `
+          : `En **${lugar}** aún no hay candidatos publicados. Prueba con otra zona. `
+        : "";
+      content = `¡Bienvenido/a! 👋 Soy **PoliticOSIA**, un asistente neutral que escucha al pueblo.\n\n${zonaLine}**Elige un candidato** arriba y pregúntame lo que quieras: te respondo solo con sus documentos oficiales y te muestro la fuente.${ttlLine}${limitLine}`;
+    } else {
+      content = `¡Hola! 👋 Soy el asistente de **${profile.name || "tu candidato"}**.\n\nPregúntame lo que quieras saber: te respondo al toque, en base a los documentos oficiales que tengo de ${profile.name || "este candidato"}.${ttlLine}${limitLine}`;
+    }
 
-    setMessages([{ id: `welcome-${Date.now()}`, role: "assistant", content }]);
+    setIntro((prev) => [...prev.filter((m) => m.id !== "sys-welcome" && m.id !== "sys-typing"), { id: "sys-welcome", role: "assistant", content }]);
+    setWelcomed(true);
   }
+
+  // Sin API de zonas (o falló) no hay a quién esperar: saludar igual.
+  useEffect(() => {
+    if (askZoneFirst && dirLoaded && !zoneMode && chatInitialized && !welcomed) showWelcome(limits, null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [askZoneFirst, dirLoaded, zoneMode, chatInitialized, welcomed]);
 
   // ── Paso 1+2: bienvenida + invitación a la rifa (apagada: RAFFLE_ENABLED) ─────
 
@@ -1088,55 +1297,19 @@ export default function ChatPage() {
     }]);
   }
 
-  // ── Mejora 2: continuar conversación anterior ────────────────────────────────
-
-  function handleContinue() {
-    let saved: ChatMessage[] = [];
-    try {
-      const raw = localStorage.getItem(tenantStorageKey(LS_HISTORY));
-      if (raw) saved = JSON.parse(raw);
-    } catch {}
-
-    const firstName = welcomeBack?.name?.split(" ")[0] || "vecino/a";
-    const typingId  = `greeting-${Date.now()}`;
-
-    setWelcomeBack(null);
-    setRegPhase("done");
-    setChatInitialized(true);
-    setAutoStarting(true);
-
-    setMessages([
-      ...saved,
-      { id: typingId, role: "assistant", content: "", pending: true },
-    ]);
-
-    setTimeout(() => {
-      setAutoStarting(false);
-      setMessages((m) =>
-        m.map((x) =>
-          x.id === typingId
-            ? { ...x, content: `¡Hola de nuevo, ${firstName}! 👋 ¿En qué te puedo ayudar hoy?`, pending: false }
-            : x
-        )
-      );
-    }, 900);
-  }
-
-  // ── Mejora 2: nuevo chat desde cero ──────────────────────────────────────────
+  // ── Conversación nueva con el MISMO candidato (tope agotado) ─────────────────
 
   function handleNewChat() {
-    localStorage.removeItem(tenantStorageKey(LS_HISTORY));
-    localStorage.removeItem(tenantStorageKey(LS_SAVED_AT));
-    localStorage.removeItem(tenantStorageKey(LS_SESSION));
-    localStorage.removeItem(tenantStorageKey(LS_REG_DONE));
+    setThreads((all) => {
+      const next = { ...all };
+      delete next[threadKey];
+      return next;
+    });
+    setMessages([]);
     setSessionId(null);
     setQuota(null);
     setUnlockError(null);
-    setWelcomeBack(null);
-    setRegPhase(null);
-    setChatInitialized(false);
-    setMessages([]);
-    autoStartRegistrationFlow();
+    setExpiredNotice(null);
   }
 
   // ── Tope de mensajes: consultar y desbloquear ───────────────────────────────
@@ -1365,7 +1538,6 @@ export default function ChatPage() {
             if (payload.done) {
               if (payload.sessionId) {
                 setSessionId(payload.sessionId);
-                localStorage.setItem(tenantStorageKey(LS_SESSION), payload.sessionId);
               }
               if (payload.media?.length) {
                 setMessages((m) =>
@@ -1417,7 +1589,6 @@ export default function ChatPage() {
       const data = await r.json();
       if (data.sessionId) {
         setSessionId(data.sessionId);
-        localStorage.setItem(tenantStorageKey(LS_SESSION), data.sessionId);
       }
       setMessages((m) =>
         m.map((x) =>
@@ -1510,14 +1681,39 @@ export default function ChatPage() {
   };
 
   // Zona elegida con varios candidatos y ninguno seleccionado: no se consulta a ciegas (mezclaría zonas).
-  const needsCandidate = zoneMode && !!zona && candidates.length > 0 && !candidateSlug && regPhase === null;
+  const needsCandidate = zoneMode && !!zona && candidates.length > 0 && !candidateSlug && (regPhase === null || regPhase === "done");
   const inputDisabled = streaming || autoStarting || regPhase === "registering" || needsCandidate;
+
+  // ── Hilos visibles + mensajes a mostrar ─────────────────────────────────────
+  const threadList = Object.values(threads)
+    .filter((t) => isAlive(t, now))
+    .sort((a, b) => b.startedAt - a.startedAt);
+
+  function openThread(key: string) {
+    chooseCandidate(key === GENERAL_THREAD ? null : key);
+  }
+
+  const activeName = candidateSlug
+    ? candidates.find((c) => c.slug === candidateSlug)?.name ?? threads[candidateSlug]?.name ?? null
+    : null;
+  const activeThread = threads[threadKey];
+  const candIntro: ChatMessage[] =
+    welcomed && candidateSlug && activeName
+      ? [{
+          id: `sys-cand-${candidateSlug}`,
+          role: "assistant",
+          content: activeThread && isAlive(activeThread, now) && messages.length > 0
+            ? `Retomas tu conversación sobre **${activeName}**. Se cierra en ${minutesLeft(activeThread, now)} min.`
+            : `Ahora consultas sobre **${activeName}**. Pregúntame por su plan de gobierno, sus propuestas o su hoja de vida.`,
+        }]
+      : [];
+  const shown: ChatMessage[] = [...intro, ...candIntro, ...messages];
 
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex flex-col">
-      <LiveAlert />
+      {platform === false && <LiveAlert />}
 
       {/* Header */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-gray-200 px-4 py-3">
@@ -1539,16 +1735,13 @@ export default function ChatPage() {
               <AIBadge mode={assistantMode} />
             </div>
           </div>
-          <TenantLink href="/" className="text-sm text-gray-500 hover:text-brand-600 transition-colors shrink-0">Inicio</TenantLink>
+          {platform ? (
+            // Plataforma: "Inicio" es SIEMPRE la home de PoliticOS (sin ?tenant=, que abriría la home de un candidato).
+            <Link href="/" className="text-sm font-semibold text-gray-500 hover:text-brand-600 transition-colors shrink-0">Inicio</Link>
+          ) : (
+            <TenantLink href="/" className="text-sm text-gray-500 hover:text-brand-600 transition-colors shrink-0">Inicio</TenantLink>
+          )}
         </div>
-        {zoneMode && (!zona || changingZone) && ubicaciones && (
-          <ZonePicker
-            ubicaciones={ubicaciones}
-            busy={zoneBusy}
-            onPick={pickZone}
-            onCancel={zona ? () => setChangingZone(false) : undefined}
-          />
-        )}
         {!(zoneMode && (!zona || changingZone)) && (candidates.length > 0 || (zoneMode && !!zona)) && (
           <div className="max-w-3xl mx-auto mt-2.5">
             {zoneMode && zona && <ZoneBadge zona={zona} onChange={() => setChangingZone(true)} />}
@@ -1613,89 +1806,23 @@ export default function ChatPage() {
         )}
       </header>
 
-      {/* ── Pantalla de bienvenida de regreso (Mejora 2) ── */}
-      {welcomeBack !== null ? (
-        <main className="flex-1 max-w-3xl w-full mx-auto px-4 flex items-center justify-center py-10">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            className="w-full max-w-sm"
-          >
-            <div className="bg-white border border-gray-200 rounded-2xl shadow-lg overflow-hidden">
-              {/* Franja superior */}
-              <div className="h-1.5 bg-gradient-to-r from-brand-600 to-brand-400" />
+      <div className="flex-1 w-full max-w-6xl mx-auto flex lg:gap-6 lg:px-4">
+        {/* Historial por candidato (escritorio) */}
+        <aside className="hidden lg:block w-64 shrink-0 pt-5">
+          <ThreadsPanel threads={threadList} activeKey={threadKey} now={now} onOpen={openThread} />
+        </aside>
 
-              <div className="px-6 py-7 flex flex-col gap-5">
-                {/* Avatar + saludo */}
-                <div className="flex flex-col items-center text-center gap-2">
-                  {profile.photo_url || profile.logo_url ? (
-                    <img
-                      src={profile.photo_url ?? profile.logo_url ?? undefined}
-                      alt={profile.name}
-                      className="w-14 h-14 rounded-full object-cover shadow-md border border-gray-200"
-                    />
-                  ) : (
-                    <div className="w-14 h-14 rounded-full bg-brand-500 flex items-center justify-center shadow-md">
-                      <span className="font-serif font-bold text-white text-xl leading-none">{shortName[0]}</span>
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-xs text-gray-400 font-medium uppercase tracking-widest mb-0.5">
-                      De vuelta
-                    </p>
-                    <h2 className="text-xl font-bold text-gray-900">
-                      {welcomeBack.name
-                        ? `Bienvenido/a de nuevo, ${welcomeBack.name.split(" ")[0]}`
-                        : "Bienvenido/a de nuevo"}
-                    </h2>
-                  </div>
-                </div>
-
-                {/* Info de la conversación anterior */}
-                <div className="bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 flex flex-col gap-1.5">
-                  <p className="text-sm text-gray-600 font-medium">Tienes una conversación anterior</p>
-                  <p className="text-xs text-gray-400">
-                    {welcomeBack.savedAt
-                      ? `Del ${formatSavedDate(welcomeBack.savedAt)}`
-                      : "Guardada recientemente"}
-                  </p>
-                  {welcomeBack.points !== null && (
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <Star size={13} className="text-amber-500 fill-amber-500" />
-                      <span className="text-xs font-semibold text-amber-600">
-                        {welcomeBack.points} puntos acumulados
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Botones */}
-                <div className="flex flex-col gap-2.5">
-                  <button
-                    onClick={handleContinue}
-                    className="w-full flex items-center justify-center gap-2 bg-chat-500 hover:bg-chat-600 text-white font-semibold py-3.5 px-5 rounded-xl transition-colors text-sm shadow-sm"
-                  >
-                    Continuar conversación
-                    <ArrowRight size={16} />
-                  </button>
-                  <button
-                    onClick={handleNewChat}
-                    className="w-full flex items-center justify-center gap-2 bg-white hover:bg-gray-50 text-gray-600 font-medium py-3 px-5 rounded-xl border border-gray-200 transition-colors text-sm"
-                  >
-                    <RotateCcw size={14} className="text-gray-400" />
-                    Iniciar nueva conversación
-                  </button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </main>
-      ) : (
-        <>
+        <div className="flex-1 min-w-0 flex flex-col">
           {/* ── Chat normal ── */}
           <main className="flex-1 max-w-3xl w-full mx-auto px-4 py-5">
-            {messages.length === 0 && regPhase === null && !autoStarting && (
+            {/* Historial por candidato (móvil) */}
+            {threadList.length > 0 && (
+              <div className="lg:hidden mb-4">
+                <ThreadsPanel threads={threadList} activeKey={threadKey} now={now} onOpen={openThread} compact />
+              </div>
+            )}
+
+            {shown.length === 0 && regPhase === null && !autoStarting && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -1708,7 +1835,7 @@ export default function ChatPage() {
 
             {/* Mensajes */}
             <AnimatePresence initial={false}>
-              {messages.map((msg) => (
+              {shown.map((msg) => (
                 <motion.div
                   key={msg.id}
                   initial={{ opacity: 0, y: 10 }}
@@ -1830,6 +1957,25 @@ export default function ChatPage() {
               ))}
             </AnimatePresence>
 
+            {/* Zona: aparece vacía al entrar (y al tocar "Cambiar"), dentro del chat */}
+            {zoneMode && (!zona || changingZone) && ubicaciones && consent && (
+              <div className="mb-4">
+                <ZonePicker
+                  ubicaciones={ubicaciones}
+                  busy={zoneBusy}
+                  onPick={pickZone}
+                  onCancel={zona ? cancelZone : undefined}
+                />
+              </div>
+            )}
+
+            {expiredNotice && (
+              <p className="mx-auto mb-3 flex max-w-md items-center justify-center gap-1.5 rounded-full bg-gray-100 px-4 py-2 text-center text-xs text-gray-500">
+                <Clock size={13} aria-hidden />
+                Tu conversación sobre {expiredNotice} cumplió 1 hora y se cerró.
+              </p>
+            )}
+
             {blocked && (
               <div className="mb-3">
                 <BlockedBanner />
@@ -1950,8 +2096,8 @@ export default function ChatPage() {
             </p>
             </>)}
           </footer>
-        </>
-      )}
+        </div>
+      </div>
 
       {consent === null && (
         <ConsentModal
