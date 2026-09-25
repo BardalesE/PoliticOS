@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { FileText, Play, Link as LinkIcon, X, ImageIcon, ShieldAlert, AlertTriangle, Mic, Square, Send, MapPin, Lock, Clock, MessagesSquare } from "lucide-react";
+import { FileText, Play, Link as LinkIcon, X, ImageIcon, ShieldAlert, AlertTriangle, Mic, Square, Send, MapPin, Lock, Clock, MessagesSquare, ChevronDown, ThumbsUp, ThumbsDown, History } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import ConsentModal from "@/components/chat/ConsentModal";
@@ -858,7 +858,7 @@ function ThreadsPanel({
   }
 
   return (
-    <div className="sticky top-24">
+    <div>
       <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-widest text-gray-400">
         <MessagesSquare size={13} aria-hidden /> Tus conversaciones
       </p>
@@ -945,6 +945,10 @@ export default function ChatPage() {
   const threadsRef                    = useRef<Record<string, Thread>>({});
   const [now, setNow]                 = useState(() => Date.now());
   const [expiredNotice, setExpiredNotice] = useState<string | null>(null);
+  // Encabezado compacto: el selector de candidatos solo se despliega a pedido
+  // (o cuando falta elegir); el historial en móvil es un panel lateral.
+  const [pickerOpen, setPickerOpen]   = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // ── Micrófono (Web Speech API) ───────────────────────────────────────────────
   const [listening, setListening] = useState(false);
@@ -1157,6 +1161,8 @@ export default function ChatPage() {
   const chooseCandidate = (slug: string | null) => {
     if (streaming) return; // la respuesta en curso pertenece al hilo actual
     setCandidateSlug(slug);
+    setPickerOpen(false);
+    setHistoryOpen(false);
     try {
       if (slug) localStorage.setItem(tenantStorageKey(LS_CANDIDATE), slug);
       else localStorage.removeItem(tenantStorageKey(LS_CANDIDATE));
@@ -1759,6 +1765,8 @@ export default function ChatPage() {
   // Zona elegida con varios candidatos y ninguno seleccionado: no se consulta a ciegas (mezclaría zonas).
   const needsCandidate = zoneMode && !!zona && candidates.length > 0 && !candidateSlug && (regPhase === null || regPhase === "done");
   const inputDisabled = streaming || autoStarting || regPhase === "registering" || needsCandidate;
+  // Selector completo: cuando falta elegir candidato o el ciudadano pidió cambiar.
+  const showSelector = pickerOpen || needsCandidate;
 
   // ── Hilos visibles + mensajes a mostrar ─────────────────────────────────────
   const threadList = Object.values(threads)
@@ -1788,11 +1796,11 @@ export default function ChatPage() {
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex flex-col">
+    <div className="h-[100dvh] overflow-hidden bg-gradient-to-b from-gray-50 to-white flex flex-col">
       {platform === false && <LiveAlert />}
 
-      {/* Header */}
-      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-gray-200 px-4 py-3">
+      {/* Header: fijo arriba; el chat hace scroll por dentro, nunca queda tapado */}
+      <header className="shrink-0 z-30 bg-white/95 backdrop-blur border-b border-gray-200 px-4 py-2.5">
         <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             {profile.photo_url || profile.logo_url ? (
@@ -1818,9 +1826,65 @@ export default function ChatPage() {
             <TenantLink href="/" className="text-sm text-gray-500 hover:text-brand-600 transition-colors shrink-0">Inicio</TenantLink>
           )}
         </div>
-        {!(zoneMode && (!zona || changingZone)) && (candidates.length > 0 || (zoneMode && !!zona)) && (
-          <div className="max-w-3xl mx-auto mt-2.5">
-            {zoneMode && zona && <ZoneBadge zona={zona} onChange={() => setChangingZone(true)} />}
+        {/* Barra compacta: con quién conversas + cambiar + (móvil) historial */}
+        {!(zoneMode && (!zona || changingZone)) && (candidates.length > 0 || (zoneMode && !!zona)) && !showSelector && (
+          <div className="max-w-3xl mx-auto mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              aria-expanded={false}
+              className="group flex min-w-0 flex-1 items-center gap-2 rounded-full border border-gray-200 bg-white py-1.5 pl-3 pr-2 text-left shadow-sm hover:border-brand-600/40"
+            >
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Consultando</span>
+              <span className="min-w-0 truncate text-[13px] font-semibold text-gray-800">
+                {activeName ?? "Todos los candidatos"}
+              </span>
+              {zoneMode && zona && (
+                <span className="hidden sm:inline shrink-0 truncate text-[11px] text-gray-400">
+                  · {prettyPlace(String(zona.distrito ?? zona.provincia ?? zona.departamento))}
+                </span>
+              )}
+              <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 text-[11px] font-semibold text-brand-600">
+                Cambiar <ChevronDown size={14} aria-hidden />
+              </span>
+            </button>
+            {pollEnabled && candidateSlug && (
+              <div className="flex shrink-0 items-center gap-1" role="group" aria-label={`¿Apoyas a ${activeName ?? "este candidato"}?`}
+                title={`¿Apoyas a ${activeName ?? "este candidato"}? Encuesta anónima, no oficial.`}>
+                <button type="button" disabled={voteBusy} onClick={() => vote(true)} aria-pressed={votes[candidateSlug] === true}
+                  aria-label="Sí lo apoyo"
+                  className={`flex h-8 w-8 items-center justify-center rounded-full border transition-colors disabled:opacity-50 ${votes[candidateSlug] === true ? "border-green-600 bg-green-600 text-white" : "border-gray-300 bg-white text-gray-500 hover:border-gray-400"}`}>
+                  <ThumbsUp size={14} aria-hidden />
+                </button>
+                <button type="button" disabled={voteBusy} onClick={() => vote(false)} aria-pressed={votes[candidateSlug] === false}
+                  aria-label="No lo apoyo"
+                  className={`flex h-8 w-8 items-center justify-center rounded-full border transition-colors disabled:opacity-50 ${votes[candidateSlug] === false ? "border-red-600 bg-red-600 text-white" : "border-gray-300 bg-white text-gray-500 hover:border-gray-400"}`}>
+                  <ThumbsDown size={14} aria-hidden />
+                </button>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setHistoryOpen(true)}
+              className="lg:hidden relative flex h-8 shrink-0 items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 text-[12px] font-semibold text-gray-600"
+              aria-label={`Tus conversaciones (${threadList.length})`}
+            >
+              <History size={14} aria-hidden />
+              {threadList.length > 0 && <span className="rounded-full bg-brand-600 px-1.5 text-[10px] leading-4 text-white">{threadList.length}</span>}
+            </button>
+          </div>
+        )}
+
+        {!(zoneMode && (!zona || changingZone)) && (candidates.length > 0 || (zoneMode && !!zona)) && showSelector && (
+          <div className="max-w-3xl mx-auto mt-2.5 max-h-[55dvh] overflow-y-auto">
+            {pickerOpen && !needsCandidate && (
+              <div className="mb-1 flex justify-end">
+                <button type="button" onClick={() => setPickerOpen(false)} className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 hover:text-gray-800">
+                  <X size={13} aria-hidden /> Cerrar
+                </button>
+              </div>
+            )}
+            {zoneMode && zona && <ZoneBadge zona={zona} onChange={() => { setPickerOpen(false); setChangingZone(true); }} />}
             <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1.5">
               Consultar sobre
             </p>
@@ -1882,21 +1946,16 @@ export default function ChatPage() {
         )}
       </header>
 
-      <div className="flex-1 w-full max-w-6xl mx-auto flex lg:gap-6 lg:px-4">
-        {/* Historial por candidato (escritorio) */}
-        <aside className="hidden lg:block w-64 shrink-0 pt-5">
+      <div className="flex-1 min-h-0 w-full max-w-6xl mx-auto flex lg:gap-6 lg:px-4">
+        {/* Historial por candidato (escritorio): columna propia con su scroll */}
+        <aside className="hidden lg:block w-64 shrink-0 overflow-y-auto py-5">
           <ThreadsPanel threads={threadList} activeKey={threadKey} now={now} onOpen={openThread} />
         </aside>
 
-        <div className="flex-1 min-w-0 flex flex-col">
-          {/* ── Chat normal ── */}
-          <main className="flex-1 max-w-3xl w-full mx-auto px-4 py-5">
-            {/* Historial por candidato (móvil) */}
-            {threadList.length > 0 && (
-              <div className="lg:hidden mb-4">
-                <ThreadsPanel threads={threadList} activeKey={threadKey} now={now} onOpen={openThread} compact />
-              </div>
-            )}
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+          {/* ── Chat: solo esta zona hace scroll ── */}
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+          <main className="max-w-3xl w-full mx-auto px-4 py-5">
 
             {shown.length === 0 && regPhase === null && !autoStarting && (
               <motion.div
@@ -2112,9 +2171,10 @@ export default function ChatPage() {
 
             <div ref={endRef} />
           </main>
+          </div>
 
           {/* Composer */}
-          <footer className="sticky bottom-0 bg-white border-t border-gray-200 px-4 py-3">
+          <footer className="shrink-0 bg-white border-t border-gray-200 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             {quota?.blocked && (
               <QuotaWall
                 quota={quota}
@@ -2186,6 +2246,27 @@ export default function ChatPage() {
           </footer>
         </div>
       </div>
+
+      {/* Historial en móvil: panel lateral */}
+      <AnimatePresence>
+        {historyOpen && (
+          <motion.div className="fixed inset-0 z-50 lg:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <button type="button" aria-label="Cerrar historial" className="absolute inset-0 bg-black/30" onClick={() => setHistoryOpen(false)} />
+            <motion.aside
+              role="dialog" aria-modal="true" aria-label="Tus conversaciones"
+              initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }} transition={{ type: "tween", duration: 0.22 }}
+              className="absolute inset-y-0 left-0 w-[85vw] max-w-xs overflow-y-auto bg-white p-5 shadow-xl"
+            >
+              <div className="mb-3 flex justify-end">
+                <button type="button" onClick={() => setHistoryOpen(false)} className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500">
+                  <X size={14} aria-hidden /> Cerrar
+                </button>
+              </div>
+              <ThreadsPanel threads={threadList} activeKey={threadKey} now={now} onOpen={openThread} />
+            </motion.aside>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {consent === null && (
         <ConsentModal
