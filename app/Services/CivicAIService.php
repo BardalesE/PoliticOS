@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\AiProviderException;
+use App\Support\SensitiveData;
 use App\Models\AiSetting;
 use App\Models\AttackResponse;
 use App\Models\CampaignPhoto;
@@ -158,7 +159,7 @@ class CivicAIService
             AttackResponse::where('id', $attack['id'])->increment('times_used');
         }
 
-        $reply = $this->stripUnknownCitations($parsed['reply']);
+        $reply = SensitiveData::redact($this->stripUnknownCitations($parsed['reply']));
 
         return [
             'reply'           => $reply,
@@ -332,7 +333,7 @@ class CivicAIService
         // de emitir. En campaña el texto ya salió en vivo; el frontend ignora las
         // etiquetas sin cita correspondiente.
         if ($isPepa) {
-            $parsed['reply'] = $this->stripUnknownCitations($parsed['reply']);
+            $parsed['reply'] = SensitiveData::redact($this->stripUnknownCitations($parsed['reply']));
         }
 
         // Solo en PEPA enviamos el texto ya parseado en trozos; en campaña ya se streameó arriba.
@@ -533,7 +534,7 @@ class CivicAIService
         foreach ($rawMessages as $m) {
             $role = $m->role === 'user' ? 'user' : 'assistant';
             if ($role === $lastRole) continue;
-            $history[] = ['role' => $role, 'content' => $m->content];
+            $history[] = ['role' => $role, 'content' => SensitiveData::redact((string) $m->content)];
             $lastRole = $role;
         }
         if (!empty($history) && end($history)['role'] === 'user') {
@@ -663,6 +664,18 @@ class CivicAIService
 
     private function buildDocumentationSection(array $docs, bool $isPepa): string
     {
+        // Privacidad (2026-09-24): DNI e ingresos/bienes declarados se quitan ANTES
+        // de que el texto llegue al modelo o a las citas — ver SensitiveData.
+        foreach ($docs as &$raw) {
+            $hv = SensitiveData::isHojaDeVida($raw['metadata']['topic'] ?? null, $raw['title'] ?? null);
+            $raw['excerpt'] = SensitiveData::redact((string) ($raw['excerpt'] ?? ''), $hv);
+            if ($hv && trim($raw['excerpt']) === SensitiveData::HV_OMITTED) {
+                $raw['excerpt'] = '';
+            }
+            $raw['is_hoja_de_vida'] = $hv;
+        }
+        unset($raw);
+
         $docs = array_values(array_filter($docs, fn ($d) => trim($d['excerpt'] ?? '') !== ''));
         $this->retrievedDocUrls = $this->extractDocUrls($docs);
 
@@ -684,7 +697,8 @@ class CivicAIService
                 'title'       => $d['title'] ?: 'Documento',
                 'page'        => $d['page'] ?? null,
                 'excerpt'     => $d['excerpt'],
-                'url'         => $d['metadata']['file_url'] ?? $d['metadata']['source_url'] ?? null,
+                // La hoja de vida original trae DNI y patrimonio: no se enlaza desde el chat.
+                'url'         => ! empty($d['is_hoja_de_vida']) ? null : ($d['metadata']['file_url'] ?? $d['metadata']['source_url'] ?? null),
                 'type'        => $d['metadata']['source_type'] ?? 'pdf',
             ];
         }
@@ -831,7 +845,7 @@ class CivicAIService
             foreach ($groupDocs as $d) {
                 $title    = $d['title'] ?: 'Documento';
                 $type     = $typeLabels[$d['metadata']['source_type'] ?? 'pdf'] ?? 'documento';
-                $source   = $d['metadata']['source_url'] ?? $d['metadata']['file_url'] ?? '';
+                $source   = ! empty($d['is_hoja_de_vida']) ? '' : ($d['metadata']['source_url'] ?? $d['metadata']['file_url'] ?? '');
                 $excerpt  = mb_substr($d['excerpt'], 0, 1200);
                 $sourceTag = $source !== '' ? " [Fuente: {$source}]" : ' [Fuente: sin fuente pública — no cites URL]';
                 $cite     = isset($d['cite']) ? "[{$d['cite']}] " : '';
@@ -924,6 +938,10 @@ class CivicAIService
 
     private function appendPromptGuards(string $prompt, string $context, ?array $attack): string
     {
+        $prompt .= SensitiveData::PROMPT_RULE;
+        $prompt .= "\n\n📋 HOJA DE VIDA: el formato del JNE marca muchas respuestas con casillas (SÍ/NO) que no "
+            . "se leen como texto. Si un dato no figura en el fragmento, dilo con naturalidad (\"en la hoja de vida "
+            . "cargada no figura ese detalle\") y sugiere revisarla en Voto Informado del JNE; nunca lo inventes.";
 
         // Capacidad de media — fija, no puede ser anulada por prompt custom en BD
         $prompt .= "\n\n⚠️ CAPACIDAD DE MEDIA (OBLIGATORIO): Esta plataforma adjunta imágenes, videos y PDFs automáticamente debajo de tu mensaje. NUNCA digas \"no puedo mostrar imágenes\" — eso es incorrecto. Cuando el ciudadano pida fotos, obras, imágenes o videos: confirma con entusiasmo que sí los adjuntas (\"Claro, aquí te muestro...\", \"Te adjunto las fotos...\") porque el sistema los agrega automáticamente. Habla de las imágenes como si ya las estuviera viendo.";
