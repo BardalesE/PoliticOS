@@ -574,7 +574,7 @@ class ChatController extends Controller
         return response()->stream(
             function () use ($response, $session) {
                 while (ob_get_level() > 0) ob_end_clean();
-                foreach (str_split($response['reply'], 30) as $chunk) {
+                foreach (mb_str_split($response['reply'], 30) as $chunk) {
                     echo 'data: '.json_encode(['chunk' => $chunk])."\n\n";
                     flush();
                 }

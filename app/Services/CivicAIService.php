@@ -303,7 +303,7 @@ class CivicAIService
         // IA sin tokens / todos los providers fallaron → respuesta de descanso
         if (trim($rawBuffer) === '__AI_RESTING__') {
             $resting = $this->buildRestingResponse($topic, $district);
-            foreach (str_split($resting['reply'], 30) as $chunk) {
+            foreach (mb_str_split($resting['reply'], 30) as $chunk) {
                 $onChunk($chunk);
             }
             return $resting;
@@ -323,7 +323,7 @@ class CivicAIService
                 'snippet' => mb_substr($parsed['reply'], 0, 150),
             ]);
             $resting = $this->buildRestingResponse($topic, $district);
-            foreach (str_split($resting['reply'], 30) as $chunk) {
+            foreach (mb_str_split($resting['reply'], 30) as $chunk) {
                 $onChunk($chunk);
             }
             return $resting;
@@ -338,7 +338,7 @@ class CivicAIService
 
         // Solo en PEPA enviamos el texto ya parseado en trozos; en campaña ya se streameó arriba.
         if ($isPepa) {
-            foreach (str_split($parsed['reply'], 30) as $chunk) {
+            foreach (mb_str_split($parsed['reply'], 30) as $chunk) {
                 $onChunk($chunk);
             }
         }
@@ -750,6 +750,7 @@ class CivicAIService
     /** Quita del texto las etiquetas [S#] que no corresponden a ningún fragmento recuperado. */
     public function stripUnknownCitations(string $reply): string
     {
+        $reply = self::normalizeCitationMarkers($reply);
         $known = array_column($this->retrievedCitations, 'id');
 
         return (string) preg_replace_callback(self::CITATION_MARKER_RE, function (array $m) use ($known) {
@@ -760,12 +761,27 @@ class CivicAIService
         }, $reply);
     }
 
+    /**
+     * Algunos modelos escriben la etiqueta con corchetes "chinos" o de ancho
+     * completo: 【S2】, ［S2］, 〔S2〕. Sin normalizar, esas respuestas llegaban SIN
+     * citas ni "Fuentes en el documento" (bug 2026-09-25).
+     */
+    public static function normalizeCitationMarkers(string $reply): string
+    {
+        return (string) preg_replace_callback(
+            '/[【［〔\[]\s*(S\s?\d+(?:\s*[,;、，]\s*S\s?\d+)*)\s*[】］〕\]]/u',
+            fn (array $m) => '[' . preg_replace(['/\s+/', '/[;、，]/u'], ['', ','], $m[1]) . ']',
+            $reply,
+        );
+    }
+
     /** [S1] o [S1, S2] / [S1; S2] — con espacios tolerados. */
     private const CITATION_MARKER_RE = '/\[\s*(S\d+(?:\s*[,;]\s*S\d+)*)\s*\]/';
 
     /** @return array<int, string> ids en orden de aparición, con repetidos */
     private function citationMarkers(string $reply): array
     {
+        $reply = self::normalizeCitationMarkers($reply);
         if (! preg_match_all(self::CITATION_MARKER_RE, $reply, $groups)) {
             return [];
         }

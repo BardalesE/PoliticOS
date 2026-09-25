@@ -144,6 +144,8 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
         Route::get('/ubicaciones',        [DirectorioController::class, 'ubicaciones']);
         Route::get('/candidatos',         [DirectorioController::class, 'candidatos']);
         Route::get('/candidatos/{slug}',  [DirectorioController::class, 'show']);
+        Route::get('/documentos/{id}/pdf', [DirectorioController::class, 'documentoPdf'])
+            ->whereNumber('id')->middleware('throttle:60,1,directorio-pdf');
     });
 
     // Datos de referencia INEI para los dropdowns en cascada del admin.
