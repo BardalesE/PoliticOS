@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { FileText, Play, Link as LinkIcon, X, ImageIcon, ShieldAlert, AlertTriangle, Mic, Square, Send, MapPin, Lock, Clock, MessagesSquare, ChevronDown, ThumbsUp, ThumbsDown, History, Scale } from "lucide-react";
+import { FileText, Play, Link as LinkIcon, X, ImageIcon, ShieldAlert, AlertTriangle, Mic, Square, Send, MapPin, Lock, Clock, MessagesSquare, ChevronDown, ThumbsUp, ThumbsDown, History, Scale, Star } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import ConsentModal from "@/components/chat/ConsentModal";
@@ -24,6 +24,7 @@ import { getVerificationConfig, type VerificationConfig } from "@/lib/verificati
 // El visor (pdf.js) pesa: solo se descarga cuando el ciudadano abre una fuente.
 const PdfCitationViewer = dynamic(() => import("@/components/chat/PdfCitationViewer"), { ssr: false });
 const CompareModal = dynamic(() => import("@/components/chat/CompareModal"), { ssr: false });
+const FeedbackModal = dynamic(() => import("@/components/feedback/FeedbackModal").then((m) => m.FeedbackModal), { ssr: false });
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -964,6 +965,7 @@ export default function ChatPage() {
   const [pickerOpen, setPickerOpen]   = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   // ── Micrófono (Web Speech API) ───────────────────────────────────────────────
   const [listening, setListening] = useState(false);
@@ -1898,6 +1900,14 @@ export default function ChatPage() {
               <History size={14} aria-hidden />
               {threadList.length > 0 && <span className="rounded-full bg-brand-600 px-1.5 text-[10px] leading-4 text-white">{threadList.length}</span>}
             </button>
+            <button
+              type="button"
+              onClick={() => setFeedbackOpen(true)}
+              className="flex h-8 shrink-0 items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 text-[12px] font-bold text-amber-600 hover:bg-amber-100"
+              aria-label="Califica la plataforma"
+            >
+              <Star size={14} className="fill-amber-400 text-amber-500" aria-hidden /> <span className="hidden sm:inline">Calificar</span>
+            </button>
           </div>
         )}
 
@@ -2296,6 +2306,15 @@ export default function ChatPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {feedbackOpen && (
+        <FeedbackModal
+          onClose={() => setFeedbackOpen(false)}
+          context="chat"
+          candidateSlug={candidateSlug}
+          tenantSlug={resolveTenantSlug()}
+        />
+      )}
 
       {compareOpen && (
         <CompareModal

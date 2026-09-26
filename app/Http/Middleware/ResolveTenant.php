@@ -72,6 +72,12 @@ class ResolveTenant
             return null;
         }
 
+        // Calificacion de la plataforma: igual que site-visits, dato global
+        // en la BD central, no pertenece a ningun tenant.
+        if ($request->is('api/feedback') || $request->is('api/feedback/*')) {
+            return null;
+        }
+
         $subdomain = $this->subdomainSlug($request);
 
         // En producción el subdominio manda: así un header X-Tenant falsificado
