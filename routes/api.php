@@ -36,6 +36,7 @@ use App\Http\Controllers\SegmentacionController;
 use App\Http\Controllers\SegmentacionAdminController;
 use App\Http\Controllers\SystemController;
 use App\Http\Controllers\SiteVisitController;
+use App\Http\Controllers\PlatformFeedbackController;
 use App\Http\Controllers\DirectorioController;
 use App\Http\Controllers\DirectorioAdminController;
 use App\Http\Controllers\UbigeoController;
@@ -139,6 +140,10 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
     // ResolveTenant lo exime (api/site-visits): el contador vive en la BD central.
     Route::get('/site-visits',  [SiteVisitController::class, 'show'])->middleware('throttle:60,1,site-visits-read');
     Route::post('/site-visits', [SiteVisitController::class, 'store'])->middleware('throttle:20,1,site-visits');
+
+    // ─── Calificacion de la plataforma (público, global — sin tenant) ─
+    Route::get('/feedback/summary', [PlatformFeedbackController::class, 'summary'])->middleware('throttle:60,1,feedback-read');
+    Route::post('/feedback', [PlatformFeedbackController::class, 'store'])->middleware('throttle:10,1,feedback');
 
     // ─── Directorio público de candidatos (solo lectura) ─────────────
     // Solo expone lugares/candidatos publicados con base de conocimiento lista
