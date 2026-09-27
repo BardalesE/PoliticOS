@@ -426,3 +426,9 @@ Route::middleware(['throttle:30,1,superadmin', \App\Http\Middleware\EnsureSuperA
 // plan gratis). Ver .github/workflows/scheduler.yml.
 Route::post('/system/run-scheduler', [SystemController::class, 'runScheduler'])
     ->middleware(['scheduler_key', 'throttle:20,1,system-scheduler']);
+
+// Uso puntual: correr tenant:migrate en produccion sin Shell (plan free de
+// Render). Misma llave que el cron. Seguro de dejar en el codigo: sin la
+// X-Scheduler-Key correcta responde 401.
+Route::post('/system/migrate-tenants', [SystemController::class, 'migrateTenants'])
+    ->middleware(['scheduler_key', 'throttle:5,1,system-migrate']);

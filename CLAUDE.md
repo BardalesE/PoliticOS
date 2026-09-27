@@ -114,6 +114,26 @@ No mezclarlas — resuelven negocios distintos:
   se acceden por subdominio propio. Columnas agregadas en
   `2026_09_17_231310_add_directorio_fields_to_candidate_profiles_table.php`.
   **Este tenant "directorio" todavía no está provisionado** (pendiente).
+
+  Comando listo para copiar-pegar cuando se confirme (slug/plan a
+  reconfirmar con cabeza fresca; probado anoche contra un tenant
+  descartable — `test-directorio` — y funcionó limpio de punta a punta):
+  ```bash
+  php artisan tenant:provision directorio "Directorio Público de Candidatos" \
+      bdpolitic_directorio admin@directorio.politicos.pe "<PASSWORD_A_DEFINIR>" \
+      --plan=starter --db-user=root --force
+  ```
+  - `--db-user=root`: **necesario en local** — el default del comando
+    (`politicos_user`) no existe/no tiene permisos en este MySQL de
+    Laragon (`Access denied for user 'politicos_user'@'localhost'`,
+    confirmado anoche). En Render/Aiven usar el usuario real de esa BD.
+  - Reemplazar `<PASSWORD_A_DEFINIR>` por una contraseña real antes de
+    correr — nunca comitear una contraseña real en este archivo.
+  - `admin_email` es un placeholder — confirmar el correo real del admin
+    del directorio antes de correr.
+  - Tras provisionar, la migración `add_directorio_fields...` corre sola
+    (el comando migra automáticamente); no hace falta `tenant:migrate`
+    aparte salvo para confirmar.
 - **`tenant:provision`** (sin cambios, no tocar su comportamiento): sigue
   siendo el camino para un candidato **individual con tenant propio y
   pagado** — BD dedicada, subdominio propio, features de plan (`starter`/
