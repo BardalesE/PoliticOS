@@ -1013,8 +1013,7 @@ class CivicAIService
             . "se leen como texto. Si un dato no figura en el fragmento, dilo con naturalidad (\"en la hoja de vida "
             . "cargada no figura ese detalle\") y sugiere revisarla en Voto Informado del JNE; nunca lo inventes.";
 
-        // Capacidad de media — fija, no puede ser anulada por prompt custom en BD
-        $prompt .= "\n\n⚠️ CAPACIDAD DE MEDIA (OBLIGATORIO): Esta plataforma adjunta imágenes, videos y PDFs automáticamente debajo de tu mensaje. NUNCA digas \"no puedo mostrar imágenes\" — eso es incorrecto. Cuando el ciudadano pida fotos, obras, imágenes o videos: confirma con entusiasmo que sí los adjuntas (\"Claro, aquí te muestro...\", \"Te adjunto las fotos...\") porque el sistema los agrega automáticamente. Habla de las imágenes como si ya las estuviera viendo.";
+        $prompt .= "\n\nSOLO TEXTO (OBLIGATORIO): el chat no adjunta imagenes, fotos, videos ni archivos. Nunca ofrezcas ni menciones adjuntos; responde solo con texto y cita tus fuentes.";
 
         if (!empty($context)) {
             $prompt .= "\n\n--- CONTEXTO DISPONIBLE PARA ESTA RESPUESTA ---\n{$context}\n--- FIN CONTEXTO ---";
