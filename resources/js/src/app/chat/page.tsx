@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { FileText, Play, Link as LinkIcon, X, ImageIcon, ShieldAlert, AlertTriangle, Mic, Square, Send, MapPin, Lock, Clock, MessagesSquare, ChevronDown, ThumbsUp, ThumbsDown, History, Scale, Star } from "lucide-react";
+import { FileText, Play, Link as LinkIcon, X, ImageIcon, ShieldAlert, AlertTriangle, Mic, Square, Volume2, VolumeX, Send, MapPin, Lock, Clock, MessagesSquare, ChevronDown, ThumbsUp, ThumbsDown, History, Scale, Star } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import ConsentModal from "@/components/chat/ConsentModal";
@@ -206,6 +206,53 @@ function getSpeechRecognitionCtor(): (new () => MinimalSpeechRecognition) | null
   if (typeof window === "undefined") return null;
   const w = window as any;
   return w.SpeechRecognition || w.webkitSpeechRecognition || null;
+}
+
+// ─── Voz de salida (Web Speech Synthesis: gratis, corre en el navegador) ──────
+
+/** Texto listo para leer en voz alta: sin markdown, citas [S1], enlaces ni emojis. */
+function speakableText(md: string): string {
+  return md
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/^.*📄.*$/gmu, " ")
+    .replace(/\[(S\d+(?:\s*,\s*S\d+)*)\]/g, " ")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/[#*_>`~|]/g, " ")
+    .replace(/\p{Extended_Pictographic}|\uFE0F/gu, " ")
+    .replace(/[ \t]*\n+[ \t]*/g, ". ")
+    .replace(/([.!?:;,])\s*(?:\.\s*)+/g, "$1 ")
+    .replace(/^[\s.]+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Trozos cortos por oración: Chrome corta las locuciones largas (~15 s). */
+function splitForSpeech(text: string): string[] {
+  const parts = text.match(/[^.!?;:]+[.!?;:]*\s*/g) ?? [text];
+  const out: string[] = [];
+  let cur = "";
+  for (const p of parts) {
+    if (cur && (cur + p).length > 200) {
+      out.push(cur.trim());
+      cur = "";
+    }
+    cur += p;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
+}
+
+function pickSpanishVoice(): SpeechSynthesisVoice | null {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return null;
+  const voices = window.speechSynthesis.getVoices();
+  const norm = (l: string) => (l || "").replace("_", "-").toLowerCase();
+  for (const lang of ["es-pe", "es-419", "es-us", "es-mx", "es-es"]) {
+    const v = voices.find((x) => norm(x.lang) === lang);
+    if (v) return v;
+  }
+  return voices.find((x) => norm(x.lang).startsWith("es")) ?? null;
 }
 
 // ─── Modal de alerta por mensaje ininteligible ────────────────────────────────
@@ -977,8 +1024,83 @@ export default function ChatPage() {
     return () => recognitionRef.current?.stop();
   }, []);
 
+  // ── Modo voz: hablar y escuchar las respuestas ──────────────────────────────
+  const VOICE_KEY = "politicos:modo-voz";
+  const [ttsSupported, setTtsSupported] = useState(false);
+  const [voiceMode, setVoiceMode] = useState(false);
+  const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const [autoSpeakId, setAutoSpeakId] = useState<string | null>(null);
+  const voiceModeRef = useRef(false);
+  useEffect(() => { voiceModeRef.current = voiceMode; }, [voiceMode]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    setTtsSupported(true);
+    try { setVoiceMode(localStorage.getItem(VOICE_KEY) === "1"); } catch { /* sin storage */ }
+    const synth = window.speechSynthesis;
+    const load = () => { synth.getVoices(); };
+    load();
+    synth.addEventListener?.("voiceschanged", load);
+    return () => {
+      synth.removeEventListener?.("voiceschanged", load);
+      synth.cancel();
+    };
+  }, []);
+
+  function stopSpeaking() {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    setSpeakingId(null);
+  }
+
+  function speak(id: string, markdown: string) {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    const text = speakableText(markdown);
+    if (!text) return;
+    const synth = window.speechSynthesis;
+    synth.cancel();
+    const voice = pickSpanishVoice();
+    const chunks = splitForSpeech(text);
+    const done = () => setSpeakingId((cur) => (cur === id ? null : cur));
+    chunks.forEach((chunk, i) => {
+      const u = new SpeechSynthesisUtterance(chunk);
+      u.lang = voice?.lang ?? "es-PE";
+      if (voice) u.voice = voice;
+      u.rate = 1;
+      if (i === chunks.length - 1) {
+        u.onend = done;
+        u.onerror = done;
+      }
+      synth.speak(u);
+    });
+    setSpeakingId(id);
+  }
+
+  function toggleSpeak(id: string, markdown: string) {
+    if (speakingId === id) stopSpeaking();
+    else speak(id, markdown);
+  }
+
+  /** iOS solo deja hablar si la primera locución nace de un toque del usuario. */
+  function unlockSpeech() {
+    try {
+      const u = new SpeechSynthesisUtterance(" ");
+      u.volume = 0;
+      window.speechSynthesis.speak(u);
+    } catch { /* sin síntesis de voz */ }
+  }
+
+  function toggleVoiceMode() {
+    const next = !voiceMode;
+    setVoiceMode(next);
+    try { localStorage.setItem(VOICE_KEY, next ? "1" : "0"); } catch { /* sin storage */ }
+    if (next) unlockSpeech();
+    else stopSpeaking();
+  }
+
   function toggleMic() {
     if (inputDisabled) return;
+    if (voiceMode) unlockSpeech();
+    stopSpeaking();
 
     if (listening) {
       recognitionRef.current?.stop();
@@ -996,8 +1118,12 @@ export default function ChatPage() {
     recognition.onresult = (event) => {
       const transcript = event?.results?.[0]?.[0]?.transcript ?? "";
       if (transcript) {
-        // Se agrega al texto existente, por si ya había algo escrito.
-        setInput((prev) => (prev.trim() ? `${prev.trim()} ${transcript}` : transcript));
+        // Modo voz: se envía solo, sin tocar "Enviar". Si no, se agrega al texto escrito.
+        if (voiceModeRef.current) {
+          submitText(input.trim() ? `${input.trim()} ${transcript}` : transcript);
+        } else {
+          setInput((prev) => (prev.trim() ? `${prev.trim()} ${transcript}` : transcript));
+        }
       }
     };
     recognition.onerror = () => setListening(false);
@@ -1063,7 +1189,6 @@ export default function ChatPage() {
         startedAt: all[threadKey]?.startedAt ?? Date.now(),
       },
     }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, sessionId]);
 
   // Reloj: cada 30 s cierra los hilos vencidos (y el activo, si le tocó).
@@ -1149,7 +1274,6 @@ export default function ChatPage() {
       }
     })();
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const pickZone = async (sel: ZonaSeleccion) => {
@@ -1193,7 +1317,6 @@ export default function ChatPage() {
     if (hasConsent) {
       initChatAfterConsent();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -1375,7 +1498,6 @@ export default function ChatPage() {
   // Sin API de zonas (o falló) no hay a quién esperar: saludar igual.
   useEffect(() => {
     if (askZoneFirst && dirLoaded && !zoneMode && chatInitialized && !welcomed) showWelcome(limits, null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [askZoneFirst, dirLoaded, zoneMode, chatInitialized, welcomed]);
 
   // ── Paso 1+2: bienvenida + invitación a la rifa (apagada: RAFFLE_ENABLED) ─────
@@ -1429,7 +1551,6 @@ export default function ChatPage() {
   // Al volver a una conversación guardada, saber de entrada si ya está agotada.
   useEffect(() => {
     if (sessionId && !quota) refreshQuota(sessionId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   async function unlockWithData(f: { name: string; phone: string; email: string }) {
@@ -1746,15 +1867,29 @@ export default function ChatPage() {
         }
       } finally {
         setStreaming(false);
+        if (voiceModeRef.current) setAutoSpeakId(aiId);
       }
     })();
   }
 
+  // Modo voz: lee la respuesta en cuanto termina de llegar.
+  useEffect(() => {
+    if (!autoSpeakId) return;
+    const m = messages.find((x) => x.id === autoSpeakId);
+    if (!m || m.pending) return;
+    setAutoSpeakId(null);
+    if (m.content.trim()) speak(m.id, m.content);
+  }, [autoSpeakId, messages]);
+
   // ── Send (input del usuario) ──────────────────────────────────────────────────
 
   const send = async () => {
-    const text = input.trim();
+    submitText(input.trim());
+  };
+
+  function submitText(text: string) {
     if (!text || streaming) return;
+    stopSpeaking();
     setInput("");
 
     if (regPhase !== null && regPhase !== "done") {
@@ -1763,7 +1898,7 @@ export default function ChatPage() {
     }
 
     dispatchToAI(text);
-  };
+  }
 
   // ── Placeholder del input según fase ─────────────────────────────────────────
 
@@ -1776,6 +1911,7 @@ export default function ChatPage() {
     if (regPhase === "registering")return "Registrando...";
     if (blocked)                   return "Escribe 'hola', 'menú' o 'inicio' para continuar...";
     if (needsCandidate)            return "Elige un candidato arriba...";
+    if (voiceMode && micSupported) return "Toca el micrófono y habla...";
     return "Escribe tu pregunta...";
   };
 
@@ -2075,6 +2211,20 @@ export default function ChatPage() {
                           ) : (
                             <span className="whitespace-pre-wrap">{msg.content}</span>
                           )}
+                          {msg.role === "assistant" && ttsSupported && msg.content.trim() && (
+                            <button
+                              type="button"
+                              onClick={() => toggleSpeak(msg.id, msg.content)}
+                              aria-label={speakingId === msg.id ? "Detener lectura" : "Escuchar respuesta"}
+                              className="mt-2 inline-flex items-center gap-1 rounded-full bg-chat-50 px-2.5 py-1 text-[11px] font-semibold text-chat-700 ring-1 ring-chat-400/40 hover:bg-chat-400/25 transition-colors"
+                            >
+                              {speakingId === msg.id ? (
+                                <><Square size={10} fill="currentColor" /> Detener</>
+                              ) : (
+                                <><Volume2 size={13} /> Escuchar</>
+                              )}
+                            </button>
+                          )}
                           {msg.role === "assistant" && msg.citations && msg.citations.length > 0 && (
                             <div className="mt-3 pt-3 border-t border-gray-100">
                               <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-widest mb-1.5">
@@ -2225,6 +2375,20 @@ export default function ChatPage() {
                 disabled={inputDisabled}
                 className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-chat-500 text-sm disabled:opacity-50"
               />
+              {ttsSupported && (
+                <button
+                  type="button"
+                  onClick={toggleVoiceMode}
+                  aria-label={voiceMode ? "Desactivar respuestas en voz alta" : "Escuchar las respuestas en voz alta"}
+                  aria-pressed={voiceMode}
+                  title={voiceMode ? "Modo voz activado" : "Activar modo voz"}
+                  className={`shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-colors ${
+                    voiceMode ? "bg-chat-500 text-white shadow-sm" : "bg-gray-100 text-gray-400 hover:bg-gray-200"
+                  }`}
+                >
+                  {voiceMode ? <Volume2 size={17} /> : <VolumeX size={17} />}
+                </button>
+              )}
               {micSupported && (
                 <button
                   type="button"
