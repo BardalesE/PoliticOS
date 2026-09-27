@@ -1017,6 +1017,7 @@ export default function ChatPage() {
   // ── Micrófono (Web Speech API) ───────────────────────────────────────────────
   const [listening, setListening] = useState(false);
   const [micSupported, setMicSupported] = useState(false);
+  const [micError, setMicError] = useState<string | null>(null);
   const recognitionRef = useRef<MinimalSpeechRecognition | null>(null);
 
   useEffect(() => {
@@ -1099,7 +1100,7 @@ export default function ChatPage() {
 
   function toggleMic() {
     if (inputDisabled) return;
-    if (voiceMode) unlockSpeech();
+    // Sin audio de desbloqueo: en Android le quita el foco al microfono.
     stopSpeaking();
 
     if (listening) {
@@ -1126,12 +1127,32 @@ export default function ChatPage() {
         }
       }
     };
-    recognition.onerror = () => setListening(false);
+    recognition.onerror = (event) => {
+      setListening(false);
+      const code = (event as Event & { error?: string }).error ?? "";
+      setMicError(
+        code === "not-allowed" || code === "service-not-allowed"
+          ? "Permite el micr\u00f3fono: toca el candado junto a la direcci\u00f3n web y activa Micr\u00f3fono."
+          : code === "no-speech"
+            ? "No te escuch\u00e9. Toca el micr\u00f3fono y habla cerca del tel\u00e9fono."
+            : code === "network"
+              ? "Sin conexi\u00f3n para reconocer tu voz. Intenta de nuevo."
+              : code === "audio-capture"
+                ? "No se encontr\u00f3 micr\u00f3fono en este dispositivo."
+                : "No se pudo usar el micr\u00f3fono. Intenta de nuevo o escribe tu pregunta."
+      );
+    };
     recognition.onend = () => setListening(false);
 
     recognitionRef.current = recognition;
     setListening(true);
-    recognition.start();
+    setMicError(null);
+    try {
+      recognition.start();
+    } catch {
+      setListening(false);
+      setMicError("No se pudo iniciar el micr\u00f3fono. Intenta de nuevo.");
+    }
   }
 
   // ── Hilos: cargar al montar, guardar el activo, cerrar a la hora ─────────────
@@ -2428,6 +2449,9 @@ export default function ChatPage() {
                 <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" />
                 Escuchando... toca el cuadrado para detener
               </p>
+            )}
+            {micError && (
+              <p role="alert" className="text-[11px] text-red-600 text-center mt-1.5">{micError}</p>
             )}
             <p className="text-[10px] text-gray-400 text-center mt-1.5">
               IA basada en información pública. Verifica decisiones electorales en{" "}
