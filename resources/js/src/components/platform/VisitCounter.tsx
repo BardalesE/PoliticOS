@@ -30,19 +30,19 @@ function Pill({ icon, value, label, live = false }: { icon: React.ReactNode; val
     <div
       role="status"
       aria-label={`${value.toLocaleString("es-PE")} ${label.toLowerCase()}`}
-      className="inline-flex items-center gap-3 rounded-2xl bg-white px-4 py-2.5 shadow-md ring-1 ring-black/5"
+      className="flex min-w-0 items-center gap-2.5 rounded-2xl bg-white px-3 py-2.5 shadow-sm sm:inline-flex sm:gap-3 sm:px-4 sm:shadow-md ring-1 ring-black/5"
     >
       {icon}
       <span className="flex flex-col leading-none">
         <span className="flex items-center gap-1.5">
-          <span className="font-condensed text-[26px] tabular-nums tracking-wide" style={{ color: "rgb(var(--brand-primary-rgb))" }}>
+          <span className="font-condensed text-[22px] sm:text-[26px] tabular-nums tracking-wide" style={{ color: "rgb(var(--brand-primary-rgb))" }}>
             {value.toLocaleString("es-PE")}
           </span>
           {live && (
             <span className="h-2 w-2 rounded-full motion-safe:animate-pulse" style={{ background: "rgb(var(--brand-primary-rgb))" }} aria-hidden />
           )}
         </span>
-        <span className="mt-0.5 text-[10px] font-bold uppercase tracking-[.18em] text-ink-400">{label}</span>
+        <span className="mt-0.5 text-[9px] font-bold uppercase leading-tight tracking-[.12em] text-ink-400 sm:text-[10px] sm:tracking-[.18em]">{label}</span>
       </span>
     </div>
   );
@@ -69,7 +69,7 @@ export function VisitCounter({ className = "" }: { className?: string }) {
   if (!stats) return <div className={`h-[52px] ${className}`} aria-hidden />;
 
   return (
-    <div className={`flex flex-wrap gap-3 ${className}`}>
+    <div className={`grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:gap-3 ${className}`}>
       <Pill icon={<Eye size={20} className="text-ink-400" aria-hidden />} value={views} label="Vistas" live />
       {stats.questions !== null && stats.questions > 0 && (
         <Pill icon={<MessagesSquare size={20} className="text-ink-400" aria-hidden />} value={questions} label="Preguntas respondidas" />
