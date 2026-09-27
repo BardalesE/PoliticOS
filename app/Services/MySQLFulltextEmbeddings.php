@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\KnowledgeDocument;
+use App\Support\SensitiveData;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -405,6 +406,16 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
     private const PAGES_PER_DOC = 2;
     private const EXCERPT_CHARS = 1200;
 
+    /** Hoja de vida: pagina completa (formulario JNE de ~3.300 caracteres por hoja). */
+    private const HV_EXCERPT_CHARS = 3600;
+
+    private function excerptChars(object $d): int
+    {
+        return SensitiveData::isHojaDeVida($d->topic ?? null, isset($d->title) ? (string) $d->title : null)
+            ? self::HV_EXCERPT_CHARS
+            : self::EXCERPT_CHARS;
+    }
+
     /**
      * De documentos a fragmentos citables. Un documento con texto por página
      * (`pages`) aporta sus mejores páginas, cada una con su número; uno sin
@@ -465,7 +476,7 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
                 $primary[] = [
                     'document_id' => $d->id,
                     'title'       => $d->title,
-                    'excerpt'     => $this->extractExcerpt($d->content, $query, self::EXCERPT_CHARS, (string) $d->title),
+                    'excerpt'     => $this->extractExcerpt($d->content, $query, $this->excerptChars($d), (string) $d->title),
                     'page'        => null,
                     'score'       => $score,
                     'metadata'    => $this->docMetadata($d),
@@ -478,7 +489,7 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
                 $entry = [
                     'document_id' => $d->id,
                     'title'       => $d->title,
-                    'excerpt'     => $this->extractExcerpt($pages[$n - 1], $query, self::EXCERPT_CHARS, (string) $d->title),
+                    'excerpt'     => $this->extractExcerpt($pages[$n - 1], $query, $this->excerptChars($d), (string) $d->title),
                     'page'        => $n,
                     'score'       => $score,
                     'page_score'  => $pageScore,

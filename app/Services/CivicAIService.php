@@ -742,7 +742,7 @@ class CivicAIService
         // Etiqueta S1..Sn por fragmento. El texto citable se guarda tal como se le
         // muestra al modelo (recortado al mismo largo).
         foreach ($docs as $i => &$d) {
-            $d['excerpt'] = mb_substr($d['excerpt'], 0, 1200);
+            $d['excerpt'] = mb_substr($d['excerpt'], 0, ! empty($d['is_hoja_de_vida']) ? 3600 : 1200);
             $d['cite']    = 'S' . ($i + 1);
 
             $this->retrievedCitations[] = [
@@ -1011,7 +1011,11 @@ class CivicAIService
         $prompt .= SensitiveData::PROMPT_RULE;
         $prompt .= "\n\n📋 HOJA DE VIDA: el formato del JNE marca muchas respuestas con casillas (SÍ/NO) que no "
             . "se leen como texto. Si un dato no figura en el fragmento, dilo con naturalidad (\"en la hoja de vida "
-            . "cargada no figura ese detalle\") y sugiere revisarla en Voto Informado del JNE; nunca lo inventes.";
+            . "cargada no figura ese detalle\") y sugiere revisarla en Voto Informado del JNE; nunca lo inventes. "
+            . "Cada dato declarado aparece junto a su etiqueta (p. ej. \"GRADO O TITULO: SOCIOLOGIA\"): usalos. "
+            . "Si una seccion solo muestra la pregunta \"TENGO INFORMACION POR DECLARAR? SI TENGO NO TENGO\" sin ningun "
+            . "dato debajo, di que en esa seccion no declaro informacion. Para un resumen de hoja de vida organiza: "
+            . "formacion academica, experiencia laboral, trayectoria politica (cargos, renuncias) y sentencias declaradas.";
 
         $prompt .= "\n\nSOLO TEXTO (OBLIGATORIO): el chat no adjunta imagenes, fotos, videos ni archivos. Nunca ofrezcas ni menciones adjuntos; responde solo con texto y cita tus fuentes.";
 

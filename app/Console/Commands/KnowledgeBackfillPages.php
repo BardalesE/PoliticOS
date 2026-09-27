@@ -31,7 +31,8 @@ class KnowledgeBackfillPages extends Command
     protected $signature = 'knowledge:backfill-pages
         {slugs?* : Slugs de los tenants a procesar}
         {--here : Procesar la BD por defecto en vez de un tenant}
-        {--limit=50 : Máximo de documentos por tenant en esta corrida}';
+        {--limit=50 : Máximo de documentos por tenant en esta corrida}
+        {--refresh-hv : Re-extraer páginas y contenido de las hojas de vida ya procesadas}';
 
     protected $description = 'Extrae el texto por página de los PDFs ya subidos (citas con número de página). Idempotente.';
 
@@ -79,6 +80,10 @@ class KnowledgeBackfillPages extends Command
             return false;
         }
 
+        if ($this->option('refresh-hv')) {
+            return $this->refreshHojasDeVida($label);
+        }
+
         $docs = KnowledgeDocument::query()
             ->whereNull('pages')
             ->where('is_active', true)
@@ -119,6 +124,50 @@ class KnowledgeBackfillPages extends Command
         }
 
         $this->info("{$label}: {$ok} con páginas, {$fail} sin cambios.");
+
+        return true;
+    }
+
+    /**
+     * Hojas de vida ya procesadas con el extractor anterior (etiquetas primero,
+     * valores al final): se re-extraen `pages` y `content`. Solo escribe si el
+     * texto cambia, asi que repetirlo no hace nada. Status/embeddings no se tocan.
+     */
+    private function refreshHojasDeVida(string $label): bool
+    {
+        $docs = KnowledgeDocument::query()
+            ->where('is_active', true)
+            ->where('status', 'ready')
+            ->whereNotNull('file_url')
+            ->where(fn ($q) => $q->whereNull('source_type')->orWhere('source_type', 'pdf'))
+            ->where(fn ($q) => $q->where('topic', 'hoja_de_vida')->orWhere('title', 'like', '%hoja de vida%'))
+            ->orderBy('id')
+            ->limit(max(1, (int) $this->option('limit')))
+            ->get();
+
+        $extractor = new PdfPageExtractor();
+        $ok = $same = $fail = 0;
+
+        foreach ($docs as $doc) {
+            try {
+                $out = $extractor->fromDocument($doc);
+            } catch (\Throwable $e) {
+                $fail++;
+                $this->warn("{$label}: hoja de vida #{$doc->id} no se pudo leer: {$e->getMessage()}");
+                continue;
+            }
+
+            if ($out['content'] === '' || $out['content'] === (string) $doc->content) {
+                $same++;
+                continue;
+            }
+
+            $doc->update(['pages' => $out['pages'] ?: $doc->pages, 'content' => $out['content']]);
+            $ok++;
+            $this->line("{$label}: hoja de vida #{$doc->id} «{$doc->title}» re-extraida");
+        }
+
+        $this->info("{$label}: hojas de vida -> {$ok} actualizadas, {$same} sin cambios, {$fail} con error.");
 
         return true;
     }

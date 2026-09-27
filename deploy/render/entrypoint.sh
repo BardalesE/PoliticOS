@@ -70,6 +70,13 @@ if [ -n "${PAGES_TENANTS}" ]; then
         || echo "[entrypoint] WARN: knowledge:backfill-pages falló — no bloquea el arranque"
 fi
 
+# Re-extrae las hojas de vida con pdftotext (etiqueta junto a su valor). Solo
+# actualiza si el texto cambia: se puede dejar puesto; quitar tras el deploy.
+if [ -n "${REFRESH_HV_TENANTS:-}" ]; then
+    php artisan knowledge:backfill-pages ${REFRESH_HV_TENANTS} --refresh-hv \
+        || echo "[entrypoint] WARN: refresh de hojas de vida falló — no bloquea el arranque"
+fi
+
 # 3d ─ reclasificar temas del chat (panel "Mensajes por tema") ──────────────
 # Render free no tiene Shell: se dispara con variables de entorno.
 #   RECLASSIFY_TOPICS_TENANTS="politicosperu"   (varios separados por espacio)
