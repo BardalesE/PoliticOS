@@ -2075,16 +2075,6 @@ export default function ChatPage() {
                           ) : (
                             <span className="whitespace-pre-wrap">{msg.content}</span>
                           )}
-                          {msg.media && msg.media.length > 0 && msg.content.length > 0 && (
-                            <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
-                              <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-widest mb-2">
-                                Recursos relacionados
-                              </p>
-                              {msg.media.slice(0, 8).map((m, i) => (
-                                <MediaBadge key={i} item={m} />
-                              ))}
-                            </div>
-                          )}
                           {msg.role === "assistant" && msg.citations && msg.citations.length > 0 && (
                             <div className="mt-3 pt-3 border-t border-gray-100">
                               <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-widest mb-1.5">

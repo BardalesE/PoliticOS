@@ -213,11 +213,6 @@ class CivicAIService
             return $this->buildRestingResponse($topic, $district);
         }
 
-        $mediaRequest = $this->detectMediaRequest($userMessage);
-        $media = $mediaRequest
-            ? $this->resolveMediaFeatured($topic, $district, $userMessage)
-            : $this->resolveMedia($topic, $district);
-        $media = array_merge($media, $this->mediaFromSources($parsed['pepa_metadata']['fuentes_citadas'] ?? []));
 
         if ($attack) {
             AttackResponse::where('id', $attack['id'])->increment('times_used');
@@ -229,7 +224,7 @@ class CivicAIService
             'reply'           => $reply,
             'citations'       => $this->citationsForReply($reply),
             'topic'           => $this->analyticsTopic($userMessage, $parsed['pepa_metadata']['tema_dominante'] ?? null, $topic, $session),
-            'media'           => $media,
+            'media'           => [],
             'attack_detected' => $attack !== null,
             'attack_category' => $attack['category'] ?? null,
             'pepa_metadata'   => $parsed['pepa_metadata'],
@@ -407,11 +402,6 @@ class CivicAIService
             }
         }
 
-        $mediaRequest = $this->detectMediaRequest($userMessage);
-        $media = $mediaRequest
-            ? $this->resolveMediaFeatured($topic, $district, $userMessage)
-            : $this->resolveMedia($topic, $district);
-        $media = array_merge($media, $this->mediaFromSources($parsed['pepa_metadata']['fuentes_citadas'] ?? []));
 
         if ($attack) {
             AttackResponse::where('id', $attack['id'])->increment('times_used');
@@ -420,7 +410,7 @@ class CivicAIService
         return [
             'topic'           => $this->analyticsTopic($userMessage, $parsed['pepa_metadata']['tema_dominante'] ?? null, $topic, $session),
             'citations'       => $this->citationsForReply($parsed['reply']),
-            'media'           => $media,
+            'media'           => [],
             'attack_detected' => $attack !== null,
             'attack_category' => $attack['category'] ?? null,
             'pepa_metadata'   => $parsed['pepa_metadata'],
@@ -1512,12 +1502,12 @@ class CivicAIService
             . "Pero no te vas con las manos vacías — aquí tienes todo sobre {$first}:\n\n"
             . ($tagline ? "\"{$tagline}\"\n\n" : '')
             . "PROPUESTAS PRINCIPALES:\n{$propLines}\n\n"
-            . "👇 Abajo tienes fotos de obras, videos y documentos oficiales para explorar mientras vuelvo. ¡No tardo!";
+            . "Vuelvo en un momento.";
 
         return [
             'reply'           => $message,
             'topic'           => $topic,
-            'media'           => $this->resolveAllContent(),
+            'media'           => [],
             'attack_detected' => false,
             'attack_category' => null,
             'pepa_metadata'   => null,
@@ -2081,7 +2071,7 @@ class CivicAIService
         return [
             'reply'           => $reply,
             'topic'           => null,
-            'media'           => $this->resolveAllContent(),
+            'media'           => [],
             'attack_detected' => false,
             'attack_category' => null,
             'pepa_metadata'   => null,
