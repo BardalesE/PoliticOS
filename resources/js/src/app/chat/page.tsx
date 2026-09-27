@@ -1974,7 +1974,7 @@ export default function ChatPage() {
       {platform === false && <LiveAlert />}
 
       {/* Header: fijo arriba; el chat hace scroll por dentro, nunca queda tapado */}
-      <header className="shrink-0 z-30 bg-white/95 backdrop-blur border-b border-gray-200 px-4 py-2.5">
+      <header className="shrink-0 z-30 bg-white/95 backdrop-blur border-b border-gray-200 px-3 sm:px-4 py-2">
         <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             {profile.photo_url || profile.logo_url ? (
@@ -1989,15 +1989,15 @@ export default function ChatPage() {
               </div>
             )}
             <div className="min-w-0">
-              <h1 className="font-serif font-bold text-gray-900 truncate">{shortName}</h1>
+              <h1 className="font-serif font-bold text-[15px] leading-tight text-gray-900 truncate sm:text-base">{shortName}</h1>
               <AIBadge mode={assistantMode} />
             </div>
           </div>
           {platform ? (
             // Plataforma: "Inicio" es SIEMPRE la home de PoliticOS (sin ?tenant=, que abriría la home de un candidato).
-            <Link href="/" className="text-sm font-semibold text-gray-500 hover:text-brand-600 transition-colors shrink-0">Inicio</Link>
+            <Link href="/" className="shrink-0 rounded-full border border-gray-200 px-3 py-1.5 text-[13px] font-semibold text-gray-600 hover:border-brand-600/40 hover:text-brand-600 transition-colors">Inicio</Link>
           ) : (
-            <TenantLink href="/" className="text-sm text-gray-500 hover:text-brand-600 transition-colors shrink-0">Inicio</TenantLink>
+            <TenantLink href="/" className="shrink-0 rounded-full border border-gray-200 px-3 py-1.5 text-[13px] font-semibold text-gray-600 hover:border-brand-600/40 hover:text-brand-600 transition-colors">Inicio</TenantLink>
           )}
         </div>
         {/* Barra compacta: con quién conversas + cambiar + (móvil) historial */}
@@ -2009,7 +2009,7 @@ export default function ChatPage() {
               aria-expanded={false}
               className="group flex min-w-0 flex-1 items-center gap-2 rounded-full border border-gray-200 bg-white py-1.5 pl-3 pr-2 text-left shadow-sm hover:border-brand-600/40"
             >
-              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Consultando</span>
+              <span className="hidden sm:inline shrink-0 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Consultando</span>
               <PartySymbol src={candidates.find((c) => c.slug === candidateSlug)?.logo_url} party={candidates.find((c) => c.slug === candidateSlug)?.party} size={22} />
               <span className="min-w-0 truncate text-[13px] font-semibold text-gray-800">
                 {activeName ?? "Todos los candidatos"}
@@ -2374,7 +2374,7 @@ export default function ChatPage() {
           </div>
 
           {/* Composer */}
-          <footer className="shrink-0 bg-white border-t border-gray-200 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <footer className="shrink-0 bg-white border-t border-gray-200 px-3 sm:px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             {quota?.blocked && (
               <QuotaWall
                 quota={quota}
@@ -2385,7 +2385,7 @@ export default function ChatPage() {
               />
             )}
             {!quota?.blocked && (<>
-            <div className="max-w-3xl mx-auto flex gap-2">
+            <div className="max-w-3xl mx-auto flex items-center gap-1.5 sm:gap-2">
               <input
                 type="text"
                 aria-label="Escribe tu mensaje"
@@ -2394,7 +2394,7 @@ export default function ChatPage() {
                 onKeyDown={(e) => e.key === "Enter" && send()}
                 placeholder={inputPlaceholder()}
                 disabled={inputDisabled}
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-chat-500 text-sm disabled:opacity-50"
+                className="min-w-0 flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-chat-500 text-base sm:text-sm disabled:opacity-50"
               />
               {ttsSupported && (
                 <button
@@ -2403,7 +2403,7 @@ export default function ChatPage() {
                   aria-label={voiceMode ? "Desactivar respuestas en voz alta" : "Escuchar las respuestas en voz alta"}
                   aria-pressed={voiceMode}
                   title={voiceMode ? "Modo voz activado" : "Activar modo voz"}
-                  className={`shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-colors ${
+                  className={`shrink-0 w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-colors ${
                     voiceMode ? "bg-chat-500 text-white shadow-sm" : "bg-gray-100 text-gray-400 hover:bg-gray-200"
                   }`}
                 >
@@ -2417,7 +2417,7 @@ export default function ChatPage() {
                   disabled={inputDisabled}
                   aria-label={listening ? "Detener grabación" : "Hablar en vez de escribir"}
                   aria-pressed={listening}
-                  className={`shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                  className={`shrink-0 w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                     listening
                       ? "bg-red-500 text-white shadow-sm"
                       : "bg-gray-100 text-gray-400 hover:bg-gray-200"
@@ -2430,7 +2430,7 @@ export default function ChatPage() {
                 onClick={send}
                 disabled={inputDisabled || !input.trim()}
                 aria-label="Enviar mensaje"
-                className="shrink-0 w-11 h-11 rounded-full bg-chat-500 text-white flex items-center justify-center hover:bg-chat-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="shrink-0 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-chat-500 text-white flex items-center justify-center hover:bg-chat-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 {streaming ? (
                   <span className="h-2 w-2 rounded-full bg-white animate-pulse" />

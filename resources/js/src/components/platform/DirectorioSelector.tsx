@@ -115,16 +115,16 @@ function CandidatoCard({ c }: { c: CandidatoResumen }) {
       <Link
         href={chatHref(c.slug)}
         aria-label={`Preguntar a la IA sobre ${c.name}`}
-        className="group flex items-center gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5 transition hover:shadow-md hover:ring-[#2F7D4F]/30 motion-safe:hover:-translate-y-0.5
+        className="group flex items-center gap-3 rounded-2xl bg-white p-3 sm:gap-4 sm:p-4 shadow-sm ring-1 ring-black/5 transition hover:shadow-md hover:ring-[#2F7D4F]/30 motion-safe:hover:-translate-y-0.5
                    focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
       >
         <span className="relative shrink-0">
           {c.photo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={c.photo_url} alt="" loading="lazy" className="h-16 w-16 rounded-full object-cover ring-2 ring-[#2F7D4F]/20" />
+            <img src={c.photo_url} alt="" loading="lazy" className="h-14 w-14 sm:h-16 sm:w-16 rounded-full object-cover ring-2 ring-[#2F7D4F]/20" />
           ) : (
             <span
-              className="flex h-16 w-16 items-center justify-center rounded-full font-condensed text-[22px] text-white"
+              className="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full font-condensed text-[22px] text-white"
               style={{ background: PRIMARY }}
               aria-hidden
             >
@@ -135,10 +135,10 @@ function CandidatoCard({ c }: { c: CandidatoResumen }) {
           <PartySymbol src={c.logo_url} party={c.party} size={30} className="absolute -bottom-1 -right-2" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[16px] font-bold leading-snug text-ink-800">{c.name}</span>
+          <span className="line-clamp-2 text-[15px] font-bold leading-snug text-ink-800 sm:text-[16px]">{c.name}</span>
           <span className="block text-[13px] leading-snug text-ink-500">{c.title}</span>
           <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-ink-400">
-            <span className="truncate">{c.party}{c.list_number ? ` · N.º ${c.list_number}` : ""}</span>
+            <span className="max-w-full truncate">{c.party}{c.list_number ? ` · N.º ${c.list_number}` : ""}</span>
             <span className="inline-flex items-center gap-1">
               <FileText size={12} aria-hidden />
               {c.documentos_count} {c.documentos_count === 1 ? "documento" : "documentos"}
@@ -147,7 +147,7 @@ function CandidatoCard({ c }: { c: CandidatoResumen }) {
         </span>
         <span className="flex shrink-0 flex-col items-center gap-0.5 text-[10px] font-bold text-ink-400 transition group-hover:text-[#2F7D4F]">
           <MessagesSquare size={18} aria-hidden />
-          Preguntar
+          <span className="hidden sm:inline">Preguntar</span>
         </span>
       </Link>
     </li>
@@ -247,8 +247,8 @@ export function DirectorioSelector({ ubicaciones }: { ubicaciones: Ubicaciones |
   ].filter((n): n is string => !!n).map(prettyPlace).join(", ");
 
   return (
-    <section id="directorio" className="mx-auto max-w-6xl px-5 pb-10" aria-labelledby="directorio-title">
-      <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-[#2F7D4F]/10 sm:p-8">
+    <section id="directorio" className="mx-auto max-w-6xl px-3 pb-10 sm:px-5" aria-labelledby="directorio-title">
+      <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-[#2F7D4F]/10 sm:p-8">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-[12px] font-bold uppercase tracking-wider" style={{ color: PRIMARY }}>Paso 1 · Tu lugar de votación</p>
