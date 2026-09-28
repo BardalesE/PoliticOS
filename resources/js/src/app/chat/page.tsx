@@ -767,7 +767,7 @@ function QuotaWall({
           />
           <label className="flex items-start gap-2 text-[11px] text-gray-500">
             <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5" />
-            Acepto que usen mis datos para contactarme y mejorar las propuestas para mi zona.
+            <span>{"Acepto la "}<a href="/privacidad" target="_blank" rel="noopener noreferrer" className="underline">{"Pol\u00edtica de privacidad"}</a>{" y autorizo que me contacten por WhatsApp o correo con informaci\u00f3n de esta plataforma. Puedo retirar mi autorizaci\u00f3n cuando quiera."}</span>
           </label>
           {error && <p className="text-xs text-red-600">{error}</p>}
           <button type="submit" disabled={!canSubmit}
@@ -2025,7 +2025,7 @@ export default function ChatPage() {
             </button>
             {pollEnabled && candidateSlug && (
               <div className="flex shrink-0 items-center gap-1" role="group" aria-label={`¿Apoyas a ${activeName ?? "este candidato"}?`}
-                title={`¿Apoyas a ${activeName ?? "este candidato"}? Encuesta anónima, no oficial.`}>
+                title={`¿Apoyas a ${activeName ?? "este candidato"}? Encuesta no oficial: no publicamos resultados.`}>
                 <button type="button" disabled={voteBusy} onClick={() => vote(true)} aria-pressed={votes[candidateSlug] === true}
                   aria-label="Sí lo apoyo"
                   className={`flex h-8 w-8 items-center justify-center rounded-full border transition-colors disabled:opacity-50 ${votes[candidateSlug] === true ? "border-green-600 bg-green-600 text-white" : "border-gray-300 bg-white text-gray-500 hover:border-gray-400"}`}>
