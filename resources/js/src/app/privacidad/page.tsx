@@ -19,13 +19,13 @@ export const metadata: Metadata = {
  * Completa TITULAR.ruc y TITULAR.domicilio: son obligatorios por ley.
  */
 const TITULAR = {
-  nombre: "HExisten Solutions",
+  nombre: "Elian Bardales (HExisten Solutions)",
   ruc: "",
-  domicilio: "",
-  correo: "privacidad@politicos.pe",
+  domicilio: "Calle Carlos Quesqu\u00e9n 269, Chequ\u00e9n, Chep\u00e9n, La Libertad, Per\u00fa",
+  correo: "creatividadestoica1977@gmail.com",
 };
 const RETENCION_MESES = 12;
-const ACTUALIZADO = "27 de setiembre de 2026";
+const ACTUALIZADO = "28 de setiembre de 2026";
 
 type Bloque = { p: string } | { ul: string[] };
 type Seccion = { id: string; titulo: string; bloques: Bloque[] };
