@@ -653,18 +653,8 @@ class ChatController extends Controller
 
         $updates = [];
 
-        if (!empty($meta['postura_actual'])) {
-            $postura = mb_substr($meta['postura_actual'], 0, 140);
-            $updates['postura_actual'] = $postura;
-            if (empty($session->postura_inicial)) {
-                $updates['postura_inicial'] = $postura;
-            }
-        }
-
-        if (!empty($meta['cambio_de_opinion']) &&
-            in_array($meta['cambio_de_opinion'], ['si', 'no', 'aun_no_evaluable'], true)) {
-            $updates['cambio_de_opinion'] = $meta['cambio_de_opinion'];
-        }
+        // Ley 29733: la postura politica de la persona es un dato sensible.
+        // No se guarda (postura_inicial / postura_actual / cambio_de_opinion).
 
         if (!empty($meta['region_confirmada']) && empty($session->geo_region)) {
             $updates['geo_region'] = $meta['region_confirmada'];

@@ -46,6 +46,29 @@ Schedule::call(function () {
     TenantContext::forEachTenant(function (?string $slug) use ($months) {
         TenantContext::run($slug, function () use ($months) {
             \App\Models\ChatSession::where('updated_at', '<', now()->subMonths($months))->delete();
+
+            // Registro, zona, encuesta y perfil: mismo plazo desde la ultima actividad.
+            // Y se limpia la opinion politica guardada antes de dejar de pedirla/inferirla.
+            $limite = now()->subMonths($months);
+            $pasos = [
+                fn () => \App\Models\CandidateSupportVote::where('updated_at', '<', $limite)->delete(),
+                fn () => \App\Models\VisitorSegment::where('updated_at', '<', $limite)->delete(),
+                fn () => \App\Models\VisitorProfile::where('updated_at', '<', $limite)->delete(),
+                fn () => \App\Models\CitizenProfile::where('updated_at', '<', $limite)->delete(),
+                fn () => \App\Models\ChatSession::whereNotNull('inferred_intention')->update(['inferred_intention' => null]),
+                fn () => \App\Models\ChatSession::whereNotNull('postura_actual')->orWhereNotNull('postura_inicial')->orWhereNotNull('cambio_de_opinion')
+                    ->update(['postura_actual' => null, 'postura_inicial' => null, 'cambio_de_opinion' => null]),
+                fn () => \App\Models\VisitorProfile::whereNotNull('inferred_intention')->update(['inferred_intention' => null]),
+                fn () => \App\Models\CitizenProfile::whereNotNull('voting_intention')->update(['voting_intention' => null]),
+            ];
+            foreach ($pasos as $paso) {
+                try {
+                    $paso();
+                } catch (\Throwable $e) {
+                    // Un tenant sin alguna tabla/columna no frena al resto.
+                    \Illuminate\Support\Facades\Log::warning('privacy-retention: ' . $e->getMessage());
+                }
+            }
         });
     });
 })->dailyAt('03:30')->name('privacy-retention-per-tenant');

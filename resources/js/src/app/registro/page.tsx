@@ -340,31 +340,6 @@ function RegistroContent() {
                                 />
                             </div>
                         </div>
-                        <div>
-                            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1.5">
-                                ¿Cómo describes tu apoyo?
-                            </label>
-                            <select
-                                value={form.voting_intention}
-                                onChange={(e) =>
-                                    set("voting_intention", e.target.value)
-                                }
-                                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 focus:outline-none focus:border-brand-500 bg-white"
-                            >
-                                <option value="">Prefiero no decir</option>
-                                <option value="alta">
-                                    Lo apoyo totalmente
-                                </option>
-                                <option value="media">
-                                    Lo apoyo con reservas
-                                </option>
-                                <option value="indeciso">
-                                    Estoy evaluando
-                                </option>
-                                <option value="baja">Poco convencido</option>
-                                <option value="opositor">No lo apoyaría</option>
-                            </select>
-                        </div>
                         <label className="flex items-start gap-3 cursor-pointer">
                             <input
                                 type="checkbox"
@@ -376,10 +351,7 @@ function RegistroContent() {
                                 required
                             />
                             <span className="text-xs text-gray-500">
-                                Acepto que mis datos sean usados para
-                                información de campaña de {candidateName}. No se
-                                compartirán con terceros. Puedes solicitar
-                                eliminación en cualquier momento. (Ley N° 29733)
+                                {"Acepto la "}<a href="/privacidad" target="_blank" rel="noopener noreferrer" className="underline">{"Pol\u00edtica de privacidad"}</a>{` y que mis datos se usen para recibir informaci\u00f3n de la campa\u00f1a de ${candidateName}. Puedo retirar mi autorizaci\u00f3n y pedir que se borren en cualquier momento.`}
                             </span>
                         </label>
                         {error && (

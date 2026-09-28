@@ -370,9 +370,8 @@ class AnalyzeMessageJob implements ShouldQueue
         if (!empty($analysis['voter_segment']) && $analysis['voter_segment'] !== 'desconocido') {
             $updates['inferred_segment'] = $analysis['voter_segment'];
         }
-        if (!empty($analysis['voter_intention']) && $analysis['voter_intention'] !== 'desconocido') {
-            $updates['inferred_intention'] = $analysis['voter_intention'];
-        }
+        // Ley 29733: la intencion de voto es una opinion politica (dato sensible).
+        // No se infiere ni se guarda por persona.
         if (!empty($analysis['district_mentioned']) && empty($session->geo_city)) {
             $updates['geo_city'] = $analysis['district_mentioned'];
         }
@@ -405,9 +404,8 @@ class AnalyzeMessageJob implements ShouldQueue
         if (!empty($analysis['voter_segment']) && $analysis['voter_segment'] !== 'desconocido') {
             $updates['inferred_segment'] = $analysis['voter_segment'];
         }
-        if (!empty($analysis['voter_intention']) && $analysis['voter_intention'] !== 'desconocido') {
-            $updates['inferred_intention'] = $analysis['voter_intention'];
-        }
+        // Ley 29733: la intencion de voto es una opinion politica (dato sensible).
+        // No se infiere ni se guarda por persona.
         if (!empty($analysis['district_mentioned'])) {
             $updates['inferred_district'] = $analysis['district_mentioned'];
         }
