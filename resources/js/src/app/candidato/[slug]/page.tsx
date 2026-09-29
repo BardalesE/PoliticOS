@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink, FileText, MapPin, MessageCircle } from "lucide-react";
+import { ArrowLeft, BadgeCheck, ExternalLink, FileText, MapPin, MessageCircle } from "lucide-react";
 import { DIRECTORY_TENANT, getCandidato } from "@/lib/directorio";
 
 /**
@@ -74,6 +74,15 @@ export default async function CandidatoPage({ params }: Props) {
           )}
           <div className="min-w-0">
             <h1 className="text-[clamp(28px,4vw,40px)] font-bold leading-tight">{c.name}</h1>
+            {c.perfil_completado && (
+              <p
+                className="mt-2 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold"
+                style={{ background: "rgb(var(--brand-primary-rgb) / 0.1)", color: "rgb(var(--brand-primary-rgb))" }}
+                title="El candidato aportó su foto, biografía y documentos de campaña. PEPA responde con las mismas reglas para todos los candidatos."
+              >
+                <BadgeCheck size={14} aria-hidden /> Perfil completado por el candidato
+              </p>
+            )}
             <p className="mt-1 text-[17px] text-ink-600">{c.title}</p>
             <p className="mt-1 text-[14px] text-ink-500">
               {c.party}{c.list_number ? ` · Lista N.º ${c.list_number}` : ""}

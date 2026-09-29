@@ -203,6 +203,9 @@ class DirectorioController extends Controller
                 'departamento' => $c->distrito->departamento?->departamento,
             ] : null,
             'documentos_count' => (int) ($c->documentos_count ?? 0),
+            // Distintivo "Perfil completado por el candidato". Nunca afecta el orden
+            // del listado ni el trato de la IA (neutralidad).
+            'perfil_completado' => $c->tipo_cuenta === 'cliente_pago',
         ];
     }
 }

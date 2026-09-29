@@ -38,6 +38,7 @@ export interface CandidatoResumen {
   location: string;
   distrito: { id: number; nombre: string; provincia: string | null; departamento: string | null } | null;
   documentos_count: number;
+  perfil_completado?: boolean;
 }
 
 export interface DocumentoPublico {
@@ -155,6 +156,7 @@ export interface AdminCandidatoInput {
   tiktok_url?: string | null;
   facebook_url?: string | null;
   instagram_url?: string | null;
+  tipo_cuenta?: "publico_gratuito" | "cliente_pago";
 }
 
 export interface UbigeoItem { id: number; nombre: string; ubigeo: string }

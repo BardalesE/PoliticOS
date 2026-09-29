@@ -177,6 +177,9 @@ class DirectorioAdminController extends Controller
             'tiktok_url'    => ['nullable', 'url', 'max:500'],
             'facebook_url'  => ['nullable', 'url', 'max:500'],
             'instagram_url' => ['nullable', 'url', 'max:500'],
+            // Cliente que completó su perfil (foto, bio, documentos de campaña).
+            // Solo cambia el distintivo público: la IA usa las mismas reglas para todos.
+            'tipo_cuenta'   => ['sometimes', 'in:publico_gratuito,cliente_pago'],
         ]);
     }
 

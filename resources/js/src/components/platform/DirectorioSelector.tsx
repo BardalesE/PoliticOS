@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, FileText, MapPin, MessageCircle, MessagesSquare, Search, X } from "lucide-react";
+import { BadgeCheck, ChevronDown, FileText, MapPin, MessageCircle, MessagesSquare, Search, X } from "lucide-react";
 import { PartySymbol } from "@/components/ui/PartySymbol";
 import {
   DIRECTORY_TENANT,
@@ -136,6 +136,11 @@ function CandidatoCard({ c }: { c: CandidatoResumen }) {
         </span>
         <span className="min-w-0 flex-1">
           <span className="line-clamp-2 text-[15px] font-bold leading-snug text-ink-800 sm:text-[16px]">{c.name}</span>
+          {c.perfil_completado && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold" style={{ color: "rgb(var(--brand-primary-rgb))" }}>
+              <BadgeCheck size={12} aria-hidden /> Perfil completado
+            </span>
+          )}
           <span className="block text-[13px] leading-snug text-ink-500">{c.title}</span>
           <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-ink-400">
             <span className="max-w-full truncate">{c.party}{c.list_number ? ` · N.º ${c.list_number}` : ""}</span>

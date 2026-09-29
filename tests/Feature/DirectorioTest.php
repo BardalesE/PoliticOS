@@ -260,6 +260,26 @@ class DirectorioTest extends TestCase
         ])->assertCreated()->assertJsonPath('slug', 'rogelio-camilo-san-gregorio-2');
     }
 
+    public function test_admin_marks_a_profile_as_completed_and_the_badge_is_public_but_neutral(): void
+    {
+        $this->actAs('admin');
+        $gratis  = $this->candidato(['name' => 'Aaa Gratis']);
+        $cliente = $this->candidato(['name' => 'Zzz Cliente']);
+
+        $this->putJson("/api/admin/directorio/candidatos/{$cliente->id}", ['tipo_cuenta' => 'cliente_pago'])
+            ->assertOk()->assertJsonPath('tipo_cuenta', 'cliente_pago');
+
+        $this->putJson("/api/admin/directorio/candidatos/{$cliente->id}", ['tipo_cuenta' => 'vip'])
+            ->assertUnprocessable()->assertJsonValidationErrors(['tipo_cuenta']);
+
+        $this->getJson("/api/directorio/candidatos/{$cliente->slug}")->assertOk()->assertJsonPath('perfil_completado', true);
+        $this->getJson("/api/directorio/candidatos/{$gratis->slug}")->assertOk()->assertJsonPath('perfil_completado', false);
+
+        // Neutralidad: el sello no adelanta al cliente en el listado.
+        $lista = $this->getJson("/api/directorio/candidatos?distrito_id={$this->sanGregorio->id}")->assertOk()->json('data');
+        $this->assertSame(['Aaa Gratis', 'Zzz Cliente'], array_column($lista, 'name'));
+    }
+
     public function test_admin_validates_required_fields_and_distrito(): void
     {
         $this->actAs('admin');

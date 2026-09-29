@@ -28,7 +28,7 @@ const inputCls =
 
 const EMPTY = {
   name: "", title: "", party: "", list_number: "", photo_url: "", logo_url: "", tagline: "", bio: "",
-  facebook_url: "", instagram_url: "", tiktok_url: "",
+  facebook_url: "", instagram_url: "", tiktok_url: "", completado: false,
 };
 
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
@@ -255,6 +255,7 @@ export default function DirectorioAdminPage() {
       name: c.name, title: c.title, party: c.party, list_number: c.list_number ?? "", photo_url: c.photo_url ?? "", logo_url: c.logo_url ?? "",
       tagline: c.tagline ?? "", bio: c.bio ?? "", facebook_url: c.facebook_url ?? "",
       instagram_url: c.instagram_url ?? "", tiktok_url: c.tiktok_url ?? "",
+      completado: c.tipo_cuenta === "cliente_pago",
     });
     if (c.departamento_id) {
       setDepId(String(c.departamento_id));
@@ -279,6 +280,7 @@ export default function DirectorioAdminPage() {
       tagline: nullIfEmpty(form.tagline), bio: nullIfEmpty(form.bio),
       facebook_url: nullIfEmpty(form.facebook_url), instagram_url: nullIfEmpty(form.instagram_url),
       tiktok_url: nullIfEmpty(form.tiktok_url),
+      tipo_cuenta: (form.completado ? "cliente_pago" : "publico_gratuito") as "cliente_pago" | "publico_gratuito",
     };
     try {
       if (editing) {
@@ -304,7 +306,7 @@ export default function DirectorioAdminPage() {
     catch (err) { setMsg({ ok: false, text: err instanceof Error ? err.message : "La acción falló." }); }
   }
 
-  const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+  const set = (k: Exclude<keyof typeof EMPTY, "completado">) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
   return (
@@ -376,6 +378,19 @@ export default function DirectorioAdminPage() {
               <Field label="TikTok"><input type="url" className={inputCls} value={form.tiktok_url} onChange={set("tiktok_url")} /></Field>
             </div>
           </details>
+
+          <label className="flex items-start gap-3 rounded-xl border border-brand-500/30 bg-brand-500/5 p-3">
+            <input
+              type="checkbox" className="mt-0.5 h-4 w-4 accent-brand-500"
+              checked={form.completado}
+              onChange={(e) => setForm((f) => ({ ...f, completado: e.target.checked }))}
+            />
+            <span className="text-xs text-gray-700">
+              <span className="block font-semibold">Perfil completado por el candidato</span>
+              Muestra el sello ✓ en su ficha pública. Márcalo solo cuando el candidato aportó su información
+              (foto, biografía, documentos de campaña). No cambia el orden ni cómo responde la IA.
+            </span>
+          </label>
 
           <button type="submit" disabled={saving || !distId} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3 text-sm font-bold text-white disabled:opacity-40">
             {saving && <Loader2 size={15} className="animate-spin" />}
