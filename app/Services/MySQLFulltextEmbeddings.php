@@ -222,6 +222,25 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
         'trayect'   => ['trayectoria','cargos partidarios','eleccion popular','renuncia','organizacion politica'],
         'sentenc'   => ['sentencia','condenatori','demanda','obligaciones','violencia familiar'],
         'antecede'  => ['sentencia','condenatori','demanda','obligaciones'],
+        // Plazos, costos y viabilidad: en los planes del JNE están en la matriz
+        // "INDICADORES / METAS 2027-2030" (auditoría Monzón 2026-09-30: "¿en qué plazos?"
+        // traía la página de valores institucionales).
+        'plazo'     => ['plazo','meta','2027','2030','indicador','cronograma','corto plazo','mediano plazo'],
+        'cuando'    => ['plazo','meta','2027','2030','cronograma'],
+        'cronog'    => ['plazo','meta','2027','2030','cronograma'],
+        'meta'      => ['meta','2027','2030','indicador','objetivo estrategico'],
+        'indicad'   => ['indicador','meta','2027','2030'],
+        'costo'     => ['costo','presupuesto','financiamiento','inversion','monto','canon','foncomun','meta'],
+        'costar'    => ['costo','presupuesto','financiamiento','inversion','monto','canon','foncomun','meta'],
+        'cuest'     => ['costo','presupuesto','financiamiento','inversion','monto'],
+        'presup'    => ['presupuesto','financiamiento','inversion','monto','canon','foncomun'],
+        'financ'    => ['financiamiento','presupuesto','inversion','monto','canon','foncomun'],
+        'dinero'    => ['presupuesto','financiamiento','inversion','monto','canon','foncomun'],
+        'viabl'     => ['meta','indicador','2027','2030','presupuesto','financiamiento','monto'],
+        'viabil'    => ['meta','indicador','2027','2030','presupuesto','financiamiento','monto'],
+        'redes'     => ['facebook','instagram','tiktok','redes sociales','whatsapp'],
+        'biograf'   => ['nacimiento','lugar de nacimiento','formacion academica','experiencia'],
+        'naci'      => ['nacimiento','lugar de nacimiento'],
     ];
 
     /**

@@ -570,6 +570,64 @@ class DirectorioTest extends TestCase
         $this->assertStringContainsString('casillas', $ficha);
     }
 
+    public function test_datos_clave_of_the_candidates_own_hoja_de_vida_are_always_given_to_the_model(): void
+    {
+        $c = $this->candidato(['name' => 'Daniel', 'slug' => 'daniel', 'facebook_url' => 'https://facebook.com/demo'], null, null);
+        $casillas = \App\Services\PdfPageExtractor::bloqueCasillas([
+            'II. EXPERIENCIA DE TRABAJO EN OFICIOS, OCUPACIONES O PROFESIONES: NO TENGO',
+            'CARGOS DE ELECCIÓN POPULAR — ¿TENGO INFORMACIÓN POR DECLARAR?: SÍ TENGO',
+        ]);
+        $this->documento($c, [
+            'title' => 'Hoja de Vida — Daniel', 'topic' => 'hoja_de_vida', 'content' => 'x',
+            'pages' => [
+                $casillas . ' FORMATO ÚNICO DE DECLARACIÓN JURADA DE HOJA DE VIDA FECHA DE NACIMIENTO (dd/mm/aaaa) (6): 06/06/2001',
+                \App\Services\PdfPageExtractor::bloqueCasillas(['CARGOS DE ELECCIÓN POPULAR — CARGO 1: REGIDOR(A) DISTRITAL'])
+                    . ' CARGO 1. (Marque solo una opción) ORGANIZACIÓN POLÍTICA:FRENTE DEMO DESDE (AÑO): 2 0 2 2 HASTA (AÑO): 2 0 2 6 V. RELACIÓN DE SENTENCIAS',
+            ],
+        ]);
+        // HV de un regidor de su lista: NO debe tomarse como la del candidato.
+        $hvReg = $this->documento($c, [
+            'title' => 'Hoja de Vida — Regidor 1: Otra Persona', 'topic' => 'hoja_de_vida', 'content' => 'x',
+            'pages' => ['HOJA DE VIDA FECHA DE NACIMIENTO (dd/mm/aaaa) (6): 01/01/1950'],
+        ]);
+        \App\Models\CandidatoRegidor::create(['candidate_profile_id' => $c->id, 'orden' => 1, 'nombre' => 'Otra Persona', 'cargo' => 'Regidor', 'knowledge_document_id' => $hvReg->id]);
+
+        $ai = new \App\Services\CivicAIService(new \App\Services\MySQLFulltextEmbeddings());
+        $ai->scopeToCandidate($c->fresh());
+        $m = new \ReflectionMethod($ai, 'datosClaveHojaDeVida');
+        $m->setAccessible(true);
+        $hv = $m->invoke($ai);
+
+        $this->assertNotNull($hv);
+        $this->assertStringContainsString('DATOS CLAVE DE SU HOJA DE VIDA', $hv['excerpt']);
+        $this->assertStringContainsString('06/06/2001', $hv['excerpt']);
+        $this->assertStringNotContainsString('1950', $hv['excerpt']);
+        $this->assertStringContainsString('Regidor(a) distrital 2022–2026, por Frente Demo', $hv['excerpt']);
+        $this->assertStringContainsString('Experiencia laboral de los últimos 10 años (sección II): no declara', $hv['excerpt']);
+
+        $f = new \ReflectionMethod($ai, 'fichaCandidato');
+        $f->setAccessible(true);
+        $this->assertStringContainsString('Facebook: https://facebook.com/demo', $f->invoke($ai));
+    }
+
+    public function test_plazos_and_costos_questions_reach_the_goals_matrix_of_the_plan(): void
+    {
+        $c = $this->candidato(['name' => 'Daniel', 'slug' => 'daniel'], null, null);
+        $relleno = str_repeat(' texto del plan de gobierno del distrito.', 10);
+        $this->documento($c, [
+            'title' => 'Plan de Gobierno — Daniel', 'topic' => 'plan_de_gobierno', 'content' => 'x',
+            'pages' => [
+                'VALORES INSTITUCIONALES honestidad responsabilidad solidaridad' . $relleno,
+                'PROBLEMAS IDENTIFICADOS OBJETIVOS ESTRATÉGICOS INDICADORES METAS 2027-2030 incrementar la cobertura de agua' . $relleno,
+            ],
+        ]);
+
+        foreach (['¿En qué plazos cumplirá?', '¿Cuánto costarán sus propuestas?', '¿Es viable su plan?'] as $q) {
+            $out = (new \App\Services\MySQLFulltextEmbeddings())->search($q, 3, ['candidate_id' => $c->id]);
+            $this->assertSame(2, $out[0]['page'] ?? null, "«{$q}» debe traer la matriz de metas");
+        }
+    }
+
     public function test_casillas_block_always_reaches_the_model_even_if_the_window_is_mid_page(): void
     {
         $c = $this->candidato(['name' => 'Daniel', 'slug' => 'daniel'], null, null);

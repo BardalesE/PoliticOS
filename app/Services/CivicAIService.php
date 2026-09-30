@@ -702,6 +702,12 @@ class CivicAIService
             }
         }
         $docs = $this->embeddings->search($userMessage, 3, $filter);
+        // Datos clave de SU hoja de vida siempre presentes y citables (auditoría Monzón
+        // 2026-09-30: según qué página traía el RAG decía "no declara cargos de elección"
+        // en una respuesta y "fue regidor 2022-2026" en otra).
+        if ($this->scopeCandidateId && ($hv = $this->datosClaveHojaDeVida())) {
+            array_unshift($docs, $hv);
+        }
         $parts[] = $this->buildDocumentationSection($docs, ($this->config->mode ?? 'campaign') === 'pepa');
 
         return implode("\n", $parts);
@@ -750,6 +756,8 @@ class CivicAIService
             $c->party ? 'Organización política: ' . $c->party . ($c->list_number ? " (Lista N.º {$c->list_number})" : '') : null,
             $c->location ? "Circunscripción: {$c->location}" : null,
             $c->bio ? 'Biografía aportada por el candidato: ' . mb_substr(trim($c->bio), 0, 900) : null,
+            $c->tagline ? "Lema de campaña: {$c->tagline}" : null,
+            ($redes = $this->redesDe($c)) ? "Redes sociales oficiales (registradas en la plataforma): {$redes}" : null,
         ]);
 
         return "FICHA DEL CANDIDATO (datos verificados por la plataforma; prevalecen sobre la hoja de vida):\n- "
@@ -760,6 +768,65 @@ class CivicAIService
             . "página: úsalo (p. ej. \"¿CUENTA CON ESTUDIOS SECUNDARIOS?: SÍ\" + \"CONCLUIDOS: SÍ\" = secundaria completa; "
             . "\"CARGOS DE ELECCIÓN POPULAR — CARGO 1: REGIDOR(A) DISTRITAL\" con sus años = fue regidor distrital). "
             . "Sin ese bloque, nunca deduzcas un dato de una lista de casillas: di que no se lee.";
+    }
+
+    /**
+     * Fragmento sintético con los datos clave de la hoja de vida DEL CANDIDATO (no de
+     * sus regidores), leídos de forma determinista. Entra como un documento más: pasa
+     * por la redacción de datos sensibles y recibe su etiqueta [S#] para citarlo.
+     */
+    private function datosClaveHojaDeVida(): ?array
+    {
+        try {
+            $deRegidores = \App\Models\CandidatoRegidor::where('candidate_profile_id', $this->scopeCandidateId)
+                ->whereNotNull('knowledge_document_id')->pluck('knowledge_document_id')->all();
+        } catch (\Throwable) {
+            $deRegidores = [];
+        }
+
+        $hv = \App\Models\KnowledgeDocument::query()
+            ->where('candidate_id', $this->scopeCandidateId)
+            ->where('is_active', true)->where('status', 'ready')
+            ->whereNotIn('id', $deRegidores ?: [0])
+            ->orderByDesc('id')
+            ->get(['id', 'title', 'pages', 'topic', 'file_url', 'source_url', 'source_type', 'candidate_id'])
+            ->first(fn ($d) => SensitiveData::isHojaDeVida($d->topic, (string) $d->title)
+                && ! preg_match('/regidor/iu', (string) $d->title));
+
+        $pages  = $hv && is_array($hv->pages) ? array_values($hv->pages) : [];
+        $lineas = $pages ? \App\Support\HojaDeVidaDatosClave::desdePaginas($pages) : [];
+        if (! $lineas) {
+            return null;
+        }
+
+        return [
+            'document_id' => $hv->id,
+            'title'       => $hv->title,
+            'excerpt'     => "DATOS CLAVE DE SU HOJA DE VIDA (declaración jurada ante el JNE, leídos por la plataforma; "
+                . "son exactos y prevalecen sobre cualquier otro fragmento de la hoja de vida):\n- " . implode("\n- ", $lineas),
+            'page'        => null,
+            'score'       => 1.0,
+            'metadata'    => [
+                'topic'        => $hv->topic,
+                'file_url'     => $hv->file_url,
+                'candidate_id' => $hv->candidate_id,
+                'source_url'   => $hv->source_url ?: $hv->file_url,
+                'source_type'  => $hv->source_type ?? 'pdf',
+            ],
+        ];
+    }
+
+    private function redesDe(CandidateProfile $c): string
+    {
+        $redes = [];
+        foreach (['facebook_url' => 'Facebook', 'instagram_url' => 'Instagram', 'tiktok_url' => 'TikTok'] as $campo => $nombre) {
+            $url = trim((string) ($c->{$campo} ?? ''));
+            if ($url !== '' && preg_match('~^https?://~i', $url)) {
+                $redes[] = "{$nombre}: {$url}";
+            }
+        }
+
+        return implode(' · ', $redes);
     }
 
     private const CITATION_RULES =
@@ -1088,7 +1155,24 @@ class CivicAIService
             . "\"No indica montos ni plazos.\""
             . "\n- Las fuentes van SOLO como etiquetas [S#]: la plataforma ya muestra el documento y la página debajo. "
             . "No escribas títulos de documentos, números de página ni líneas de \"📄 fuente\" en el texto."
-            . "\n- No agregues metas, años, cifras ni lugares que no estén escritos en el fragmento.";
+            . "\n- No agregues metas, años, cifras ni lugares que no estén escritos en el fragmento."
+            // Auditoría Monzón 2026-09-30.
+            . "\n- HOJA DE VIDA: si hay un fragmento \"DATOS CLAVE DE SU HOJA DE VIDA\", úsalo para edad, nacimiento, "
+            . "estudios, experiencia, cargos de elección, sentencias y renuncias, y cítalo con su etiqueta. Nunca calcules la edad: usa la que dice. "
+            . "Experiencia laboral (sección II) y cargos de elección popular (sección IV) son cosas distintas: si preguntan por su experiencia, "
+            . "di las dos por separado (p. ej. \"No declara experiencia laboral; sí declara haber sido regidor distrital 2022–2026 [S1]\"). "
+            . "Haber ocupado un cargo no prueba obras ni logros: no los atribuyas."
+            . "\n- DE QUÉ DOCUMENTO SALE: di \"su plan de gobierno\" solo si el fragmento es del Plan de Gobierno; si es de otro "
+            . "documento (propuestas de campaña, volante), di \"en sus propuestas de campaña\". No los mezcles."
+            . "\n- PLAZOS: si la matriz del plan dice \"METAS 2027-2030\" (u otro periodo), ese es el plazo: dilo (\"plantea sus metas para 2027–2030\") "
+            . "y aclara en una línea si no fija fechas por propuesta. COSTOS: si ningún fragmento trae montos o fuente de financiamiento, "
+            . "dilo en una línea; no digas que están en otro sitio."
+            . "\n- ¿ES VIABLE?: no lo calificas. Di en 2-3 líneas qué trae el plan (objetivos, indicadores, metas, periodo) y qué no trae "
+            . "(montos, fuente de financiamiento), con sus etiquetas, para que el ciudadano juzgue. Nunca digas que no ves propuestas si hay fragmentos con propuestas."
+            . "\n- REDES SOCIALES: si la FICHA trae redes oficiales, dalas tal cual (enlace completo)."
+            . "\n- ¿POR QUIÉN VOTO?: no recomiendas; ofrece revisar o comparar por el tema que más le importe."
+            . "\n- Sin frases de relleno ni empatía de apertura (\"Entiendo que te importa…\", \"Es una pregunta clave\"). "
+            . "No agregues datos que no estén en los fragmentos o la ficha (leyes, ONPE, contexto general).";
 
         $prompt .= "\n\nSOLO TEXTO (OBLIGATORIO): el chat no adjunta imagenes, fotos, videos ni archivos. Nunca ofrezcas ni menciones adjuntos; responde solo con texto y cita tus fuentes.";
 
