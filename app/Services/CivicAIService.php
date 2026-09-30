@@ -1041,10 +1041,13 @@ class CivicAIService
             . "\"Sobre desagüe, propone instalar biodigestores…\"."
             . "\n- Si sus documentos no tratan el tema, dilo en una sola línea (\"En sus documentos no hay propuestas sobre X\") "
             . "y NO rellenes con temas que no preguntaron."
-            . "\n- Después, máximo 4 puntos: cada uno una propuesta concreta tal como está en el documento, con su fuente. "
+            . "\n- Después, máximo 4 puntos: cada uno una propuesta concreta tal como está en el documento, cerrada con su etiqueta [S#]. "
             . "Nada de comentarios propios sobre la propuesta (\"se plantea como una combinación de…\"), nada de repetir la misma idea."
             . "\n- Sin \"Resumen\" que repita los puntos. Si no indica montos, plazos o financiamiento, una sola línea final: "
-            . "\"No indica montos ni plazos.\"";
+            . "\"No indica montos ni plazos.\""
+            . "\n- Las fuentes van SOLO como etiquetas [S#]: la plataforma ya muestra el documento y la página debajo. "
+            . "No escribas títulos de documentos, números de página ni líneas de \"📄 fuente\" en el texto."
+            . "\n- No agregues metas, años, cifras ni lugares que no estén escritos en el fragmento.";
 
         $prompt .= "\n\nSOLO TEXTO (OBLIGATORIO): el chat no adjunta imagenes, fotos, videos ni archivos. Nunca ofrezcas ni menciones adjuntos; responde solo con texto y cita tus fuentes.";
 
