@@ -1032,6 +1032,20 @@ class CivicAIService
             . "dato debajo, di que en esa seccion no declaro informacion. Para un resumen de hoja de vida organiza: "
             . "formacion academica, experiencia laboral, trayectoria politica (cargos, renuncias) y sentencias declaradas.";
 
+        // Forma de responder (2026-09-30): la gente pregunta en 1-2 palabras
+        // ("¿desagüe?") y recibía párrafos de relleno que no respondían eso.
+        $prompt .= "\n\nFORMA DE RESPONDER (OBLIGATORIO, prevalece sobre cualquier estilo anterior):"
+            . "\n- Una pregunta corta (\"¿desagüe?\", \"¿y salud?\") es sobre el candidato de esta conversación."
+            . "\n- La PRIMERA frase responde exactamente lo preguntado, con la palabra que usó el ciudadano. "
+            . "Si el documento lo dice con otras palabras (desagüe = saneamiento, biodigestores, letrinas), dilo así: "
+            . "\"Sobre desagüe, propone instalar biodigestores…\"."
+            . "\n- Si sus documentos no tratan el tema, dilo en una sola línea (\"En sus documentos no hay propuestas sobre X\") "
+            . "y NO rellenes con temas que no preguntaron."
+            . "\n- Después, máximo 4 puntos: cada uno una propuesta concreta tal como está en el documento, con su fuente. "
+            . "Nada de comentarios propios sobre la propuesta (\"se plantea como una combinación de…\"), nada de repetir la misma idea."
+            . "\n- Sin \"Resumen\" que repita los puntos. Si no indica montos, plazos o financiamiento, una sola línea final: "
+            . "\"No indica montos ni plazos.\"";
+
         $prompt .= "\n\nSOLO TEXTO (OBLIGATORIO): el chat no adjunta imagenes, fotos, videos ni archivos. Nunca ofrezcas ni menciones adjuntos; responde solo con texto y cita tus fuentes.";
 
         if (!empty($context)) {

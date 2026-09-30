@@ -198,8 +198,14 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
         'colegio'   => ['educa','colegio','escuela','docente','maestro','estudiante'],
         'segur'     => ['segur','serenazgo','policia','delincu','robo','cameras','camaras','vigilancia','ronda'],
         'delincu'   => ['segur','serenazgo','policia','delincu','robo','camaras','vigilancia'],
-        'agua'      => ['agua','desague','saneamiento','alcantarillado','potable','reservorio'],
-        'saneam'    => ['agua','desague','saneamiento','alcantarillado','potable'],
+        'agua'      => ['agua','desague','saneamiento','alcantarillado','potable','reservorio','biodigest','letrina'],
+        // Desagüe en zona rural = saneamiento básico: biodigestores, letrinas, UBS
+        // (bug 2026-09-30: "¿desagüe?" no encontraba los biodigestores del plan).
+        'saneam'    => ['desague','saneamiento','alcantarillado','biodigest','letrina','unidad basica de saneamiento','ubs','aguas servidas','pozo septico','tanque septico'],
+        'desag'     => ['desague','saneamiento','alcantarillado','biodigest','letrina','unidad basica de saneamiento','ubs','aguas servidas','pozo septico','tanque septico'],
+        'alcant'    => ['desague','saneamiento','alcantarillado','biodigest','letrina','aguas servidas'],
+        'biodig'    => ['biodigest','desague','saneamiento','letrina','unidad basica de saneamiento'],
+        'letrin'    => ['letrina','biodigest','desague','saneamiento','unidad basica de saneamiento'],
         'empleo'    => ['empleo','trabajo','laboral','emprend','mype','ingreso'],
         'trabajo'   => ['empleo','trabajo','laboral','emprend','mype','ingreso'],
         'carreter'  => ['carreter','trocha','via ','vias','camino','pista','asfalt','pavimento','vial'],

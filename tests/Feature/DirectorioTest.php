@@ -68,6 +68,7 @@ class DirectorioTest extends TestCase
             $t->text('description')->nullable();
             $t->string('file_url')->nullable();
             $t->longText('content')->nullable();
+            $t->json('pages')->nullable();
             $t->string('topic', 40)->nullable();
             $t->unsignedBigInteger('candidate_id')->nullable();
             $t->string('source_url', 500)->nullable();
@@ -483,6 +484,25 @@ class DirectorioTest extends TestCase
         // Acotado: solo los documentos de Luis.
         $luisSolo = collect($svc->search('riego agricultores', 5, ['candidate_id' => $luis->id]))->pluck('title')->all();
         $this->assertSame(['Plan Luis'], $luisSolo);
+    }
+
+    public function test_rag_understands_desague_as_sanitation_vocabulary(): void
+    {
+        $c = $this->candidato(['name' => 'Daniel', 'slug' => 'daniel'], null, null);
+        $this->documento($c, [
+            'title'   => 'Propuestas de campaña — Daniel',
+            'content' => 'SALUD Y BIENESTAR',
+            'pages'   => [
+                'AGRICULTURA. Construcción de mini reservorios y riego tecnificado.',
+                'SALUD. Gestionar la instalación de biodigestores para toda la población que lo requiera.',
+            ],
+        ]);
+
+        $out = (new \App\Services\MySQLFulltextEmbeddings())->search('¿desagüe?', 3, ['candidate_id' => $c->id]);
+
+        $this->assertNotEmpty($out, 'Una pregunta por "desagüe" debe encontrar la propuesta de biodigestores');
+        $this->assertSame(2, $out[0]['page']);
+        $this->assertStringContainsString('biodigestores', $out[0]['excerpt']);
     }
 
     private function scopeOf(\App\Services\CivicAIService $ai): array
