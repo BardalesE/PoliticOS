@@ -569,6 +569,26 @@ class DirectorioTest extends TestCase
         $this->assertStringContainsString('casillas', $ficha);
     }
 
+    public function test_casillas_block_always_reaches_the_model_even_if_the_window_is_mid_page(): void
+    {
+        $c = $this->candidato(['name' => 'Daniel', 'slug' => 'daniel'], null, null);
+        $bloque = \App\Services\PdfPageExtractor::bloqueCasillas([
+            'EDUCACIÓN BÁSICA REGULAR — ¿CUENTA CON ESTUDIOS SECUNDARIOS?: SÍ',
+            'CARGOS DE ELECCIÓN POPULAR — CARGO 1: REGIDOR(A) DISTRITAL',
+        ]);
+        $this->documento($c, [
+            'title' => 'Hoja de Vida — Daniel', 'topic' => 'hoja_de_vida', 'content' => 'x',
+            'pages' => [$bloque . "\n" . str_repeat('texto de relleno del formato. ', 300) . ' III. FORMACIÓN ACADÉMICA estudios secundarios'],
+        ]);
+
+        $out = (new \App\Services\MySQLFulltextEmbeddings())->search('¿qué estudios tiene?', 3, ['candidate_id' => $c->id]);
+
+        $this->assertNotEmpty($out);
+        $this->assertStringStartsWith('CASILLAS MARCADAS EN ESTA PÁGINA', $out[0]['excerpt']);
+        $this->assertStringContainsString('SECUNDARIOS?: SÍ', $out[0]['excerpt']);
+        $this->assertStringContainsString('FORMACIÓN ACADÉMICA', $out[0]['excerpt'], 'y además la ventana relevante');
+    }
+
     private function scopeOf(\App\Services\CivicAIService $ai): array
     {
         $r = new \ReflectionObject($ai);

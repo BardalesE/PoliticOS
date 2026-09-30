@@ -421,6 +421,25 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
     /** Hoja de vida: pagina completa (formulario JNE de ~3.300 caracteres por hoja). */
     private const HV_EXCERPT_CHARS = 3600;
 
+    /**
+     * Recorte de una página. Si la página empieza con el bloque de casillas de la
+     * hoja de vida, ese bloque va SIEMPRE completo: la ventana relevante puede caer
+     * a mitad de página y dejarlo fuera (bug 2026-09-30, "no declara estudios").
+     */
+    private function excerptDePagina(string $page, string $query, int $chars, string $title): string
+    {
+        $fin = PdfPageExtractor::FIN_CASILLAS;
+        $pos = str_starts_with($page, 'CASILLAS MARCADAS') ? mb_strpos($page, $fin) : false;
+        if ($pos === false) {
+            return $this->extractExcerpt($page, $query, $chars, $title);
+        }
+
+        $bloque = trim(mb_substr($page, 0, $pos + mb_strlen($fin)));
+        $resto  = ltrim(mb_substr($page, $pos + mb_strlen($fin)));
+
+        return $bloque . "\n" . $this->extractExcerpt($resto, $query, max(600, $chars - mb_strlen($bloque)), $title);
+    }
+
     private function excerptChars(object $d): int
     {
         return SensitiveData::isHojaDeVida($d->topic ?? null, isset($d->title) ? (string) $d->title : null)
@@ -509,7 +528,7 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
                 $entry = [
                     'document_id' => $d->id,
                     'title'       => $d->title,
-                    'excerpt'     => $this->extractExcerpt($pages[$n - 1], $query, $this->excerptChars($d), (string) $d->title),
+                    'excerpt'     => $this->excerptDePagina((string) $pages[$n - 1], $query, $this->excerptChars($d), (string) $d->title),
                     'page'        => $n,
                     'score'       => $score,
                     'page_score'  => $pageScore,

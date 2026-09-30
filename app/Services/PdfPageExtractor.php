@@ -22,6 +22,9 @@ use Smalot\PdfParser\Parser;
  */
 class PdfPageExtractor
 {
+    /** Cierra el bloque de casillas: el RAG lo separa del texto para no recortarlo nunca. */
+    public const FIN_CASILLAS = '[FIN CASILLAS]';
+
     /** Tope de caracteres por documento. */
     public const MAX_CHARS = 80000;
 
@@ -105,7 +108,7 @@ class PdfPageExtractor
     public static function bloqueCasillas(array $marcadas): string
     {
         return 'CASILLAS MARCADAS EN ESTA PÁGINA (leídas del PDF; las opciones no listadas NO están marcadas): '
-            . implode(' | ', $marcadas) . '.';
+            . implode(' | ', $marcadas) . ' ' . self::FIN_CASILLAS;
     }
 
     /** @param array<int, string> $pages */

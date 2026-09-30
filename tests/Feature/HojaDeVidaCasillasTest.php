@@ -36,7 +36,7 @@ class HojaDeVidaCasillasTest extends TestCase
     public function test_block_format(): void
     {
         $this->assertSame(
-            'CASILLAS MARCADAS EN ESTA PÁGINA (leídas del PDF; las opciones no listadas NO están marcadas): A: SÍ | B: NO.',
+            'CASILLAS MARCADAS EN ESTA PÁGINA (leídas del PDF; las opciones no listadas NO están marcadas): A: SÍ | B: NO [FIN CASILLAS]',
             PdfPageExtractor::bloqueCasillas(['A: SÍ', 'B: NO'])
         );
     }
