@@ -411,6 +411,9 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
     /** Páginas distintas que puede aportar un mismo documento. */
     private const PAGES_PER_DOC = 2;
 
+    /** Formato Único JNE: 3 páginas; la 2 trae trayectoria, cargos de elección y sentencias. */
+    private const HV_PAGES = 3;
+
     /** Menos texto que esto = portada o índice: no sirve para una pregunta general. */
     private const MIN_CONTENT_PAGE_CHARS = 200;
     private const EXCERPT_CHARS = 1200;
@@ -456,6 +459,9 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
 
             $score  = (float) ($d->relevance ?? 0.5);
             $pages  = is_array($d->pages) ? array_values($d->pages) : [];
+            // Hoja de vida pedida explícitamente: sus 3 páginas (la trayectoria y los
+            // cargos de elección están en la 2; con 2 páginas se perdían — bug 2026-09-30).
+            $porDoc = ($esHv && $this->queryTargetsDocument($query, 'hoja_de_vida', '')) ? self::HV_PAGES : self::PAGES_PER_DOC;
             // null = no se puede ordenar (sin páginas, o pregunta sin términos de tema);
             // [] = hay páginas pero ninguna habla del tema → el documento no aporta.
             $ranked = $pages ? $this->rankPages($pages, $query, (string) $d->title) : null;
@@ -463,7 +469,7 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
             // Pregunta general ("resume el plan"): sin términos de tema no hay qué ordenar;
             // en un documento con páginas sirven sus primeras páginas con texto.
             if ($ranked === null && $pages) {
-                $ranked = $this->paginasConContenido($pages);
+                $ranked = $this->paginasConContenido($pages, $porDoc);
             }
 
             // Ninguna página "habla del tema", pero la pregunta pide este documento
@@ -473,7 +479,7 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
                     if (trim((string) $text) !== '') {
                         $ranked[$i + 1] = 0.0;
                     }
-                    if (count($ranked) >= self::PAGES_PER_DOC) break;
+                    if (count($ranked) >= $porDoc) break;
                 }
             }
 
@@ -499,7 +505,7 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
             }
 
             $first = true;
-            foreach (array_slice($ranked, 0, self::PAGES_PER_DOC, true) as $n => $pageScore) {
+            foreach (array_slice($ranked, 0, $porDoc, true) as $n => $pageScore) {
                 $entry = [
                     'document_id' => $d->id,
                     'title'       => $d->title,
@@ -508,6 +514,7 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
                     'score'       => $score,
                     'page_score'  => $pageScore,
                     'metadata'    => $this->docMetadata($d),
+                    'hv_pedida'   => $porDoc === self::HV_PAGES,
                 ];
                 if ($first) {
                     $primary[] = $entry;   // la mejor página de este documento
@@ -518,12 +525,14 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
             }
         }
 
-        usort($extra, fn ($a, $b) => $b['page_score'] <=> $a['page_score']);
+        // Si pidieron la hoja de vida, sus páginas van antes que las de otros documentos.
+        usort($extra, fn ($a, $b) => [($b['hv_pedida'] ?? false), $b['page_score']] <=> [($a['hv_pedida'] ?? false), $a['page_score']]);
+        usort($primary, fn ($a, $b) => ($b['hv_pedida'] ?? false) <=> ($a['hv_pedida'] ?? false));
 
         $out = array_slice(array_merge($primary, $extra), 0, self::MAX_EXCERPTS);
 
         return array_map(function (array $e) {
-            unset($e['page_score']);
+            unset($e['page_score'], $e['hv_pedida']);
             return $e;
         }, $out);
     }
@@ -586,7 +595,7 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
      * @param array<int, string> $pages
      * @return array<int, float>
      */
-    private function paginasConContenido(array $pages): array
+    private function paginasConContenido(array $pages, int $max = self::PAGES_PER_DOC): array
     {
         $largos = [];
         foreach ($pages as $i => $text) {
@@ -599,7 +608,7 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
         $pool = $conCuerpo ?: $largos;
 
         arsort($pool);
-        $elegidas = array_slice(array_keys($pool), 0, self::PAGES_PER_DOC);
+        $elegidas = array_slice(array_keys($pool), 0, $max);
         sort($elegidas);
 
         return array_fill_keys($elegidas, 0.0);

@@ -61,6 +61,7 @@ class CivicAIService
      */
     private ?int $scopeCandidateId = null;
     private ?string $scopeCandidateName = null;
+    private ?CandidateProfile $scopeCandidate = null;
 
     /**
      * Fragmentos que el RAG puso en el prompt de ESTE turno, con la etiqueta que
@@ -84,6 +85,7 @@ class CivicAIService
     {
         $this->scopeCandidateId   = $candidate?->id;
         $this->scopeCandidateName = $candidate?->name;
+        $this->scopeCandidate     = $candidate;
 
         return $this;
     }
@@ -677,6 +679,13 @@ class CivicAIService
                 . "Responde únicamente con lo que dicen los documentos de este candidato. "
                 . "No compares con otros candidatos ni opines sobre ellos; si algo no está en sus documentos, dilo.";
 
+            // Ficha del candidato (datos de la plataforma). Bug 2026-09-30: dijo
+            // "candidato a regidor" porque en la hoja de vida el cargo es una lista
+            // de casillas (Presidente… Alcalde… Regidor) y la marca no sale en el texto.
+            if ($ficha = $this->fichaCandidato()) {
+                $parts[] = $ficha;
+            }
+
             // Lista de regidores cargada por el admin (dato de la plancha, no de la IA):
             // así "¿quiénes van de regidores?" no depende de que el RAG acierte.
             // try: un tenant sin la migración nueva no debe tumbar el chat.
@@ -723,6 +732,32 @@ class CivicAIService
         . 'plan de gobierno, la hoja de vida u otro documento oficial del candidato, '
         . 'responde exactamente que "no tengo información en los documentos del '
         . 'candidato" — nunca completes ni inventes esa respuesta con conocimiento general.';
+
+    /**
+     * Datos estructurados del candidato elegido. Prevalecen sobre lo que el modelo
+     * crea leer en la hoja de vida (sus casillas SÍ/NO no se extraen como texto).
+     */
+    private function fichaCandidato(): ?string
+    {
+        $c = $this->scopeCandidate;
+        if (! $c) {
+            return null;
+        }
+
+        $lineas = array_filter([
+            "Nombre: {$c->name}",
+            $c->title ? "Postula a: {$c->title}" : null,
+            $c->party ? 'Organización política: ' . $c->party . ($c->list_number ? " (Lista N.º {$c->list_number})" : '') : null,
+            $c->location ? "Circunscripción: {$c->location}" : null,
+            $c->bio ? 'Biografía aportada por el candidato: ' . mb_substr(trim($c->bio), 0, 900) : null,
+        ]);
+
+        return "FICHA DEL CANDIDATO (datos verificados por la plataforma; prevalecen sobre la hoja de vida):\n- "
+            . implode("\n- ", $lineas)
+            . "\nEl cargo al que postula es SIEMPRE el de esta ficha. En la hoja de vida del JNE los cargos, estudios "
+            . "y respuestas SÍ/NO son casillas cuya marca NO aparece en el texto: una lista de cargos u opciones NO indica "
+            . "cuál está marcada. Nunca deduzcas un dato de una lista de casillas; si no hay un valor escrito, di que no se lee.";
+    }
 
     private const CITATION_RULES =
         "\nCITAS VERIFICABLES: cada fragmento de abajo lleva una etiqueta [S1], [S2]… "

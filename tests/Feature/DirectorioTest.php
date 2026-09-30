@@ -538,6 +538,37 @@ class DirectorioTest extends TestCase
         $this->assertContains('Hoja de Vida — Daniel', $quien);
     }
 
+    public function test_quien_es_reads_the_whole_hoja_de_vida_and_the_ficha_fixes_the_cargo(): void
+    {
+        $c = $this->candidato(['name' => 'Daniel', 'slug' => 'daniel', 'title' => 'Candidato a Alcalde Distrital', 'party' => 'Avanza Pais'], null, null);
+        $relleno = str_repeat(' texto del formato del JNE.', 12);
+        $this->documento($c, [
+            'title' => 'Hoja de Vida — Daniel', 'topic' => 'hoja_de_vida', 'content' => 'x',
+            'pages' => [
+                'DATOS PERSONALES. CARGO AL QUE POSTULA ALCALDE DISTRITAL REGIDOR PROVINCIAL REGIDOR DISTRITAL' . $relleno,
+                'CARGOS DE ELECCION POPULAR REGIDOR(A) DISTRITAL FRENTE REGIONAL DE CAJAMARCA DESDE 2022 HASTA 2026' . $relleno,
+                'FECHA EN QUE TERMINO DE LLENAR LOS DATOS' . $relleno,
+            ],
+        ]);
+        $this->documento($c, [
+            'title' => 'Plan de Gobierno — Daniel', 'topic' => 'plan_de_gobierno', 'content' => 'x',
+            'pages' => ['Diagnostico del distrito' . $relleno, 'Propuestas de riego' . $relleno],
+        ]);
+
+        $out = (new \App\Services\MySQLFulltextEmbeddings())->search('¿quién es?', 3, ['candidate_id' => $c->id]);
+        $hvPages = array_column(array_filter($out, fn ($e) => $e['title'] === 'Hoja de Vida — Daniel'), 'page');
+        $this->assertContains(2, $hvPages, 'La página 2 (cargos de elección) debe llegar al modelo');
+
+        // La ficha le dice al modelo el cargo real, no la lista de casillas.
+        $ai = new \App\Services\CivicAIService(new \App\Services\MySQLFulltextEmbeddings());
+        $ai->scopeToCandidate($c->fresh());
+        $m = new \ReflectionMethod($ai, 'fichaCandidato');
+        $m->setAccessible(true);
+        $ficha = $m->invoke($ai);
+        $this->assertStringContainsString('Postula a: Candidato a Alcalde Distrital', $ficha);
+        $this->assertStringContainsString('casillas', $ficha);
+    }
+
     private function scopeOf(\App\Services\CivicAIService $ai): array
     {
         $r = new \ReflectionObject($ai);
