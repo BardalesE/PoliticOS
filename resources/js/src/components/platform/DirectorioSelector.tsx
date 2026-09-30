@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { BadgeCheck, ChevronDown, FileText, MapPin, MessageCircle, MessagesSquare, Search, X } from "lucide-react";
+import { BadgeCheck, ChevronDown, ChevronRight, FileText, MapPin, MessageCircle, MessagesSquare, Search, X } from "lucide-react";
 import { PartySymbol } from "@/components/ui/PartySymbol";
 import {
   DIRECTORY_TENANT,
@@ -119,60 +119,80 @@ function LugarCard({ l, active, onPick }: { l: Lugar; active: boolean; onPick: (
   );
 }
 
-/** La home solo lleva al chat: tocar un candidato abre la conversación sobre él. */
-function chatHref(slug: string): string {
+function conTenant(path: string, extra: Record<string, string> = {}): string {
   const p = new URLSearchParams();
   if (DIRECTORY_TENANT) p.set("tenant", DIRECTORY_TENANT);
-  p.set("candidato", slug);
-  return `/chat?${p.toString()}`;
+  for (const [k, v] of Object.entries(extra)) p.set(k, v);
+  const qs = p.toString();
+  return qs ? `${path}?${qs}` : path;
 }
+
+/** La tarjeta abre la ficha del candidato; "Preguntar" va directo al chat acotado a él. */
+const fichaHref = (slug: string) => conTenant(`/candidato/${slug}`);
+const chatHref  = (slug: string) => conTenant("/chat", { candidato: slug });
 
 function CandidatoCard({ c }: { c: CandidatoResumen }) {
   return (
     <li className="min-w-0">
-      <Link
-        href={chatHref(c.slug)}
-        aria-label={`Preguntar a la IA sobre ${c.name}`}
-        className="group flex items-center gap-3 rounded-2xl bg-white p-3 sm:gap-4 sm:p-4 shadow-sm ring-1 ring-black/5 transition hover:shadow-md hover:ring-[#2F7D4F]/30 motion-safe:hover:-translate-y-0.5
-                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+      <div
+        className="group relative flex h-full flex-col rounded-2xl bg-white p-3 shadow-sm ring-1 ring-black/5 transition hover:shadow-md hover:ring-[#2F7D4F]/30 motion-safe:hover:-translate-y-0.5
+                   focus-within:ring-2 focus-within:ring-[#2F7D4F]/40 sm:p-4"
       >
-        <span className="relative shrink-0">
-          {c.photo_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={c.photo_url} alt="" loading="lazy" className="h-14 w-14 sm:h-16 sm:w-16 rounded-full object-cover ring-2 ring-[#2F7D4F]/20" />
-          ) : (
-            <span
-              className="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full font-condensed text-[22px] text-white"
-              style={{ background: PRIMARY }}
-              aria-hidden
+        <div className="flex items-center gap-3 sm:gap-4">
+          <span className="relative shrink-0">
+            {c.photo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={c.photo_url} alt="" loading="lazy" className="h-14 w-14 sm:h-16 sm:w-16 rounded-full object-cover ring-2 ring-[#2F7D4F]/20" />
+            ) : (
+              <span
+                className="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full font-condensed text-[22px] text-white"
+                style={{ background: PRIMARY }}
+                aria-hidden
+              >
+                {initials(c.name)}
+              </span>
+            )}
+            {/* El símbolo del partido: así lo reconoce la mayoría en la cédula */}
+            <PartySymbol src={c.logo_url} party={c.party} size={30} className="absolute -bottom-1 -right-2" />
+          </span>
+          <span className="min-w-0 flex-1">
+            {/* Enlace "estirado": toda la tarjeta abre la ficha (after:inset-0). */}
+            <Link
+              href={fichaHref(c.slug)}
+              className="line-clamp-2 text-[15px] font-bold leading-snug text-ink-800 outline-none after:absolute after:inset-0 after:rounded-2xl after:content-[''] sm:text-[16px]"
             >
-              {initials(c.name)}
-            </span>
-          )}
-          {/* El símbolo del partido: así lo reconoce la mayoría en la cédula */}
-          <PartySymbol src={c.logo_url} party={c.party} size={30} className="absolute -bottom-1 -right-2" />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="line-clamp-2 text-[15px] font-bold leading-snug text-ink-800 sm:text-[16px]">{c.name}</span>
-          {c.perfil_completado && (
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold" style={{ color: "rgb(var(--brand-primary-rgb))" }}>
-              <BadgeCheck size={12} aria-hidden /> Perfil completado
-            </span>
-          )}
-          <span className="block text-[13px] leading-snug text-ink-500">{c.title}</span>
-          <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-ink-400">
-            <span className="max-w-full truncate">{c.party}{c.list_number ? ` · N.º ${c.list_number}` : ""}</span>
-            <span className="inline-flex items-center gap-1">
-              <FileText size={12} aria-hidden />
-              {c.documentos_count} {c.documentos_count === 1 ? "documento" : "documentos"}
+              {c.name}
+            </Link>
+            {c.perfil_completado && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold" style={{ color: "rgb(var(--brand-primary-rgb))" }}>
+                <BadgeCheck size={12} aria-hidden /> Perfil completado
+              </span>
+            )}
+            <span className="block text-[13px] leading-snug text-ink-500">{c.title}</span>
+            <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-ink-400">
+              <span className="max-w-full truncate">{c.party}{c.list_number ? ` · N.º ${c.list_number}` : ""}</span>
+              <span className="inline-flex items-center gap-1">
+                <FileText size={12} aria-hidden />
+                {c.documentos_count} {c.documentos_count === 1 ? "documento" : "documentos"}
+              </span>
             </span>
           </span>
-        </span>
-        <span className="flex shrink-0 flex-col items-center gap-0.5 text-[10px] font-bold text-ink-400 transition group-hover:text-[#2F7D4F]">
-          <MessagesSquare size={18} aria-hidden />
-          <span className="hidden sm:inline">Preguntar</span>
-        </span>
-      </Link>
+        </div>
+
+        <div className="mt-3 flex items-center gap-2 border-t border-black/5 pt-3">
+          <span className="inline-flex flex-1 items-center gap-1 text-[13px] font-bold" style={{ color: PRIMARY }} aria-hidden>
+            Ver perfil <ChevronRight size={15} className="transition group-hover:translate-x-0.5" />
+          </span>
+          <Link
+            href={chatHref(c.slug)}
+            aria-label={`Preguntar a la IA sobre ${c.name}`}
+            className="relative z-10 inline-flex items-center gap-1.5 rounded-full bg-[#EAF3E6] px-3 py-1.5 text-[12px] font-bold text-[#2F7D4F] transition hover:bg-[#2F7D4F] hover:text-white
+                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            <MessagesSquare size={14} aria-hidden /> Preguntar
+          </Link>
+        </div>
+      </div>
     </li>
   );
 }
