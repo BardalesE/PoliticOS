@@ -12,7 +12,7 @@ class CandidateProfile extends Model
         'preset_name', 'is_active',
         // Directorio público (ver CLAUDE.md § "Arquitectura del directorio público")
         'slug', 'estado_publicacion', 'tipo_cuenta',
-        'name', 'title', 'location', 'distrito_id', 'party', 'list_number',
+        'name', 'title', 'location', 'distrito_id', 'provincia_id', 'departamento_id', 'party', 'list_number',
         'bio', 'tagline', 'election_date',
         'photo_url', 'logo_url', 'hero_photo_url', 'hero_video_url',
         'color_primary', 'color_dark', 'color_accent',
@@ -46,6 +46,47 @@ class CandidateProfile extends Model
         'bio_timeline'       => 'array',
     ];
 
+    /**
+     * El distrito manda: si se asigna uno, provincia y departamento se copian de
+     * él (así cualquier camino que solo setee distrito_id queda consistente).
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $c) {
+            // Un tenant sin la migración nueva no tiene estas columnas: no tocar nada.
+            if (! self::tieneAmbito($c)) {
+                return;
+            }
+            if ($c->distrito_id && ($c->isDirty('distrito_id') || ! $c->departamento_id)) {
+                $d = UbigeoDistrito::query()->find($c->distrito_id, ['id', 'provincia_id', 'departamento_id']);
+                if ($d) {
+                    $c->provincia_id    = $d->provincia_id;
+                    $c->departamento_id = $d->departamento_id;
+                }
+            }
+        });
+    }
+
+    /** @var array<string, bool> columnas de ámbito por conexión (evita consultar el esquema en cada save) */
+    private static array $ambitoPorConexion = [];
+
+    private static function tieneAmbito(self $c): bool
+    {
+        $conn = $c->getConnectionName() ?? config('database.default');
+        $key  = $conn . '|' . config("database.connections.{$conn}.database");   // tenants comparten nombre de conexión
+
+        return self::$ambitoPorConexion[$key] ??= \Illuminate\Support\Facades\Schema::connection($c->getConnectionName())
+            ->hasColumn($c->getTable(), 'departamento_id');
+    }
+
+    /** regional | provincial | distrital | null (sin ubicación) */
+    public function getAmbitoAttribute(): ?string
+    {
+        return $this->distrito_id ? 'distrital'
+            : ($this->provincia_id ? 'provincial'
+            : ($this->departamento_id ? 'regional' : null));
+    }
+
     public static function current(): ?self
     {
         return static::where('is_active', true)->first()
@@ -55,6 +96,16 @@ class CandidateProfile extends Model
     public function distrito()
     {
         return $this->belongsTo(UbigeoDistrito::class, 'distrito_id');
+    }
+
+    public function departamento()
+    {
+        return $this->belongsTo(UbigeoDepartamento::class, 'departamento_id');
+    }
+
+    public function provincia()
+    {
+        return $this->belongsTo(UbigeoProvincia::class, 'provincia_id');
     }
 
     /** Documentos de la base de conocimiento de este candidato (Hoja de Vida, Plan de Gobierno…). */
@@ -81,7 +132,9 @@ class CandidateProfile extends Model
         return $query
             ->where('estado_publicacion', 'publicado')
             ->whereNotNull('slug')
-            ->whereNotNull('distrito_id')
+            // Ubicación mínima: el departamento (un candidato regional no tiene distrito).
+            // Tenant aún sin la migración de ámbito: se sigue exigiendo distrito.
+            ->whereNotNull(self::tieneAmbito($query->getModel()) ? 'departamento_id' : 'distrito_id')
             ->whereHas('documents', fn (Builder $d) => $d->where('is_active', true)->where('status', 'ready'));
     }
 }

@@ -87,6 +87,7 @@ class DirectorioTest extends TestCase
             '2026_09_16_000004_add_distrito_id_to_candidate_profiles_table',
             '2026_09_17_231310_add_directorio_fields_to_candidate_profiles_table',
             '2026_09_30_000001_create_candidato_regidores_table',
+            '2026_09_30_000002_add_ambito_to_candidate_profiles_table',
         ] as $migration) {
             (require database_path("migrations/{$migration}.php"))->up();
         }
@@ -587,6 +588,53 @@ class DirectorioTest extends TestCase
         $this->assertStringStartsWith('CASILLAS MARCADAS EN ESTA PÁGINA', $out[0]['excerpt']);
         $this->assertStringContainsString('SECUNDARIOS?: SÍ', $out[0]['excerpt']);
         $this->assertStringContainsString('FORMACIÓN ACADÉMICA', $out[0]['excerpt'], 'y además la ventana relevante');
+    }
+
+    public function test_regional_and_provincial_candidates_reach_every_voter_below_them(): void
+    {
+        $this->actAs('admin');
+        $caj = $this->sanGregorio->departamento_id;
+        $sm  = $this->sanGregorio->provincia_id;
+
+        // Alta: gobernador (solo departamento) y alcalde provincial (hasta provincia).
+        $gob = $this->postJson('/api/admin/directorio/candidatos', [
+            'name' => 'Gobernador Uno', 'title' => 'Candidato a Gobernador Regional', 'party' => 'P', 'departamento_id' => $caj,
+        ])->assertCreated()
+          ->assertJsonPath('ambito', 'regional')
+          ->assertJsonPath('distrito_id', null)
+          ->assertJsonPath('location', 'Cajamarca')
+          ->assertJsonPath('slug', 'gobernador-uno-cajamarca');
+
+        $prov = $this->postJson('/api/admin/directorio/candidatos', [
+            'name' => 'Alcalde Prov', 'title' => 'Candidato a Alcalde Provincial', 'party' => 'P', 'provincia_id' => $sm,
+        ])->assertCreated()
+          ->assertJsonPath('ambito', 'provincial')
+          ->assertJsonPath('departamento_id', $caj)
+          ->assertJsonPath('location', 'San Miguel, Cajamarca');
+
+        foreach ([$gob->json('id'), $prov->json('id')] as $id) {
+            $this->documento(CandidateProfile::find($id));
+            $this->postJson("/api/admin/directorio/candidatos/{$id}/publicar")->assertOk()->assertJsonPath('visible', true);
+        }
+        $this->candidato(['name' => 'Distrital SG'], $this->sanGregorio);
+        $this->candidato(['name' => 'Distrital Trujillo'], $this->trujillo);
+
+        $nombres = fn (array $f) => array_column($this->getJson('/api/directorio/candidatos?' . http_build_query($f))->json('data'), 'name');
+
+        // Quien vota en San Gregorio ve a su alcalde distrital, al provincial y al gobernador.
+        $this->assertEqualsCanonicalizing(['Alcalde Prov', 'Distrital SG', 'Gobernador Uno'], $nombres(['distrito_id' => $this->sanGregorio->id]));
+        // En San Miguel distrito (misma provincia) no aparece el distrital de San Gregorio.
+        $this->assertEqualsCanonicalizing(['Alcalde Prov', 'Gobernador Uno'], $nombres(['distrito_id' => $this->sanMiguel->id]));
+        // En Trujillo (otra región) ninguno de Cajamarca.
+        $this->assertSame(['Distrital Trujillo'], $nombres(['distrito_id' => $this->trujillo->id]));
+        // Elegir solo la región muestra todo lo de la región.
+        $this->assertEqualsCanonicalizing(['Alcalde Prov', 'Distrital SG', 'Gobernador Uno'], $nombres(['departamento_id' => $caj]));
+
+        // El árbol de la home marca la región y la provincia aunque no haya distrito.
+        $cajNodo = collect($this->getJson('/api/directorio/ubicaciones')->json('departamentos'))->firstWhere('nombre', 'CAJAMARCA');
+        $this->assertSame(1, $cajNodo['regionales']);
+        $this->assertSame(3, $cajNodo['candidatos']);
+        $this->assertSame(1, $cajNodo['provincias'][0]['provinciales']);
     }
 
     private function scopeOf(\App\Services\CivicAIService $ai): array

@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\CandidateProfile;
 use App\Models\KnowledgeDocument;
+use App\Models\UbigeoDepartamento;
 use App\Models\UbigeoDistrito;
+use App\Models\UbigeoProvincia;
 use App\Support\SensitiveData;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
@@ -30,15 +32,17 @@ use Illuminate\Http\Request;
  */
 class DirectorioController extends Controller
 {
+    /**
+     * Árbol de lugares con candidatos. Cada nivel cuenta a sus propios
+     * candidatos (regionales en el departamento, provinciales en la provincia,
+     * distritales en el distrito); `candidatos` de un nodo suma todo lo que hay debajo.
+     */
     public function ubicaciones(): JsonResponse
     {
-        $porDistrito = CandidateProfile::query()
-            ->visibleInDirectory()
-            ->selectRaw('distrito_id, COUNT(*) as total')
-            ->groupBy('distrito_id')
-            ->pluck('total', 'distrito_id');
+        $visibles = CandidateProfile::query()->visibleInDirectory()
+            ->get(['id', 'departamento_id', 'provincia_id', 'distrito_id']);
 
-        if ($porDistrito->isEmpty()) {
+        if ($visibles->isEmpty()) {
             return response()->json([
                 'departamentos'    => [],
                 'total_candidatos' => 0,
@@ -46,33 +50,39 @@ class DirectorioController extends Controller
             ]);
         }
 
-        $distritos = UbigeoDistrito::query()
-            ->with(['provincia:id,provincia,ubigeo', 'departamento:id,departamento,ubigeo'])
-            ->whereIn('id', $porDistrito->keys())
-            ->get();
+        $porDistrito  = $visibles->whereNotNull('distrito_id')->countBy('distrito_id');
+        $porProvincia = $visibles->whereNull('distrito_id')->whereNotNull('provincia_id')->countBy('provincia_id');
+        $porRegion    = $visibles->whereNull('provincia_id')->whereNull('distrito_id')->countBy('departamento_id');
+
+        $distritos  = UbigeoDistrito::query()->whereIn('id', $porDistrito->keys())->get(['id', 'ubigeo', 'distrito', 'provincia_id', 'departamento_id']);
+        $provIds    = $distritos->pluck('provincia_id')->merge($porProvincia->keys())->unique();
+        $provincias = UbigeoProvincia::query()->whereIn('id', $provIds)->get(['id', 'ubigeo', 'provincia', 'departamento_id'])->keyBy('id');
+        $depIds     = $provincias->pluck('departamento_id')->merge($porRegion->keys())->unique();
+        $deps       = UbigeoDepartamento::query()->whereIn('id', $depIds)->get(['id', 'ubigeo', 'departamento'])->keyBy('id');
 
         $arbol = [];
+        foreach ($deps as $dep) {
+            $arbol[$dep->id] = [
+                'id' => $dep->id, 'ubigeo' => $dep->ubigeo, 'nombre' => $dep->departamento,
+                'candidatos' => 0, 'regionales' => (int) ($porRegion[$dep->id] ?? 0), 'provincias' => [],
+            ];
+            $arbol[$dep->id]['candidatos'] += $arbol[$dep->id]['regionales'];
+        }
+        foreach ($provincias as $prov) {
+            $n = (int) ($porProvincia[$prov->id] ?? 0);
+            $arbol[$prov->departamento_id]['provincias'][$prov->id] = [
+                'id' => $prov->id, 'ubigeo' => $prov->ubigeo, 'nombre' => $prov->provincia,
+                'candidatos' => $n, 'provinciales' => $n, 'distritos' => [],
+            ];
+            $arbol[$prov->departamento_id]['candidatos'] += $n;
+        }
         foreach ($distritos as $d) {
             $n = (int) $porDistrito[$d->id];
-
-            $dep = &$arbol[$d->departamento_id];
-            $dep ??= [
-                'id' => $d->departamento->id, 'ubigeo' => $d->departamento->ubigeo,
-                'nombre' => $d->departamento->departamento, 'candidatos' => 0, 'provincias' => [],
-            ];
-            $dep['candidatos'] += $n;
-
-            $prov = &$dep['provincias'][$d->provincia_id];
-            $prov ??= [
-                'id' => $d->provincia->id, 'ubigeo' => $d->provincia->ubigeo,
-                'nombre' => $d->provincia->provincia, 'candidatos' => 0, 'distritos' => [],
-            ];
-            $prov['candidatos'] += $n;
-
-            $prov['distritos'][] = [
+            $arbol[$d->departamento_id]['provincias'][$d->provincia_id]['distritos'][] = [
                 'id' => $d->id, 'ubigeo' => $d->ubigeo, 'nombre' => $d->distrito, 'candidatos' => $n,
             ];
-            unset($dep, $prov);
+            $arbol[$d->departamento_id]['provincias'][$d->provincia_id]['candidatos'] += $n;
+            $arbol[$d->departamento_id]['candidatos'] += $n;
         }
 
         // Índices numéricos + orden alfabético estable para el frontend.
@@ -86,11 +96,16 @@ class DirectorioController extends Controller
 
         return response()->json([
             'departamentos'    => $departamentos,
-            'total_candidatos' => (int) $porDistrito->sum(),
+            'total_candidatos' => $visibles->count(),
             'total_distritos'  => $porDistrito->count(),
         ]);
     }
 
+    /**
+     * Candidatos por los que vota quien vive en un lugar: los del propio nivel y
+     * los de los niveles de arriba (el distrito ve también a su alcalde
+     * provincial y a su gobernador regional).
+     */
     public function candidatos(Request $request): JsonResponse
     {
         $filtros = $request->validate([
@@ -106,13 +121,20 @@ class DirectorioController extends Controller
             ->orderBy('name');
 
         if (! empty($filtros['distrito_id'])) {
-            $query->where('distrito_id', $filtros['distrito_id']);
-        }
-        if (! empty($filtros['provincia_id'])) {
-            $query->whereHas('distrito', fn (Builder $d) => $d->where('provincia_id', $filtros['provincia_id']));
-        }
-        if (! empty($filtros['departamento_id'])) {
-            $query->whereHas('distrito', fn (Builder $d) => $d->where('departamento_id', $filtros['departamento_id']));
+            $d = UbigeoDistrito::query()->find($filtros['distrito_id'], ['id', 'provincia_id', 'departamento_id']);
+            $query->where(fn (Builder $q) => $q
+                ->where('distrito_id', $filtros['distrito_id'])
+                ->when($d, fn (Builder $q) => $q
+                    ->orWhere(fn (Builder $q) => $q->whereNull('distrito_id')->where('provincia_id', $d->provincia_id))
+                    ->orWhere(fn (Builder $q) => $q->whereNull('provincia_id')->where('departamento_id', $d->departamento_id))));
+        } elseif (! empty($filtros['provincia_id'])) {
+            $p = UbigeoProvincia::query()->find($filtros['provincia_id'], ['id', 'departamento_id']);
+            $query->where(fn (Builder $q) => $q
+                ->where('provincia_id', $filtros['provincia_id'])
+                ->when($p, fn (Builder $q) => $q
+                    ->orWhere(fn (Builder $q) => $q->whereNull('provincia_id')->where('departamento_id', $p->departamento_id))));
+        } elseif (! empty($filtros['departamento_id'])) {
+            $query->where('departamento_id', $filtros['departamento_id']);
         }
 
         return response()->json([
@@ -221,6 +243,7 @@ class DirectorioController extends Controller
                 'departamento' => $c->distrito->departamento?->departamento,
             ] : null,
             'documentos_count' => (int) ($c->documentos_count ?? 0),
+            'ambito'      => $c->ambito,   // regional | provincial | distrital
             // Distintivo "Perfil completado por el candidato". Nunca afecta el orden
             // del listado ni el trato de la IA (neutralidad).
             'perfil_completado' => $c->tipo_cuenta === 'cliente_pago',

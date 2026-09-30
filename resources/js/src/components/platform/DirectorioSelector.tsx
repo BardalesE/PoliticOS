@@ -45,7 +45,27 @@ const initials = (name: string) =>
 /** "Cajamarca" == "cajamarca", "Chepén" == "chepen". */
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
-interface Lugar { dep: DepartamentoDisp; prov: ProvinciaDisp; dist: DistritoDisp; haystack: string }
+/**
+ * Un lugar elegible: un distrito, o una provincia/región que tiene candidatos
+ * de su propio nivel (alcalde provincial, gobernador regional).
+ */
+interface Lugar {
+  key: string;
+  nivel: "region" | "provincia" | "distrito";
+  dep: DepartamentoDisp;
+  prov: ProvinciaDisp | null;
+  dist: DistritoDisp | null;
+  titulo: string;
+  subtitulo: string;
+  count: number;
+  haystack: string;
+}
+
+const NIVEL_TITULO: Record<string, string> = {
+  regional: "Gobierno regional",
+  provincial: "Municipalidad provincial",
+  distrital: "Municipalidad distrital",
+};
 
 function PedirTuLugar({ compact = false }: { compact?: boolean }) {
   if (!WHATSAPP) return null;
@@ -85,16 +105,14 @@ function LugarCard({ l, active, onPick }: { l: Lugar; active: boolean; onPick: (
           <MapPin size={20} style={active ? undefined : { color: PRIMARY }} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[15px] font-bold leading-snug">{prettyPlace(l.dist.nombre)}</span>
-          <span className={`block truncate text-[12px] ${active ? "text-white/80" : "text-ink-500"}`}>
-            {prettyPlace(l.prov.nombre)} · {prettyPlace(l.dep.nombre)}
-          </span>
+          <span className="block truncate text-[15px] font-bold leading-snug">{l.titulo}</span>
+          <span className={`block truncate text-[12px] ${active ? "text-white/80" : "text-ink-500"}`}>{l.subtitulo}</span>
         </span>
         <span
           className={`shrink-0 rounded-full px-2.5 py-1 text-[12px] font-bold ${active ? "bg-white" : "text-white"}`}
           style={active ? { color: PRIMARY } : { background: PRIMARY }}
         >
-          {l.dist.candidatos}
+          {l.count}
         </span>
       </button>
     </li>
@@ -162,25 +180,50 @@ function CandidatoCard({ c }: { c: CandidatoResumen }) {
 export function DirectorioSelector({ ubicaciones }: { ubicaciones: Ubicaciones | null }) {
   const deps: DepartamentoDisp[] = useMemo(() => ubicaciones?.departamentos ?? [], [ubicaciones]);
 
-  // Todos los distritos habilitados, aplanados y con texto normalizado para buscar.
+  // Lugares elegibles aplanados: regiones y provincias con candidatos propios
+  // (gobernador, alcalde provincial) y distritos. Cada distrito cuenta también
+  // a los candidatos de su provincia y región: son los que ese vecino elige.
   const lugares: Lugar[] = useMemo(
     () =>
-      deps.flatMap((dep) =>
-        dep.provincias.flatMap((prov) =>
-          prov.distritos.map((dist) => ({
-            dep, prov, dist,
-            haystack: norm(`${dist.nombre} ${prov.nombre} ${dep.nombre}`),
-          })),
-        ),
-      ),
+      deps.flatMap((dep) => {
+        const out: Lugar[] = [];
+        const reg = dep.regionales ?? 0;
+        if (reg > 0) {
+          out.push({
+            key: `r${dep.id}`, nivel: "region", dep, prov: null, dist: null,
+            titulo: `Región ${prettyPlace(dep.nombre)}`, subtitulo: "Gobierno regional", count: reg,
+            haystack: norm(`region ${dep.nombre} gobierno regional gobernador`),
+          });
+        }
+        for (const prov of dep.provincias) {
+          const pv = prov.provinciales ?? 0;
+          if (pv > 0) {
+            out.push({
+              key: `p${prov.id}`, nivel: "provincia", dep, prov, dist: null,
+              titulo: `Provincia de ${prettyPlace(prov.nombre)}`, subtitulo: `Municipalidad provincial · ${prettyPlace(dep.nombre)}`,
+              count: pv + reg,
+              haystack: norm(`provincia ${prov.nombre} ${dep.nombre}`),
+            });
+          }
+          for (const dist of prov.distritos) {
+            out.push({
+              key: `d${dist.id}`, nivel: "distrito", dep, prov, dist,
+              titulo: prettyPlace(dist.nombre), subtitulo: `${prettyPlace(prov.nombre)} · ${prettyPlace(dep.nombre)}`,
+              count: dist.candidatos + pv + reg,
+              haystack: norm(`${dist.nombre} ${prov.nombre} ${dep.nombre}`),
+            });
+          }
+        }
+        return out;
+      }),
     [deps],
   );
 
-  // Un solo distrito habilitado → preseleccionado (evita el panel vacío).
+  // Un solo lugar habilitado → preseleccionado (evita el panel vacío).
   const only = lugares.length === 1 ? lugares[0] : null;
   const [depId, setDepId]   = useState<number | null>(only?.dep.id ?? null);
-  const [provId, setProvId] = useState<number | null>(only?.prov.id ?? null);
-  const [distId, setDistId] = useState<number | null>(only?.dist.id ?? null);
+  const [provId, setProvId] = useState<number | null>(only?.prov?.id ?? null);
+  const [distId, setDistId] = useState<number | null>(only?.dist?.id ?? null);
   const [query, setQuery]   = useState("");
 
   const [candidatos, setCandidatos] = useState<CandidatoResumen[] | null>(null);
@@ -198,7 +241,7 @@ export function DirectorioSelector({ ubicaciones }: { ubicaciones: Ubicaciones |
   );
 
   function pickLugar(l: Lugar) {
-    setDepId(l.dep.id); setProvId(l.prov.id); setDistId(l.dist.id);
+    setDepId(l.dep.id); setProvId(l.prov?.id ?? null); setDistId(l.dist?.id ?? null);
     // En móvil la lista queda debajo: la traemos a la vista.
     if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) {
       requestAnimationFrame(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -229,6 +272,7 @@ export function DirectorioSelector({ ubicaciones }: { ubicaciones: Ubicaciones |
     : depId  ? { departamento_id: depId }
     : null;
   const filtroKey = filtro ? JSON.stringify(filtro) : "";
+  const selKey = distId ? `d${distId}` : provId ? `p${provId}` : depId ? `r${depId}` : "";
 
   useEffect(() => {
     if (!filtro) { setCandidatos(null); setFailed(false); return; }
@@ -245,9 +289,17 @@ export function DirectorioSelector({ ubicaciones }: { ubicaciones: Ubicaciones |
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtroKey]);
 
+  // Del cargo más amplio al más local: región → provincia → distrito.
+  const grupos = useMemo(() => {
+    const orden = ["regional", "provincial", "distrital"] as const;
+    return orden
+      .map((nivel) => ({ nivel, items: (candidatos ?? []).filter((c) => (c.ambito ?? "distrital") === nivel) }))
+      .filter((g) => g.items.length > 0);
+  }, [candidatos]);
+
   const lugarLabel = [
     distId ? prov?.distritos.find((x) => x.id === distId)?.nombre : null,
-    prov && (dep?.provincias.length ?? 0) > 1 && !distId ? prov.nombre : null,
+    prov && !distId ? `provincia de ${prov.nombre}` : null,
     dep?.nombre,
   ].filter((n): n is string => !!n).map(prettyPlace).join(", ");
 
@@ -322,7 +374,7 @@ export function DirectorioSelector({ ubicaciones }: { ubicaciones: Ubicaciones |
                 {visibles.length > 0 ? (
                   <ul className="space-y-2">
                     {visibles.map((l) => (
-                      <LugarCard key={l.dist.id} l={l} active={distId === l.dist.id} onPick={() => pickLugar(l)} />
+                      <LugarCard key={l.key} l={l} active={selKey === l.key} onPick={() => pickLugar(l)} />
                     ))}
                   </ul>
                 ) : (
@@ -355,7 +407,7 @@ export function DirectorioSelector({ ubicaciones }: { ubicaciones: Ubicaciones |
                   </div>
                   <div>
                     <label htmlFor="sel-dist" className="mb-1 block text-[12px] font-bold uppercase tracking-wider text-ink-500">Distrito</label>
-                    <select id="sel-dist" className={selectCls} disabled={!prov} value={distId ?? ""} onChange={(e) => setDistId(e.target.value ? Number(e.target.value) : null)}>
+                    <select id="sel-dist" className={selectCls} disabled={!prov || prov.distritos.length === 0} value={distId ?? ""} onChange={(e) => setDistId(e.target.value ? Number(e.target.value) : null)}>
                       <option value="">{prov ? "Todos los distritos" : "Elige una provincia"}</option>
                       {prov?.distritos.map((x) => <option key={x.id} value={x.id}>{prettyPlace(x.nombre)} ({x.candidatos})</option>)}
                     </select>
@@ -395,9 +447,16 @@ export function DirectorioSelector({ ubicaciones }: { ubicaciones: Ubicaciones |
                   <h3 className="mb-3 text-[20px] font-bold leading-tight text-ink-800">
                     {candidatos?.length ?? 0} {candidatos?.length === 1 ? "candidato" : "candidatos"} en {lugarLabel}
                   </h3>
-                  <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                    {candidatos?.map((c) => <CandidatoCard key={c.id} c={c} />)}
-                  </ul>
+                  {grupos.map((g) => (
+                    <div key={g.nivel} className="mb-5 last:mb-0">
+                      {grupos.length > 1 && (
+                        <p className="mb-2 text-[12px] font-bold uppercase tracking-wider text-ink-500">{NIVEL_TITULO[g.nivel]}</p>
+                      )}
+                      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                        {g.items.map((c) => <CandidatoCard key={c.id} c={c} />)}
+                      </ul>
+                    </div>
+                  ))}
                 </>
               )}
             </div>

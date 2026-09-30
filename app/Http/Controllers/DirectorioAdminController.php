@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\CandidateProfile;
 use App\Models\CandidatoRegidor;
 use App\Models\KnowledgeDocument;
+use App\Models\UbigeoDepartamento;
 use App\Models\UbigeoDistrito;
+use App\Models\UbigeoProvincia;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -61,6 +63,7 @@ class DirectorioAdminController extends Controller
         $rows = CandidateProfile::query()
             ->with([
                 'distrito.provincia:id,provincia', 'distrito.departamento:id,departamento',
+                'departamento:id,departamento', 'provincia:id,provincia',
                 // Documentos para la tabla del admin (sin `content`: el texto del RAG pesa).
                 'documents' => fn ($d) => $d->select(self::DOC_COLUMNS)->orderBy('created_at'),
             ])
@@ -77,8 +80,9 @@ class DirectorioAdminController extends Controller
         $rows = $rows
             ->map(fn (CandidateProfile $c) => $this->fila($c))
             // Departamento › provincia › distrito › nombre. Sin distrito, al final.
+            // Regionales primero en su departamento, luego provinciales, luego distritales.
             ->sortBy(fn (array $r) => [
-                $r['distrito_id'] ? 0 : 1,
+                $r['departamento'] ? 0 : 1,
                 mb_strtolower((string) $r['departamento']),
                 mb_strtolower((string) $r['provincia']),
                 mb_strtolower((string) $r['distrito']),
@@ -91,18 +95,21 @@ class DirectorioAdminController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $data = $this->validated($request, creating: true);
-        $distrito = UbigeoDistrito::with(['provincia', 'departamento'])->findOrFail($data['distrito_id']);
+        $data  = $this->validated($request, creating: true);
+        $lugar = $this->resolverLugar($data);
+        if (! $lugar) {
+            return response()->json(['message' => 'Elige al menos el departamento.', 'errors' => ['departamento_id' => ['Elige al menos el departamento.']]], 422);
+        }
 
-        $profile = CandidateProfile::create($data + [
-            'location'           => $this->ubicacion($distrito),
-            'slug'               => $this->uniqueSlug($data['name'], $distrito),
+        $profile = CandidateProfile::create(array_merge($data, $lugar['ids'], [
+            'location'           => $lugar['location'],
+            'slug'               => $this->uniqueSlug($data['name'], $lugar['slug']),
             'estado_publicacion' => 'borrador',
             'tipo_cuenta'        => 'publico_gratuito',
             'is_active'          => false,
-        ]);
+        ]));
 
-        return response()->json($this->fila($profile->load('distrito.provincia', 'distrito.departamento')), 201);
+        return response()->json($this->fila($this->recargar($profile)), 201);
     }
 
     public function update(Request $request, int $id): JsonResponse
@@ -110,20 +117,18 @@ class DirectorioAdminController extends Controller
         $profile = CandidateProfile::findOrFail($id);
         $data    = $this->validated($request, creating: false);
 
-        if (isset($data['distrito_id'])) {
-            $distrito = UbigeoDistrito::with(['provincia', 'departamento'])->findOrFail($data['distrito_id']);
-            $data['location'] = $this->ubicacion($distrito);
-            // Un perfil existente sin URL (p. ej. candidato de un tenant que se
-            // reutiliza como directorio) obtiene su slug al asignarle distrito.
-            // Si ya tiene, NO se cambia: la URL pública debe ser estable.
+        $tocaLugar = array_key_exists('distrito_id', $data) || array_key_exists('provincia_id', $data) || array_key_exists('departamento_id', $data);
+        if ($tocaLugar && ($lugar = $this->resolverLugar($data))) {
+            $data = array_merge($data, $lugar['ids'], ['location' => $lugar['location']]);
+            // La URL pública es estable: solo se crea si el perfil aún no tiene.
             if (! $profile->slug) {
-                $data['slug'] = $this->uniqueSlug($data['name'] ?? $profile->name, $distrito);
+                $data['slug'] = $this->uniqueSlug($data['name'] ?? $profile->name, $lugar['slug']);
             }
         }
 
         $profile->update($data);
 
-        return response()->json($this->fila($profile->fresh()->load('distrito.provincia', 'distrito.departamento')));
+        return response()->json($this->fila($this->recargar($profile)));
     }
 
     public function publicar(int $id): JsonResponse
@@ -131,11 +136,11 @@ class DirectorioAdminController extends Controller
         $profile = CandidateProfile::findOrFail($id);
 
         $faltan = [];
-        if (! $profile->distrito_id) {
-            $faltan[] = 'un distrito';
+        if (! $profile->departamento_id && ! $profile->distrito_id) {
+            $faltan[] = 'una ubicación (al menos el departamento)';
         }
         if (! $profile->slug) {
-            $faltan[] = 'una URL pública (asígnale distrito)';
+            $faltan[] = 'una URL pública (asígnale ubicación)';
         }
         $listos = $profile->documents()->where('is_active', true)->where('status', 'ready')->count();
         if ($listos === 0) {
@@ -151,7 +156,7 @@ class DirectorioAdminController extends Controller
 
         $profile->update(['estado_publicacion' => 'publicado']);
 
-        return response()->json($this->fila($profile->fresh()->load('distrito.provincia', 'distrito.departamento')));
+        return response()->json($this->fila($this->recargar($profile)));
     }
 
     public function despublicar(int $id): JsonResponse
@@ -159,7 +164,7 @@ class DirectorioAdminController extends Controller
         $profile = CandidateProfile::findOrFail($id);
         $profile->update(['estado_publicacion' => 'borrador']);
 
-        return response()->json($this->fila($profile->fresh()->load('distrito.provincia', 'distrito.departamento')));
+        return response()->json($this->fila($this->recargar($profile)));
     }
 
     public function destroy(int $id): JsonResponse
@@ -266,7 +271,10 @@ class DirectorioAdminController extends Controller
 
     private function recargar(CandidateProfile $c): CandidateProfile
     {
-        return $c->fresh()->load('distrito.provincia', 'distrito.departamento', 'regidores');
+        $c = $c->fresh()->load('distrito.provincia', 'distrito.departamento', 'departamento:id,departamento', 'provincia:id,provincia');
+        $this->cargarRegidores(new \Illuminate\Database\Eloquent\Collection([$c]));
+
+        return $c;
     }
 
     /**
@@ -311,7 +319,11 @@ class DirectorioAdminController extends Controller
             'name'          => [$req, 'string', 'max:150'],
             'title'         => [$req, 'string', 'max:200'],   // cargo: "Candidato a Alcalde…"
             'party'         => [$req, 'string', 'max:100'],
-            'distrito_id'   => [$req, 'integer', 'exists:ubigeo_distritos,id'],
+            // Ubicación según el cargo: basta el departamento (regional), o
+            // departamento+provincia (provincial), o el distrito (distrital).
+            'departamento_id' => ['nullable', 'integer', 'exists:ubigeo_departamentos,id'],
+            'provincia_id'    => ['nullable', 'integer', 'exists:ubigeo_provincias,id'],
+            'distrito_id'     => [$creating ? 'required_without_all:departamento_id,provincia_id' : 'sometimes', 'nullable', 'integer', 'exists:ubigeo_distritos,id'],
             'list_number'   => ['nullable', 'string', 'max:10'],
             'bio'           => ['nullable', 'string', 'max:5000'],
             'tagline'       => ['nullable', 'string', 'max:300'],
@@ -326,11 +338,45 @@ class DirectorioAdminController extends Controller
         ]);
     }
 
-    private function ubicacion(UbigeoDistrito $d): string
+    /**
+     * Ubicación más específica enviada → ids coherentes de los tres niveles,
+     * texto de ubicación y nombre para el slug. null si no llegó ninguna.
+     *
+     * @return array{ids: array{departamento_id:int|null, provincia_id:int|null, distrito_id:int|null}, location: string, slug: string}|null
+     */
+    private function resolverLugar(array $data): ?array
     {
-        return implode(', ', array_map($this->pretty(...), [
-            $d->distrito, $d->provincia->provincia, $d->departamento->departamento,
-        ]));
+        if (! empty($data['distrito_id'])) {
+            $d = UbigeoDistrito::with(['provincia', 'departamento'])->findOrFail($data['distrito_id']);
+            return [
+                'ids'      => ['departamento_id' => $d->departamento_id, 'provincia_id' => $d->provincia_id, 'distrito_id' => $d->id],
+                'location' => $this->unir([$d->distrito, $d->provincia->provincia, $d->departamento->departamento]),
+                'slug'     => $d->distrito,
+            ];
+        }
+        if (! empty($data['provincia_id'])) {
+            $p = UbigeoProvincia::with('departamento')->findOrFail($data['provincia_id']);
+            return [
+                'ids'      => ['departamento_id' => $p->departamento_id, 'provincia_id' => $p->id, 'distrito_id' => null],
+                'location' => $this->unir([$p->provincia, $p->departamento->departamento]),
+                'slug'     => $p->provincia,
+            ];
+        }
+        if (! empty($data['departamento_id'])) {
+            $dep = UbigeoDepartamento::findOrFail($data['departamento_id']);
+            return [
+                'ids'      => ['departamento_id' => $dep->id, 'provincia_id' => null, 'distrito_id' => null],
+                'location' => $this->unir([$dep->departamento]),
+                'slug'     => $dep->departamento,
+            ];
+        }
+
+        return null;
+    }
+
+    private function unir(array $nombres): string
+    {
+        return implode(', ', array_map($this->pretty(...), $nombres));
     }
 
     /** El INEI entrega los nombres en MAYÚSCULAS: "SAN SILVESTRE DE COCHAN" → "San Silvestre de Cochan". */
@@ -347,9 +393,9 @@ class DirectorioAdminController extends Controller
     }
 
     /** Slug único: "juan-perez-san-gregorio", "-2", "-3"… */
-    private function uniqueSlug(string $name, UbigeoDistrito $distrito): string
+    private function uniqueSlug(string $name, string $lugar): string
     {
-        $base = Str::slug("{$name} {$distrito->distrito}");
+        $base = Str::slug("{$name} {$lugar}");
         $slug = $base;
         $i    = 2;
 
@@ -385,11 +431,12 @@ class DirectorioAdminController extends Controller
             'instagram_url'      => $c->instagram_url,
             'location'           => $c->location,
             'distrito_id'        => $c->distrito_id,
-            'departamento_id'    => $c->distrito?->departamento_id,
-            'provincia_id'       => $c->distrito?->provincia_id,
-            'departamento'       => $c->distrito?->departamento?->departamento,
-            'provincia'          => $c->distrito?->provincia?->provincia,
+            'departamento_id'    => $c->departamento_id ?? $c->distrito?->departamento_id,
+            'provincia_id'       => $c->provincia_id ?? $c->distrito?->provincia_id,
+            'departamento'       => $c->departamento?->departamento ?? $c->distrito?->departamento?->departamento,
+            'provincia'          => $c->provincia?->provincia ?? $c->distrito?->provincia?->provincia,
             'distrito'           => $c->distrito?->distrito,
+            'ambito'             => $c->ambito,
             'regidores'          => $this->regidoresDe($c),
             'documentos'         => ($c->relationLoaded('documents') ? $c->documents : $c->documents()->select(self::DOC_COLUMNS)->orderBy('created_at')->get())
                 ->map(fn ($d) => [
@@ -410,7 +457,7 @@ class DirectorioAdminController extends Controller
             'documentos_procesando' => (int) $procesando,
             'documentos_fallidos'   => (int) $fallidos,
             // Visible al público = publicado + slug + distrito + ≥1 documento listo
-            'visible'            => $c->estado_publicacion === 'publicado' && $c->slug && $c->distrito_id && $listos > 0,
+            'visible'            => $c->estado_publicacion === 'publicado' && $c->slug && ($c->departamento_id || $c->distrito_id) && $listos > 0,
         ];
     }
 }

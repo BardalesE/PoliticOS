@@ -29,7 +29,7 @@ function estadoDe(c: AdminCandidato) {
   if (c.estado_publicacion === "publicado") {
     return {
       t: "Oculto",
-      largo: !c.distrito_id ? "Publicado, pero oculto: falta distrito" : "Publicado, pero oculto: falta un documento listo",
+      largo: !c.departamento_id ? "Publicado, pero oculto: falta ubicación" : "Publicado, pero oculto: falta un documento listo",
       cls: "bg-amber-50 text-amber-700 ring-amber-200",
     };
   }
@@ -129,7 +129,7 @@ export function CandidatosTabla({
   const grupos = useMemo(() => {
     const out: { key: string; dep: string | null; prov: string | null; dist: string | null; items: AdminCandidato[] }[] = [];
     for (const r of filtradas) {
-      const key = r.distrito_id ? `${r.departamento}|${r.provincia}|${r.distrito}` : "sin-lugar";
+      const key = !r.departamento ? "sin-lugar" : `${r.departamento}|${r.provincia ?? ""}|${r.distrito ?? ""}`;
       const last = out[out.length - 1];
       if (last && last.key === key) last.items.push(r);
       else out.push({ key, dep: r.departamento, prov: r.provincia, dist: r.distrito, items: [r] });
@@ -198,15 +198,21 @@ export function CandidatosTabla({
         <p className="px-5 py-14 text-center text-sm text-gray-400">Ningún candidato coincide con los filtros.</p>
       ) : (
         grupos.map((g) => (
-          <section key={g.key} aria-label={g.dist ? prettyPlace(g.dist) : "Sin distrito"}>
+          <section key={g.key} aria-label={g.dist ? prettyPlace(g.dist) : g.prov ? `Provincia de ${prettyPlace(g.prov)}` : g.dep ? `Región ${prettyPlace(g.dep)}` : "Sin ubicación"}>
             <div className="sticky top-0 z-[1] flex flex-wrap items-center gap-x-2 gap-y-0.5 border-y border-gray-100 bg-white/95 px-4 py-2 backdrop-blur">
               <MapPin size={13} className="text-brand-500" aria-hidden />
               {g.dist ? (
                 <p className="text-xs text-gray-500">
                   {prettyPlace(g.dep ?? "")} › {prettyPlace(g.prov ?? "")} › <span className="font-bold text-gray-900">{prettyPlace(g.dist)}</span>
                 </p>
+              ) : g.prov ? (
+                <p className="text-xs text-gray-500">
+                  {prettyPlace(g.dep ?? "")} › <span className="font-bold text-gray-900">Provincia de {prettyPlace(g.prov)}</span>
+                </p>
+              ) : g.dep ? (
+                <p className="text-xs font-bold text-gray-900">Región {prettyPlace(g.dep)} <span className="font-normal text-gray-500">· cargos regionales</span></p>
               ) : (
-                <p className="text-xs font-bold text-amber-700">Sin distrito asignado</p>
+                <p className="text-xs font-bold text-amber-700">Sin ubicación asignada</p>
               )}
               <span className="text-[11px] text-gray-400">
                 · {g.items.length} {g.items.length === 1 ? "candidato" : "candidatos"} · {g.items.filter((c) => c.visible).length} visibles

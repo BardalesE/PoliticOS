@@ -4,7 +4,7 @@ import { AlertCircle, Camera, CheckCircle2, ChevronDown, Link2, Loader2, MapPin,
 import { useAuth } from "@/context/AuthContext";
 import { normalizeApiBase, tenantHeaders } from "@/lib/api";
 import {
-  directorioAdmin, ubigeoApi, prettyPlace,
+  directorioAdmin, ubigeoApi, prettyPlace, nivelDeCargo,
   type AdminCandidato, type UbigeoItem,
 } from "@/lib/directorio";
 import { cn } from "@/lib/utils";
@@ -188,6 +188,7 @@ export default function DirectorioAdminPage() {
 
   async function startEdit(c: AdminCandidato) {
     setEditing(c);
+    setDepId(""); setProvId(""); setDistId(""); setProvs([]); setDists([]);
     setForm({
       name: c.name, title: c.title, party: c.party, list_number: c.list_number ?? "", photo_url: c.photo_url ?? "", logo_url: c.logo_url ?? "",
       tagline: c.tagline ?? "", bio: c.bio ?? "", facebook_url: c.facebook_url ?? "",
@@ -207,9 +208,13 @@ export default function DirectorioAdminPage() {
     requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
+  // El cargo decide hasta qué nivel se pide la ubicación.
+  const nivel = nivelDeCargo(form.title);
+  const lugarCompleto = !!depId && (nivel === "regional" || !!provId) && (nivel !== "distrital" || !!distId);
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (!token || !distId) return;
+    if (!token || !lugarCompleto) return;
     setSaving(true); setMsg(null);
     const nullIfEmpty = (v: string) => (v.trim() === "" ? null : v.trim());
     // "facebook.com/juan" o "@juan" en TikTok/Instagram → URL completa; el API exige URL válida.
@@ -221,7 +226,10 @@ export default function DirectorioAdminPage() {
       return `https://${t.replace(/^\/+/, "")}`;
     };
     const payload = {
-      name: form.name.trim(), title: form.title.trim(), party: form.party.trim(), distrito_id: Number(distId),
+      name: form.name.trim(), title: form.title.trim(), party: form.party.trim(),
+      departamento_id: Number(depId),
+      provincia_id: nivel !== "regional" && provId ? Number(provId) : null,
+      distrito_id: nivel === "distrital" && distId ? Number(distId) : null,
       list_number: nullIfEmpty(form.list_number), photo_url: nullIfEmpty(form.photo_url), logo_url: nullIfEmpty(form.logo_url),
       tagline: nullIfEmpty(form.tagline), bio: nullIfEmpty(form.bio),
       facebook_url: redUrl(form.facebook_url, "https://www.facebook.com/"),
@@ -309,14 +317,25 @@ export default function DirectorioAdminPage() {
               <option value="">Departamento…</option>
               {deps.map((d) => <option key={d.id} value={d.id}>{prettyPlace(d.nombre)}</option>)}
             </select>
-            <select required className={inputCls} value={provId} disabled={!depId} onChange={(e) => pickProv(e.target.value)} aria-label="Provincia">
-              <option value="">Provincia…</option>
-              {provs.map((p) => <option key={p.id} value={p.id}>{prettyPlace(p.nombre)}</option>)}
-            </select>
-            <select required className={inputCls} value={distId} disabled={!provId} onChange={(e) => setDistId(e.target.value)} aria-label="Distrito">
-              <option value="">Distrito…</option>
-              {dists.map((d) => <option key={d.id} value={d.id}>{prettyPlace(d.nombre)}</option>)}
-            </select>
+            {nivel !== "regional" && (
+              <select required className={inputCls} value={provId} disabled={!depId} onChange={(e) => pickProv(e.target.value)} aria-label="Provincia">
+                <option value="">Provincia…</option>
+                {provs.map((p) => <option key={p.id} value={p.id}>{prettyPlace(p.nombre)}</option>)}
+              </select>
+            )}
+            {nivel === "distrital" && (
+              <select required className={inputCls} value={distId} disabled={!provId} onChange={(e) => setDistId(e.target.value)} aria-label="Distrito">
+                <option value="">Distrito…</option>
+                {dists.map((d) => <option key={d.id} value={d.id}>{prettyPlace(d.nombre)}</option>)}
+              </select>
+            )}
+            <p className="text-[11px] text-gray-500 sm:col-span-3">
+              {nivel === "regional"
+                ? "Cargo regional: basta el departamento. Aparecerá para quien vote en cualquier distrito de la región."
+                : nivel === "provincial"
+                ? "Cargo provincial: departamento y provincia. Aparecerá en todos los distritos de la provincia."
+                : "Cargo distrital: elige el distrito."}
+            </p>
           </fieldset>
 
           <PhotoField value={form.photo_url} onChange={(url) => setForm((f) => ({ ...f, photo_url: url }))} token={token} />
@@ -348,7 +367,7 @@ export default function DirectorioAdminPage() {
             </span>
           </label>
 
-          <button type="submit" disabled={saving || !distId} className="inline-flex w-full items-center md:col-span-2 justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3 text-sm font-bold text-white disabled:opacity-40">
+          <button type="submit" disabled={saving || !lugarCompleto} className="inline-flex w-full items-center md:col-span-2 justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3 text-sm font-bold text-white disabled:opacity-40">
             {saving && <Loader2 size={15} className="animate-spin" />}
             {editing ? "Guardar cambios" : "Crear candidato (borrador)"}
           </button>

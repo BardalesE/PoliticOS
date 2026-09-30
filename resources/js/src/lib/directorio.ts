@@ -17,8 +17,10 @@ export const DIRECTORY_TENANT = process.env.NEXT_PUBLIC_DIRECTORY_TENANT ?? "";
 // ─── Tipos (contrato de /api/directorio/*) ─────────────────────────────
 
 export interface DistritoDisp  { id: number; ubigeo: string; nombre: string; candidatos: number }
-export interface ProvinciaDisp { id: number; ubigeo: string; nombre: string; candidatos: number; distritos: DistritoDisp[] }
-export interface DepartamentoDisp { id: number; ubigeo: string; nombre: string; candidatos: number; provincias: ProvinciaDisp[] }
+/** `provinciales`: candidatos de cargos provinciales (sin distrito). */
+export interface ProvinciaDisp { id: number; ubigeo: string; nombre: string; candidatos: number; provinciales?: number; distritos: DistritoDisp[] }
+/** `regionales`: candidatos de cargos regionales (gobernador, consejero…). */
+export interface DepartamentoDisp { id: number; ubigeo: string; nombre: string; candidatos: number; regionales?: number; provincias: ProvinciaDisp[] }
 
 export interface Ubicaciones {
   departamentos: DepartamentoDisp[];
@@ -39,6 +41,7 @@ export interface CandidatoResumen {
   distrito: { id: number; nombre: string; provincia: string | null; departamento: string | null } | null;
   documentos_count: number;
   perfil_completado?: boolean;
+  ambito?: Ambito | null;
 }
 
 export interface DocumentoPublico {
@@ -156,6 +159,7 @@ export interface AdminCandidato {
   departamento: string | null;
   provincia: string | null;
   distrito: string | null;
+  ambito?: Ambito | null;
   documentos: AdminDocumento[];
   regidores?: AdminRegidor[];
 }
@@ -180,11 +184,23 @@ export interface AdminDocumento {
   is_active: boolean;
 }
 
+export type Ambito = "regional" | "provincial" | "distrital";
+
+/** Nivel del cargo: decide hasta dónde se pide la ubicación y a quién se le muestra. */
+export function nivelDeCargo(cargo: string): Ambito {
+  const c = cargo.toLowerCase();
+  if (c.includes("regional")) return "regional";      // gobernador, vicegobernador, consejero
+  if (c.includes("provincial")) return "provincial";
+  return "distrital";
+}
+
 export interface AdminCandidatoInput {
   name: string;
   title: string;
   party: string;
-  distrito_id: number;
+  departamento_id?: number | null;
+  provincia_id?: number | null;
+  distrito_id?: number | null;
   list_number?: string | null;
   bio?: string | null;
   tagline?: string | null;
