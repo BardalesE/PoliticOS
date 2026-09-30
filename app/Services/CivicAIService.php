@@ -1410,6 +1410,30 @@ class CivicAIService
         return $response->json('choices.0.message.content') ?? '';
     }
 
+    /**
+     * Prompt caching de Anthropic (costo, 2026-09-30): las instrucciones fijas (~4-5k
+     * tokens) se marcan como caché y el contexto del RAG, que cambia en cada pregunta,
+     * va aparte. Una lectura de caché cuesta ~10% del precio normal: en una conversación
+     * de varias preguntas seguidas casi todo el prompt sale a precio de caché.
+     * Si el bloque fijo no llega al mínimo cacheable del modelo, Anthropic lo ignora
+     * sin error (se cobra normal).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function claudeSystem(string $systemPrompt): array
+    {
+        $pos = mb_strpos($systemPrompt, "\n\n--- CONTEXTO DISPONIBLE PARA ESTA RESPUESTA ---");
+        $fijo     = $pos === false ? $systemPrompt : mb_substr($systemPrompt, 0, $pos);
+        $variable = $pos === false ? '' : mb_substr($systemPrompt, $pos);
+
+        $bloques = [['type' => 'text', 'text' => $fijo, 'cache_control' => ['type' => 'ephemeral']]];
+        if (trim($variable) !== '') {
+            $bloques[] = ['type' => 'text', 'text' => $variable];
+        }
+
+        return $bloques;
+    }
+
     private function callClaude(string $userMessage, string $systemPrompt, array $history): string
     {
         $messages = $history;
@@ -1426,7 +1450,7 @@ class CivicAIService
         ])->post('https://api.anthropic.com/v1/messages', [
             'model'      => $model,
             'max_tokens' => $this->effectiveMaxTokens(),
-            'system'     => $systemPrompt,
+            'system'     => $this->claudeSystem($systemPrompt),
             'messages'   => $messages,
         ]);
 
@@ -1581,7 +1605,7 @@ class CivicAIService
                 'body' => json_encode([
                     'model' => $model,
                     'max_tokens' => $this->effectiveMaxTokens(),
-                    'system' => $systemPrompt,
+                    'system' => $this->claudeSystem($systemPrompt),
                     'messages' => $messages,
                     'stream' => true,
                 ]),
@@ -1661,8 +1685,9 @@ class CivicAIService
         $message = "¡Un momento paisano, mi cerebrito digital necesita un pequeño descanso! ☕\n\n"
             . "Pero no te vas con las manos vacías — aquí tienes todo sobre {$first}:\n\n"
             . ($tagline ? "\"{$tagline}\"\n\n" : '')
-            . "PROPUESTAS PRINCIPALES:\n{$propLines}\n\n"
-            . "Vuelvo en un momento.";
+            // Sin propuestas cargadas no se muestra el título vacío (se veía "PROPUESTAS PRINCIPALES:" solo).
+            . (trim($propLines) !== '' ? "PROPUESTAS PRINCIPALES:\n{$propLines}\n\n" : '')
+            . "Vuelvo en un momento: intenta tu pregunta otra vez en un minuto.";
 
         return [
             'reply'           => $message,
