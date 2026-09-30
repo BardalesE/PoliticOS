@@ -212,12 +212,21 @@ export default function DirectorioAdminPage() {
     if (!token || !distId) return;
     setSaving(true); setMsg(null);
     const nullIfEmpty = (v: string) => (v.trim() === "" ? null : v.trim());
+    // "facebook.com/juan" o "@juan" en TikTok/Instagram → URL completa; el API exige URL válida.
+    const redUrl = (v: string, base: string) => {
+      const t = v.trim();
+      if (!t) return null;
+      if (/^https?:\/\//i.test(t)) return t;
+      if (t.startsWith("@")) return `${base}${base.includes("tiktok") ? t : t.slice(1)}`;
+      return `https://${t.replace(/^\/+/, "")}`;
+    };
     const payload = {
       name: form.name.trim(), title: form.title.trim(), party: form.party.trim(), distrito_id: Number(distId),
       list_number: nullIfEmpty(form.list_number), photo_url: nullIfEmpty(form.photo_url), logo_url: nullIfEmpty(form.logo_url),
       tagline: nullIfEmpty(form.tagline), bio: nullIfEmpty(form.bio),
-      facebook_url: nullIfEmpty(form.facebook_url), instagram_url: nullIfEmpty(form.instagram_url),
-      tiktok_url: nullIfEmpty(form.tiktok_url),
+      facebook_url: redUrl(form.facebook_url, "https://www.facebook.com/"),
+      instagram_url: redUrl(form.instagram_url, "https://www.instagram.com/"),
+      tiktok_url: redUrl(form.tiktok_url, "https://www.tiktok.com/"),
       tipo_cuenta: (form.completado ? "cliente_pago" : "publico_gratuito") as "cliente_pago" | "publico_gratuito",
     };
     try {
@@ -320,9 +329,9 @@ export default function DirectorioAdminPage() {
           <details className="rounded-xl bg-gray-50 p-3 md:col-span-2">
             <summary className="cursor-pointer text-xs font-semibold text-gray-600">Redes sociales (opcional)</summary>
             <div className="mt-3 space-y-3">
-              <Field label="Facebook"><input type="url" className={inputCls} value={form.facebook_url} onChange={set("facebook_url")} /></Field>
-              <Field label="Instagram"><input type="url" className={inputCls} value={form.instagram_url} onChange={set("instagram_url")} /></Field>
-              <Field label="TikTok"><input type="url" className={inputCls} value={form.tiktok_url} onChange={set("tiktok_url")} /></Field>
+              <Field label="Facebook"><input type="text" inputMode="url" className={inputCls} value={form.facebook_url} onChange={set("facebook_url")} placeholder="facebook.com/tu-pagina" /></Field>
+              <Field label="Instagram"><input type="text" inputMode="url" className={inputCls} value={form.instagram_url} onChange={set("instagram_url")} placeholder="@usuario o instagram.com/usuario" /></Field>
+              <Field label="TikTok"><input type="text" inputMode="url" className={inputCls} value={form.tiktok_url} onChange={set("tiktok_url")} placeholder="@usuario o tiktok.com/@usuario" /></Field>
             </div>
           </details>
 

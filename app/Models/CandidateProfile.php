@@ -63,6 +63,12 @@ class CandidateProfile extends Model
         return $this->hasMany(KnowledgeDocument::class, 'candidate_id');
     }
 
+    /** Regidores de su lista, en el orden de la plancha. */
+    public function regidores(): HasMany
+    {
+        return $this->hasMany(CandidatoRegidor::class, 'candidate_profile_id')->orderBy('orden')->orderBy('id');
+    }
+
     /**
      * Regla ÚNICA de visibilidad del directorio público: un candidato (y por
      * tanto su distrito) solo se muestra si está publicado, tiene URL propia y

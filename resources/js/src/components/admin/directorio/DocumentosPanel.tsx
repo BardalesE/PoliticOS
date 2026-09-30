@@ -238,7 +238,9 @@ function SubirDocumento({ candidato, token, onDone }: { candidato: AdminCandidat
 }
 
 export function DocumentosPanel({ candidato, token, onChanged }: { candidato: AdminCandidato; token: string; onChanged: () => void }) {
-  const docs = candidato.documentos ?? [];
+  // Las hojas de vida de los regidores se gestionan en su pestaña.
+  const deRegidores = new Set((candidato.regidores ?? []).map((r) => r.knowledge_document_id).filter(Boolean));
+  const docs = (candidato.documentos ?? []).filter((d) => !deRegidores.has(d.id));
   return (
     <div className="space-y-3 rounded-xl bg-gray-50 p-3 sm:p-4">
       {docs.length > 0 ? (

@@ -7,6 +7,7 @@ import {
 import { directorioAdmin, prettyPlace, type AdminCandidato } from "@/lib/directorio";
 import { cn } from "@/lib/utils";
 import { DocumentosPanel } from "./DocumentosPanel";
+import { RegidoresPanel } from "./RegidoresPanel";
 
 /**
  * Tabla del directorio agrupada por Departamento › Provincia › Distrito.
@@ -53,6 +54,29 @@ function Avatar({ c }: { c: AdminCandidato }) {
         <img src={c.logo_url} alt="" className="absolute -bottom-1 -right-1.5 h-5 w-5 rounded bg-white object-contain p-px ring-1 ring-gray-200" />
       )}
     </span>
+  );
+}
+
+/** Detalle expandido de una fila: documentos del candidato o su lista de regidores. */
+function PanelCandidato({ candidato, token, onChanged }: { candidato: AdminCandidato; token: string; onChanged: () => void }) {
+  const [tab, setTab] = useState<"docs" | "regidores">("docs");
+  const nReg = candidato.regidores?.length ?? 0;
+  const tabCls = (on: boolean) =>
+    cn("rounded-lg px-3 py-1.5 text-xs font-bold", on ? "bg-white text-gray-900 shadow-sm ring-1 ring-gray-200" : "text-gray-500 hover:text-gray-800");
+  return (
+    <div className="space-y-2">
+      <div className="inline-flex gap-1 rounded-xl bg-gray-100 p-1" role="tablist">
+        <button type="button" role="tab" aria-selected={tab === "docs"} className={tabCls(tab === "docs")} onClick={() => setTab("docs")}>
+          Documentos
+        </button>
+        <button type="button" role="tab" aria-selected={tab === "regidores"} className={tabCls(tab === "regidores")} onClick={() => setTab("regidores")}>
+          Regidores{nReg > 0 ? ` (${nReg})` : ""}
+        </button>
+      </div>
+      {tab === "docs"
+        ? <DocumentosPanel candidato={candidato} token={token} onChanged={onChanged} />
+        : <RegidoresPanel candidato={candidato} token={token} onChanged={onChanged} />}
+    </div>
   );
 }
 
@@ -263,7 +287,7 @@ export function CandidatosTabla({
                     </li>
                     {abierto && token && (
                       <li className="bg-brand-500/5 px-4 pb-4">
-                        <DocumentosPanel candidato={c} token={token} onChanged={onChanged} />
+                        <PanelCandidato candidato={c} token={token} onChanged={onChanged} />
                       </li>
                     )}
                   </Fragment>

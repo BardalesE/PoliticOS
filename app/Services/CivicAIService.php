@@ -676,6 +676,21 @@ class CivicAIService
             $parts[] = "\nCONSULTA ACOTADA: el ciudadano eligió consultar SOLO sobre {$this->scopeCandidateName}. "
                 . "Responde únicamente con lo que dicen los documentos de este candidato. "
                 . "No compares con otros candidatos ni opines sobre ellos; si algo no está en sus documentos, dilo.";
+
+            // Lista de regidores cargada por el admin (dato de la plancha, no de la IA):
+            // así "¿quiénes van de regidores?" no depende de que el RAG acierte.
+            // try: un tenant sin la migración nueva no debe tumbar el chat.
+            try {
+                $regidores = \App\Models\CandidatoRegidor::where('candidate_profile_id', $this->scopeCandidateId)
+                    ->orderBy('orden')->orderBy('id')->limit(30)->get(['orden', 'nombre', 'cargo']);
+            } catch (\Throwable) {
+                $regidores = collect();
+            }
+            if ($regidores->isNotEmpty()) {
+                $parts[] = "LISTA DE REGIDORES DE {$this->scopeCandidateName} (registrada en la plataforma): "
+                    . $regidores->map(fn ($r) => "{$r->orden}. {$r->nombre} ({$r->cargo})")->implode('; ')
+                    . ". Para detalles de cada uno usa solo su Hoja de Vida en los documentos.";
+            }
         }
         $docs = $this->embeddings->search($userMessage, 3, $filter);
         $parts[] = $this->buildDocumentationSection($docs, ($this->config->mode ?? 'campaign') === 'pepa');

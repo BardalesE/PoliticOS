@@ -60,6 +60,17 @@ export interface CandidatoFicha extends CandidatoResumen {
   facebook_url: string | null;
   instagram_url: string | null;
   documentos: DocumentoPublico[];
+  /** Ausente si el API aún no se actualizó. */
+  regidores?: RegidorPublico[];
+}
+
+export interface RegidorPublico {
+  orden: number;
+  nombre: string;
+  cargo: string;
+  foto_url: string | null;
+  /** true = PEPA ya puede responder con su Hoja de Vida (el PDF nunca se enlaza). */
+  hoja_de_vida: boolean;
 }
 
 export type FiltroLugar =
@@ -146,6 +157,16 @@ export interface AdminCandidato {
   provincia: string | null;
   distrito: string | null;
   documentos: AdminDocumento[];
+  regidores?: AdminRegidor[];
+}
+
+export interface AdminRegidor {
+  id: number;
+  orden: number;
+  nombre: string;
+  cargo: string;
+  foto_url: string | null;
+  knowledge_document_id: number | null;
 }
 
 export interface AdminDocumento {
@@ -192,6 +213,12 @@ export const directorioAdmin = {
     request<AdminCandidato>(`/admin/directorio/candidatos/${id}/despublicar`, { method: "POST" }, token),
   remove: (token: string, id: number) =>
     request<{ deleted: boolean }>(`/admin/directorio/candidatos/${id}`, { method: "DELETE" }, token),
+  addRegidores: (token: string, candidatoId: number, nombres: string[]) =>
+    request<AdminCandidato>(`/admin/directorio/candidatos/${candidatoId}/regidores`, { method: "POST", body: json({ nombres }) }, token),
+  updateRegidor: (token: string, id: number, data: Partial<Pick<AdminRegidor, "nombre" | "orden" | "cargo" | "knowledge_document_id">>) =>
+    request<AdminCandidato>(`/admin/directorio/regidores/${id}`, { method: "PUT", body: json(data) }, token),
+  removeRegidor: (token: string, id: number) =>
+    request<AdminCandidato>(`/admin/directorio/regidores/${id}`, { method: "DELETE" }, token),
 };
 
 export const ubigeoApi = {

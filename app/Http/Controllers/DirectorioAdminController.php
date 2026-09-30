@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\CandidateProfile;
+use App\Models\CandidatoRegidor;
+use App\Models\KnowledgeDocument;
 use App\Models\UbigeoDistrito;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -68,7 +70,11 @@ class DirectorioAdminController extends Controller
                 'documents as documentos_procesando' => fn (Builder $d) => $d->whereIn('status', ['pending', 'processing']),
                 'documents as documentos_fallidos'   => fn (Builder $d) => $d->where('status', 'failed'),
             ])
-            ->get()
+            ->get();
+
+        $this->cargarRegidores($rows);
+
+        $rows = $rows
             ->map(fn (CandidateProfile $c) => $this->fila($c))
             // Departamento › provincia › distrito › nombre. Sin distrito, al final.
             ->sortBy(fn (array $r) => [
@@ -176,6 +182,127 @@ class DirectorioAdminController extends Controller
         return response()->json(['deleted' => true]);
     }
 
+    // ─── Regidores de la lista ─────────────────────────────────────────
+
+    /**
+     * POST /admin/directorio/candidatos/{id}/regidores
+     * Uno ({nombre, orden?}) o varios a la vez ({nombres: ["…", "…"]}): la
+     * plancha se suele copiar entera del JNE.
+     */
+    public function storeRegidores(Request $request, int $id): JsonResponse
+    {
+        $profile = CandidateProfile::findOrFail($id);
+        $data = $request->validate([
+            'nombre'    => ['required_without:nombres', 'string', 'max:150'],
+            'orden'     => ['nullable', 'integer', 'min:1', 'max:99'],
+            'cargo'     => ['nullable', 'string', 'max:60'],
+            'nombres'   => ['required_without:nombre', 'array', 'max:30'],
+            'nombres.*' => ['nullable', 'string', 'max:150'],   // líneas vacías del pegado: se ignoran
+        ]);
+
+        $nombres = collect($data['nombres'] ?? [$data['nombre']])
+            ->map(fn ($n) => trim(preg_replace('/\s+/u', ' ', (string) $n)))
+            ->filter()
+            ->values();
+
+        if ($nombres->isEmpty()) {
+            return response()->json(['message' => 'Escribe al menos un nombre.', 'errors' => ['nombres' => ['Escribe al menos un nombre.']]], 422);
+        }
+
+        $siguiente = (int) $profile->regidores()->max('orden') + 1;
+        foreach ($nombres as $i => $nombre) {
+            $profile->regidores()->create([
+                'nombre' => $nombre,
+                'orden'  => $nombres->count() === 1 && ! empty($data['orden']) ? $data['orden'] : $siguiente + $i,
+                'cargo'  => $data['cargo'] ?? 'Regidor',
+            ]);
+        }
+
+        return response()->json($this->fila($this->recargar($profile)), 201);
+    }
+
+    /** PUT /admin/directorio/regidores/{id} — nombre, orden, cargo, foto o su Hoja de Vida. */
+    public function updateRegidor(Request $request, int $id): JsonResponse
+    {
+        $regidor = CandidatoRegidor::findOrFail($id);
+        $data = $request->validate([
+            'nombre'                => ['sometimes', 'string', 'max:150'],
+            'orden'                 => ['sometimes', 'integer', 'min:1', 'max:99'],
+            'cargo'                 => ['sometimes', 'string', 'max:60'],
+            'foto_url'              => ['nullable', 'url', 'max:500'],
+            'knowledge_document_id' => ['nullable', 'integer'],
+        ]);
+
+        // La Hoja de Vida tiene que ser un documento del MISMO candidato: si no,
+        // su contenido no entraría en el chat acotado a esta lista.
+        if (! empty($data['knowledge_document_id'])) {
+            $pertenece = KnowledgeDocument::whereKey($data['knowledge_document_id'])
+                ->where('candidate_id', $regidor->candidate_profile_id)
+                ->exists();
+            if (! $pertenece) {
+                return response()->json(['message' => 'Ese documento no pertenece a este candidato.'], 422);
+            }
+        }
+
+        $regidor->update($data);
+
+        return response()->json($this->fila($this->recargar($regidor->candidato)));
+    }
+
+    /** DELETE /admin/directorio/regidores/{id} — también retira su Hoja de Vida del chat. */
+    public function destroyRegidor(int $id): JsonResponse
+    {
+        $regidor  = CandidatoRegidor::findOrFail($id);
+        $profile  = $regidor->candidato;
+
+        if ($regidor->knowledge_document_id) {
+            // Desactivar (no borrar): deja de citarse y de verse, y se puede recuperar.
+            KnowledgeDocument::whereKey($regidor->knowledge_document_id)->update(['is_active' => false]);
+        }
+        $regidor->delete();
+
+        return response()->json($this->fila($this->recargar($profile)));
+    }
+
+    private function recargar(CandidateProfile $c): CandidateProfile
+    {
+        return $c->fresh()->load('distrito.provincia', 'distrito.departamento', 'regidores');
+    }
+
+    /**
+     * Carga los regidores de todas las filas. Si el tenant aún no corrió la
+     * migración de candidato_regidores, el directorio sigue funcionando sin ellos.
+     */
+    private function cargarRegidores($rows): void
+    {
+        try {
+            $rows->load('regidores');
+        } catch (\Throwable) {
+            $rows->each(fn (CandidateProfile $c) => $c->setRelation('regidores', collect()));
+        }
+    }
+
+    private function regidoresDe(CandidateProfile $c): array
+    {
+        try {
+            return $c->regidores->map(fn (CandidatoRegidor $r) => $this->regidorFila($r))->values()->all();
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    private function regidorFila(CandidatoRegidor $r): array
+    {
+        return [
+            'id'                    => $r->id,
+            'orden'                 => $r->orden,
+            'nombre'                => $r->nombre,
+            'cargo'                 => $r->cargo,
+            'foto_url'              => $r->foto_url,
+            'knowledge_document_id' => $r->knowledge_document_id,
+        ];
+    }
+
     private function validated(Request $request, bool $creating): array
     {
         $req = $creating ? 'required' : 'sometimes';
@@ -263,6 +390,7 @@ class DirectorioAdminController extends Controller
             'departamento'       => $c->distrito?->departamento?->departamento,
             'provincia'          => $c->distrito?->provincia?->provincia,
             'distrito'           => $c->distrito?->distrito,
+            'regidores'          => $this->regidoresDe($c),
             'documentos'         => ($c->relationLoaded('documents') ? $c->documents : $c->documents()->select(self::DOC_COLUMNS)->orderBy('created_at')->get())
                 ->map(fn ($d) => [
                     'id'            => $d->id,

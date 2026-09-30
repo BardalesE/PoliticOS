@@ -128,8 +128,18 @@ class DirectorioController extends Controller
             ->where('slug', $slug)
             ->firstOrFail();
 
+        // Las Hojas de Vida de los regidores van en su propia sección, no en
+        // la lista de documentos del candidato.
+        try {
+            $regidores = $c->regidores()->with('hojaDeVida:id,is_active,status')->get();
+        } catch (\Throwable) {
+            $regidores = collect();   // tenant sin la migración nueva: ficha sin regidores
+        }
+        $docsRegidores = $regidores->pluck('knowledge_document_id')->filter()->all();
+
         $documentos = $c->documents()
             ->where('is_active', true)->where('status', 'ready')
+            ->whereNotIn('id', $docsRegidores)
             ->orderBy('created_at')
             // Nunca `content` (texto completo extraído para el RAG).
             ->get(['id', 'title', 'description', 'topic', 'file_url', 'source_url', 'source_type', 'file_size', 'created_at'])
@@ -149,6 +159,14 @@ class DirectorioController extends Controller
             'facebook_url' => $c->facebook_url,
             'instagram_url' => $c->instagram_url,
             'documentos'   => $documentos,
+            'regidores'    => $regidores->map(fn ($r) => [
+                'orden'       => $r->orden,
+                'nombre'      => $r->nombre,
+                'cargo'       => $r->cargo,
+                'foto_url'    => $r->foto_url,
+                // Solo si PEPA ya puede usarla. El PDF nunca se enlaza (DNI y patrimonio).
+                'hoja_de_vida' => (bool) ($r->hojaDeVida?->is_active && $r->hojaDeVida?->status === 'ready'),
+            ])->values(),
         ]);
     }
 

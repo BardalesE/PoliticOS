@@ -573,7 +573,9 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
             ->where('candidate_id', $candidateId)
             ->where('status', 'ready')
             ->orderBy('id')
-            ->limit(10)
+            // Candidato + las Hojas de Vida de su lista de regidores (hasta ~15).
+            // El recorte real de contexto lo hace MAX_EXCERPTS.
+            ->limit(25)
             ->get(['id', 'title', 'content', 'pages', 'topic', 'file_url', 'candidate_id', 'source_url', 'source_type']);
 
         return $this->toExcerpts($docs, $query, true);

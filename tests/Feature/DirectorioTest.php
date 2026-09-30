@@ -85,6 +85,7 @@ class DirectorioTest extends TestCase
             '2026_09_16_000003_create_ubigeo_distritos_table',
             '2026_09_16_000004_add_distrito_id_to_candidate_profiles_table',
             '2026_09_17_231310_add_directorio_fields_to_candidate_profiles_table',
+            '2026_09_30_000001_create_candidato_regidores_table',
         ] as $migration) {
             (require database_path("migrations/{$migration}.php"))->up();
         }
@@ -371,6 +372,55 @@ class DirectorioTest extends TestCase
         $this->assertSame('PDF escaneado', $docs[1]['error_message']);
         $this->assertArrayNotHasKey('content', $docs[0]);
         $this->assertSame([], $data[3]['documentos']);
+    }
+
+    public function test_admin_manages_the_regidores_list_and_links_their_hoja_de_vida(): void
+    {
+        $this->actAs('admin');
+        $c    = $this->candidato(['name' => 'Daniel Monzon']);
+        $otro = $this->candidato(['name' => 'Otro']);
+
+        $r = $this->postJson("/api/admin/directorio/candidatos/{$c->id}/regidores", [
+            'nombres' => ['  Ana   Pérez ', 'Luis Quispe', ''],
+        ])->assertCreated();
+        $this->assertSame(['Ana Pérez', 'Luis Quispe'], array_column($r->json('regidores'), 'nombre'));
+        $this->assertSame([1, 2], array_column($r->json('regidores'), 'orden'));
+
+        $this->postJson("/api/admin/directorio/candidatos/{$c->id}/regidores", ['nombre' => 'Rosa Díaz'])
+            ->assertCreated()->assertJsonPath('regidores.2.orden', 3);
+
+        $ana   = $r->json('regidores.0.id');
+        $hv    = $this->documento($c, ['title' => 'Hoja de Vida — Regidor 1: Ana Pérez', 'topic' => 'hoja_de_vida']);
+        $ajeno = $this->documento($otro, ['title' => 'Hoja de vida ajena']);
+
+        $this->putJson("/api/admin/directorio/regidores/{$ana}", ['knowledge_document_id' => $ajeno->id])
+            ->assertUnprocessable();
+        $this->putJson("/api/admin/directorio/regidores/{$ana}", ['knowledge_document_id' => $hv->id, 'orden' => 5])
+            ->assertOk()->assertJsonPath('regidores.2.knowledge_document_id', $hv->id);
+
+        // Aparece en el listado admin
+        $fila = collect($this->getJson('/api/admin/directorio/candidatos')->json('data'))->firstWhere('id', $c->id);
+        $this->assertCount(3, $fila['regidores']);
+
+        // Borrar al regidor saca su Hoja de Vida del chat (se desactiva, no se borra)
+        $this->deleteJson("/api/admin/directorio/regidores/{$ana}")->assertOk()->assertJsonCount(2, 'regidores');
+        $this->assertFalse((bool) $hv->fresh()->is_active);
+    }
+
+    public function test_public_ficha_lists_regidores_apart_and_never_links_their_hoja_de_vida(): void
+    {
+        $c  = $this->candidato(['name' => 'Daniel Monzon']);
+        $hv = $this->documento($c, ['title' => 'Hoja de Vida — Regidor 1: Ana', 'topic' => 'hoja_de_vida']);
+        $c->regidores()->create(['nombre' => 'Ana', 'orden' => 1, 'knowledge_document_id' => $hv->id]);
+        $c->regidores()->create(['nombre' => 'Luis', 'orden' => 2]);
+
+        $r = $this->getJson("/api/directorio/candidatos/{$c->slug}")->assertOk();
+
+        $this->assertSame(['Plan de Gobierno'], array_column($r->json('documentos'), 'title'));
+        $this->assertSame(['Ana', 'Luis'], array_column($r->json('regidores'), 'nombre'));
+        $this->assertTrue($r->json('regidores.0.hoja_de_vida'));
+        $this->assertFalse($r->json('regidores.1.hoja_de_vida'));
+        $this->assertStringNotContainsString('knowledge_document_id', $r->getContent());
     }
 
     public function test_deleting_a_candidate_orphans_its_documents_instead_of_deleting_them(): void

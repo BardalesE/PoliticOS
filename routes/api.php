@@ -379,6 +379,9 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
             Route::post  ('/candidatos/{id}/publicar',      [DirectorioAdminController::class, 'publicar']);
             Route::post  ('/candidatos/{id}/despublicar',   [DirectorioAdminController::class, 'despublicar']);
             Route::delete('/candidatos/{id}',               [DirectorioAdminController::class, 'destroy']);
+            Route::post  ('/candidatos/{id}/regidores',     [DirectorioAdminController::class, 'storeRegidores']);
+            Route::put   ('/regidores/{id}',                [DirectorioAdminController::class, 'updateRegidor']);
+            Route::delete('/regidores/{id}',                [DirectorioAdminController::class, 'destroyRegidor']);
         });
     });
 

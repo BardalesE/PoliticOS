@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, BadgeCheck, ExternalLink, FileText, MapPin, MessageCircle } from "lucide-react";
+import { ArrowLeft, BadgeCheck, ExternalLink, Facebook, FileText, Instagram, MapPin, MessageCircle, Users } from "lucide-react";
 import { DIRECTORY_TENANT, getCandidato } from "@/lib/directorio";
 
 /**
@@ -27,6 +27,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 const fmtSize = (b: number | null) =>
   !b ? "" : b < 1024 * 1024 ? `${Math.round(b / 1024)} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`;
 
+function TikTokIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M16.6 5.82A4.28 4.28 0 0 1 15.5 3h-3.09v12.4a2.59 2.59 0 1 1-2.59-2.59c.27 0 .53.04.77.12V9.77a5.68 5.68 0 1 0 4.91 5.63V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3a4.27 4.27 0 0 1-3.2-1.48Z" />
+    </svg>
+  );
+}
+
 export default async function CandidatoPage({ params }: Props) {
   const { slug } = await params;
   const c = await getCandidato(slug);
@@ -39,10 +47,11 @@ export default async function CandidatoPage({ params }: Props) {
   chatParams.set("candidato", c.slug);
   const chatHref = `/chat?${chatParams.toString()}`;
   const redes = [
-    { label: "Facebook", url: c.facebook_url },
-    { label: "Instagram", url: c.instagram_url },
-    { label: "TikTok", url: c.tiktok_url },
-  ].filter((r): r is { label: string; url: string } => !!r.url);
+    { label: "Facebook", url: c.facebook_url, icon: <Facebook size={16} aria-hidden /> },
+    { label: "Instagram", url: c.instagram_url, icon: <Instagram size={16} aria-hidden /> },
+    { label: "TikTok", url: c.tiktok_url, icon: <TikTokIcon /> },
+  ].filter((r): r is { label: string; url: string; icon: React.ReactElement } => !!r.url);
+  const regidores = c.regidores ?? [];
 
   return (
     <main className="min-h-screen bg-[#EDEDED] text-ink-800">
@@ -91,6 +100,19 @@ export default async function CandidatoPage({ params }: Props) {
               <MapPin size={14} aria-hidden /> {c.location}
             </p>
             {c.tagline && <p className="mt-3 text-[15px] italic text-ink-600">“{c.tagline}”</p>}
+            {redes.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {redes.map((r) => (
+                  <a
+                    key={r.label} href={r.url} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-ink-100 px-3.5 py-2 text-[13px] font-bold hover:bg-ink-200"
+                    aria-label={`${r.label} de ${c.name}`}
+                  >
+                    {r.icon} {r.label}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         </section>
 
@@ -98,6 +120,39 @@ export default async function CandidatoPage({ params }: Props) {
           <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-black/5 sm:p-8">
             <h2 className="text-[20px] font-bold">Sobre {c.name.split(" ")[0]}</h2>
             <p className="mt-3 whitespace-pre-line text-[15px] leading-relaxed text-ink-600">{c.bio}</p>
+          </section>
+        )}
+
+        {/* Su lista: regidores (la HV nunca se enlaza: trae DNI y patrimonio) */}
+        {regidores.length > 0 && (
+          <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-black/5 sm:p-8" aria-labelledby="regidores-title">
+            <h2 id="regidores-title" className="flex items-center gap-2 text-[20px] font-bold">
+              <Users size={20} style={accent} aria-hidden /> Su lista de regidores
+            </h2>
+            <p className="mt-1 text-[14px] text-ink-500">
+              Quienes lo acompañan en la lista. Puedes preguntarle a PEPA por cada uno: responde con su hoja de vida declarada al JNE.
+            </p>
+            <ol className="mt-4 grid gap-3 sm:grid-cols-2">
+              {regidores.map((r) => (
+                <li key={`${r.orden}-${r.nombre}`} className="flex items-center gap-3 rounded-2xl bg-ink-100/60 p-3">
+                  {r.foto_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={r.foto_url} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover" />
+                  ) : (
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[15px] font-bold text-white" style={{ background: "rgb(var(--brand-primary-rgb))" }}>
+                      {r.orden}
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-[15px] font-semibold leading-snug">{r.nombre}</p>
+                    <p className="text-[12px] text-ink-500">
+                      {r.cargo} {r.orden}
+                      {r.hoja_de_vida && <> · <span className="font-semibold" style={accent}>Hoja de vida disponible</span></>}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ol>
           </section>
         )}
 
@@ -140,17 +195,6 @@ export default async function CandidatoPage({ params }: Props) {
           </Link>
         </section>
 
-        {redes.length > 0 && (
-          <p className="text-center text-[13px] text-ink-500">
-            Redes del candidato:{" "}
-            {redes.map((r, i) => (
-              <span key={r.label}>
-                {i > 0 && " · "}
-                <a href={r.url} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2">{r.label}</a>
-              </span>
-            ))}
-          </p>
-        )}
 
         <p className="text-center text-[12px] leading-relaxed text-ink-400">
           PoliticOS no respalda a ningún candidato. La información proviene de los documentos enlazados arriba.
