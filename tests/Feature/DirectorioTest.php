@@ -505,6 +505,39 @@ class DirectorioTest extends TestCase
         $this->assertStringContainsString('biodigestores', $out[0]['excerpt']);
     }
 
+    public function test_general_question_about_proposals_serves_content_pages_not_covers_or_hoja_de_vida(): void
+    {
+        $c = $this->candidato(['name' => 'Daniel', 'slug' => 'daniel'], null, null);
+        $relleno = str_repeat(' Mejorar los servicios del distrito para todas las familias.', 8);
+        $this->documento($c, [
+            'title' => 'Hoja de Vida — Daniel', 'topic' => 'hoja_de_vida', 'content' => 'x',
+            'pages' => ['FORMATO UNICO DE DECLARACION JURADA DE HOJA DE VIDA. DATOS PERSONALES' . $relleno],
+        ]);
+        $this->documento($c, [
+            'title' => 'Propuestas de campaña — Daniel', 'content' => 'x',
+            'pages' => [
+                'PROPUESTAS MUNICIPALES San Gregorio. 1. AGRICULTURA 2. SALUD',
+                'AGRICULTURA Y MEDIO AMBIENTE. Construcción de mini reservorios. Riego tecnificado.' . $relleno,
+                'SALUD. Gestionar la instalación de biodigestores. Contratación de enfermeras.' . $relleno,
+            ],
+        ]);
+
+        $svc = new \App\Services\MySQLFulltextEmbeddings();
+        foreach (['tus propuestas', '¿qué propone?', 'propuestas'] as $q) {
+            $out = $svc->search($q, 3, ['candidate_id' => $c->id]);
+            $this->assertNotEmpty($out, $q);
+            $titles = array_column($out, 'title');
+            $this->assertNotContains('Hoja de Vida — Daniel', $titles, "{$q}: la HV no responde por propuestas");
+            $pages = array_column($out, 'page');
+            $this->assertNotContains(1, $pages, "{$q}: la portada no trae propuestas");
+            $this->assertStringContainsString('reservorios', implode(' ', array_column($out, 'excerpt')), $q);
+        }
+
+        // "¿quién es?" sí debe traer la hoja de vida.
+        $quien = array_column($svc->search('¿quién es?', 3, ['candidate_id' => $c->id]), 'title');
+        $this->assertContains('Hoja de Vida — Daniel', $quien);
+    }
+
     private function scopeOf(\App\Services\CivicAIService $ai): array
     {
         $r = new \ReflectionObject($ai);

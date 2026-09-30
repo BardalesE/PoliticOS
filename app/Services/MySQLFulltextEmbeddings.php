@@ -410,6 +410,9 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
     private const MAX_EXCERPTS = 4;
     /** Páginas distintas que puede aportar un mismo documento. */
     private const PAGES_PER_DOC = 2;
+
+    /** Menos texto que esto = portada o índice: no sirve para una pregunta general. */
+    private const MIN_CONTENT_PAGE_CHARS = 200;
     private const EXCERPT_CHARS = 1200;
 
     /** Hoja de vida: pagina completa (formulario JNE de ~3.300 caracteres por hoja). */
@@ -439,7 +442,18 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
         $primary = [];
         $extra   = [];
 
+        // Pregunta general ("tus propuestas", "¿qué propone?"): sin tema concreto.
+        // Bug 2026-09-30: servía la portada de cada PDF y la hoja de vida, y el
+        // modelo respondía "no hay propuestas registradas".
+        $general         = $this->queryTermGroups($query, '', false) === [];
+        $pidePropuestas  = $general && ! $this->queryTargetsDocument($query, 'hoja_de_vida', '');
+
         foreach ($docs as $d) {
+            $esHv = SensitiveData::isHojaDeVida($d->topic ?? null, (string) $d->title);
+            if ($pidePropuestas && $esHv) {
+                continue;   // la hoja de vida no contiene propuestas
+            }
+
             $score  = (float) ($d->relevance ?? 0.5);
             $pages  = is_array($d->pages) ? array_values($d->pages) : [];
             // null = no se puede ordenar (sin páginas, o pregunta sin términos de tema);
@@ -449,13 +463,7 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
             // Pregunta general ("resume el plan"): sin términos de tema no hay qué ordenar;
             // en un documento con páginas sirven sus primeras páginas con texto.
             if ($ranked === null && $pages) {
-                $ranked = [];
-                foreach ($pages as $i => $text) {
-                    if (trim((string) $text) !== '') {
-                        $ranked[$i + 1] = 0.0;
-                    }
-                    if (count($ranked) >= self::PAGES_PER_DOC) break;
-                }
+                $ranked = $this->paginasConContenido($pages);
             }
 
             // Ninguna página "habla del tema", pero la pregunta pide este documento
@@ -569,6 +577,32 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
         arsort($scores);
 
         return $scores;
+    }
+
+    /**
+     * Para preguntas generales: las páginas con más texto, saltando portadas e
+     * índices (páginas cortas), en su orden original. [n° de página => 0.0]
+     *
+     * @param array<int, string> $pages
+     * @return array<int, float>
+     */
+    private function paginasConContenido(array $pages): array
+    {
+        $largos = [];
+        foreach ($pages as $i => $text) {
+            $len = mb_strlen(trim((string) $text));
+            if ($len > 0) {
+                $largos[$i + 1] = $len;
+            }
+        }
+        $conCuerpo = array_filter($largos, fn ($len) => $len >= self::MIN_CONTENT_PAGE_CHARS);
+        $pool = $conCuerpo ?: $largos;
+
+        arsort($pool);
+        $elegidas = array_slice(array_keys($pool), 0, self::PAGES_PER_DOC);
+        sort($elegidas);
+
+        return array_fill_keys($elegidas, 0.0);
     }
 
     /** Documentos de UN candidato → fragmentos por página. Solo aportan los que hablan del tema. */
