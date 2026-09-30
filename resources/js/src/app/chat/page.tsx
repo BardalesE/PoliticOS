@@ -42,6 +42,8 @@ interface ChatCandidate {
   party?: string | null;
   logo_url?: string | null;
   distrito?: { id: number } | null;
+  departamento_id?: number | null;
+  provincia_id?: number | null;
 }
 
 interface QuickReply {
@@ -1278,7 +1280,12 @@ export default function ChatPage() {
           // incluye (o no tiene zona), se pasa al distrito de ese candidato.
           const deep = wanted ? list.find((c) => c.slug === wanted) : undefined;
           const zonaLoIncluye = est.candidatos.some((c) => c.slug === wanted);
-          if (deep?.distrito?.id && (!est.zona || !zonaLoIncluye)) est = (await saveZona({ distrito_id: deep.distrito.id })) ?? est;
+          // Gobernador / alcalde provincial no tienen distrito: se usa su provincia o región.
+          const zonaDeep: ZonaSeleccion | null = deep?.distrito?.id ? { distrito_id: deep.distrito.id }
+            : deep?.provincia_id ? { provincia_id: deep.provincia_id }
+            : deep?.departamento_id ? { departamento_id: deep.departamento_id }
+            : null;
+          if (zonaDeep && (!est.zona || !zonaLoIncluye)) est = (await saveZona(zonaDeep)) ?? est;
           if (cancelled) return;
           setUbicaciones(ubi);
           applyEstado(est, wanted);

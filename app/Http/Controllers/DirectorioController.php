@@ -122,19 +122,12 @@ class DirectorioController extends Controller
 
         if (! empty($filtros['distrito_id'])) {
             $d = UbigeoDistrito::query()->find($filtros['distrito_id'], ['id', 'provincia_id', 'departamento_id']);
-            $query->where(fn (Builder $q) => $q
-                ->where('distrito_id', $filtros['distrito_id'])
-                ->when($d, fn (Builder $q) => $q
-                    ->orWhere(fn (Builder $q) => $q->whereNull('distrito_id')->where('provincia_id', $d->provincia_id))
-                    ->orWhere(fn (Builder $q) => $q->whereNull('provincia_id')->where('departamento_id', $d->departamento_id))));
+            $query->votaEn($d?->departamento_id, $d?->provincia_id, (int) $filtros['distrito_id']);
         } elseif (! empty($filtros['provincia_id'])) {
             $p = UbigeoProvincia::query()->find($filtros['provincia_id'], ['id', 'departamento_id']);
-            $query->where(fn (Builder $q) => $q
-                ->where('provincia_id', $filtros['provincia_id'])
-                ->when($p, fn (Builder $q) => $q
-                    ->orWhere(fn (Builder $q) => $q->whereNull('provincia_id')->where('departamento_id', $p->departamento_id))));
+            $query->votaEn($p?->departamento_id, (int) $filtros['provincia_id']);
         } elseif (! empty($filtros['departamento_id'])) {
-            $query->where('departamento_id', $filtros['departamento_id']);
+            $query->votaEn((int) $filtros['departamento_id']);
         }
 
         return response()->json([
@@ -244,6 +237,9 @@ class DirectorioController extends Controller
             ] : null,
             'documentos_count' => (int) ($c->documentos_count ?? 0),
             'ambito'      => $c->ambito,   // regional | provincial | distrital
+            // Para abrir el chat en la zona correcta aunque no tenga distrito (regional/provincial).
+            'departamento_id' => $c->departamento_id ?? $c->distrito?->departamento_id,
+            'provincia_id'    => $c->provincia_id ?? $c->distrito?->provincia_id,
             // Distintivo "Perfil completado por el candidato". Nunca afecta el orden
             // del listado ni el trato de la IA (neutralidad).
             'perfil_completado' => $c->tipo_cuenta === 'cliente_pago',

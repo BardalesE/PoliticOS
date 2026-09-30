@@ -164,21 +164,17 @@ class SegmentacionController extends Controller
     }
 
     /**
-     * Candidatos EXACTOS de la zona elegida, sin relleno ni tope:
-     *   distrito     → solo los de ese distrito (aunque sea uno)
-     *   provincia    → los de todos los distritos de la provincia
-     *   departamento → los de todos los distritos del departamento
+     * Candidatos por los que vota esa zona (misma regla que la home):
+     *   distrito     → los del distrito + alcalde provincial + gobernador regional
+     *   provincia    → los de la provincia y sus distritos + gobernador regional
+     *   departamento → todos los del departamento
      */
     private function candidatosDe(VisitorSegment $z): array
     {
         return CandidateProfile::query()
             ->visibleInDirectory()
             ->with('distrito:id,distrito')
-            ->when($z->distrito_id, fn ($q) => $q->where('distrito_id', $z->distrito_id), function ($q) use ($z) {
-                $q->whereHas('distrito', fn ($d) => $z->provincia_id
-                    ? $d->where('provincia_id', $z->provincia_id)
-                    : $d->where('departamento_id', $z->departamento_id));
-            })
+            ->votaEn($z->departamento_id, $z->provincia_id, $z->distrito_id)
             ->orderBy('name')
             ->limit(200)
             ->get()
@@ -191,6 +187,7 @@ class SegmentacionController extends Controller
                 'photo_url'   => $c->photo_url,
                 'logo_url'    => $c->logo_url,
                 'distrito'    => $c->distrito?->distrito,
+                'ambito'      => $c->ambito,
             ])
             ->all();
     }

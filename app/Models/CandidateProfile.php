@@ -127,6 +127,38 @@ class CandidateProfile extends Model
      * procesado). Se calcula en cada consulta —no se guarda—, así que si se
      * borra su último documento el lugar deja de mostrarse solo.
      */
+    /**
+     * Candidatos por los que vota quien vive en un lugar: los de su nivel y los de
+     * arriba (el vecino de un distrito elige alcalde distrital, provincial y
+     * gobernador regional). Una provincia o región sin distrito ve todo lo de abajo.
+     * Única fuente de la regla: la usan la home (/directorio) y el chat (segmentación).
+     */
+    public function scopeVotaEn(Builder $query, ?int $departamentoId, ?int $provinciaId = null, ?int $distritoId = null): Builder
+    {
+        if (! self::tieneAmbito($query->getModel())) {      // tenant sin migración de ámbito
+            return $distritoId
+                ? $query->where('distrito_id', $distritoId)
+                : $query->whereHas('distrito', fn (Builder $d) => $provinciaId
+                    ? $d->where('provincia_id', $provinciaId)
+                    : $d->where('departamento_id', $departamentoId));
+        }
+
+        if ($distritoId) {
+            return $query->where(fn (Builder $q) => $q
+                ->where('distrito_id', $distritoId)
+                ->when($provinciaId, fn (Builder $q) => $q->orWhere(fn (Builder $q) => $q->whereNull('distrito_id')->where('provincia_id', $provinciaId)))
+                ->when($departamentoId, fn (Builder $q) => $q->orWhere(fn (Builder $q) => $q->whereNull('provincia_id')->where('departamento_id', $departamentoId))));
+        }
+
+        if ($provinciaId) {
+            return $query->where(fn (Builder $q) => $q
+                ->where('provincia_id', $provinciaId)
+                ->when($departamentoId, fn (Builder $q) => $q->orWhere(fn (Builder $q) => $q->whereNull('provincia_id')->where('departamento_id', $departamentoId))));
+        }
+
+        return $departamentoId ? $query->where('departamento_id', $departamentoId) : $query;
+    }
+
     public function scopeVisibleInDirectory(Builder $query): Builder
     {
         return $query

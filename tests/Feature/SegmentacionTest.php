@@ -115,6 +115,7 @@ class SegmentacionTest extends TestCase
             '2026_09_16_000004_add_distrito_id_to_candidate_profiles_table',
             '2026_09_17_231310_add_directorio_fields_to_candidate_profiles_table',
             '2026_09_21_000001_create_chat_segmentation_tables',
+            '2026_09_30_000002_add_ambito_to_candidate_profiles_table',
         ] as $migration) {
             (require database_path("migrations/{$migration}.php"))->up();
         }
@@ -180,6 +181,30 @@ class SegmentacionTest extends TestCase
         $this->candidato('Carla Miguel', $this->sanMiguel);
         $this->candidato('Dario Cajamarca', $this->cajamarca);     // Cajamarca > Cajamarca > Cajamarca
         $this->candidato('Gina Trujillo', $this->trujillo);        // La Libertad
+    }
+
+    public function test_regional_and_provincial_candidates_appear_in_the_chat_of_every_zone_below(): void
+    {
+        $this->sembrar();
+        $caj = $this->sanGregorio->departamento_id;
+        $sm  = $this->sanGregorio->provincia_id;
+        foreach ([['Gobernador Caj', $caj, null], ['Provincial SM', $caj, $sm]] as [$name, $dep, $prov]) {
+            $c = CandidateProfile::create([
+                'name' => $name, 'title' => 'Candidato', 'party' => 'X', 'location' => 'x',
+                'departamento_id' => $dep, 'provincia_id' => $prov, 'slug' => \Illuminate\Support\Str::slug($name),
+                'estado_publicacion' => 'publicado', 'tipo_cuenta' => 'publico_gratuito',
+            ]);
+            KnowledgeDocument::create(['title' => 'Plan', 'candidate_id' => $c->id, 'status' => 'ready', 'is_active' => true]);
+        }
+
+        // Distrito: su alcalde + el provincial + el gobernador.
+        $this->assertSame(['Ana Gregorio', 'Gobernador Caj', 'Provincial SM'], $this->nombres($this->zona(self::V1, $this->sanGregorio)->assertOk()));
+        // Otra provincia de la misma región: solo el gobernador sube.
+        $this->assertSame(['Dario Cajamarca', 'Gobernador Caj'], $this->nombres($this->zona(self::V1, $this->cajamarca)->assertOk()));
+        // Solo la región (deep link desde la ficha de un gobernador).
+        $this->assertContains('Gobernador Caj', $this->nombres($this->zonaNivel(self::V1, ['departamento_id' => $caj])->assertOk()));
+        // Otra región: nada de Cajamarca.
+        $this->assertSame(['Gina Trujillo'], $this->nombres($this->zona(self::V1, $this->trujillo)->assertOk()));
     }
 
     public function test_district_shows_only_that_districts_candidates_even_if_just_one(): void
