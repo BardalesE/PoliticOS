@@ -17,6 +17,8 @@ FROM php:8.2-fpm-bookworm
 # templar $PORT), libs de las extensiones PHP, y ffmpeg (MergeStreamChunksJob:
 # remux -c copy de los chunks de "En vivo" en un solo WebM con cues correctos;
 # sin esto cae al fallback de concatenación binaria en PHP, más lento).
+# python3-fitz (PyMuPDF): lee las casillas marcadas de las hojas de vida del JNE
+# (resources/scripts/hv_casillas.py); pdftotext no las ve.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         nginx \
         supervisor \
@@ -26,6 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         ffmpeg \
         poppler-utils \
+        python3-fitz \
         libpng-dev \
         libjpeg62-turbo-dev \
         libfreetype6-dev \

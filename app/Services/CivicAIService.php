@@ -756,7 +756,10 @@ class CivicAIService
             . implode("\n- ", $lineas)
             . "\nEl cargo al que postula es SIEMPRE el de esta ficha. En la hoja de vida del JNE los cargos, estudios "
             . "y respuestas SÍ/NO son casillas cuya marca NO aparece en el texto: una lista de cargos u opciones NO indica "
-            . "cuál está marcada. Nunca deduzcas un dato de una lista de casillas; si no hay un valor escrito, di que no se lee.";
+            . "cuál está marcada. Lo marcado viene SOLO en el bloque \"CASILLAS MARCADAS EN ESTA PÁGINA\" al inicio de cada "
+            . "página: úsalo (p. ej. \"¿CUENTA CON ESTUDIOS SECUNDARIOS?: SÍ\" + \"CONCLUIDOS: SÍ\" = secundaria completa; "
+            . "\"CARGOS DE ELECCIÓN POPULAR — CARGO 1: REGIDOR(A) DISTRITAL\" con sus años = fue regidor distrital). "
+            . "Sin ese bloque, nunca deduzcas un dato de una lista de casillas: di que no se lee.";
     }
 
     private const CITATION_RULES =
@@ -1059,8 +1062,8 @@ class CivicAIService
     private function appendPromptGuards(string $prompt, string $context, ?array $attack): string
     {
         $prompt .= SensitiveData::PROMPT_RULE;
-        $prompt .= "\n\n📋 HOJA DE VIDA: el formato del JNE marca muchas respuestas con casillas (SÍ/NO) que no "
-            . "se leen como texto. Si un dato no figura en el fragmento, dilo con naturalidad (\"en la hoja de vida "
+        $prompt .= "\n\n📋 HOJA DE VIDA: el formato del JNE marca muchas respuestas con casillas (SÍ/NO). Las marcadas "
+            . "vienen en el bloque \"CASILLAS MARCADAS EN ESTA PÁGINA\"; fuera de él, las casillas no se leen como texto. Si un dato no figura en el fragmento, dilo con naturalidad (\"en la hoja de vida "
             . "cargada no figura ese detalle\") y sugiere revisarla en Voto Informado del JNE; nunca lo inventes. "
             . "Cada dato declarado aparece junto a su etiqueta (p. ej. \"GRADO O TITULO: SOCIOLOGIA\"): usalos. "
             . "Si una seccion solo muestra la pregunta \"TENGO INFORMACION POR DECLARAR? SI TENGO NO TENGO\" sin ningun "

@@ -39,6 +39,20 @@ class PdfPageExtractor
             $rawPages = array_map(fn ($p) => (string) $p->getText(), $pdf->getPages());
         }
 
+        // Hoja de vida del JNE: las marcas de sus casillas no son texto. Se detectan
+        // aparte y se anteponen a cada página (antes de la sección patrimonial, que
+        // SensitiveData recorta hasta el final de la página).
+        if ($this->esHojaDeVidaJne($rawPages)) {
+            $casillas = $this->casillasMarcadas($raw);
+            if ($casillas !== null) {
+                foreach ($rawPages as $i => $texto) {
+                    if (! empty($casillas[$i])) {
+                        $rawPages[$i] = self::bloqueCasillas($casillas[$i]) . "\n" . $texto;
+                    }
+                }
+            }
+        }
+
         $pages = [];
         $used  = 0;
         foreach ($rawPages as $pageText) {
@@ -85,6 +99,68 @@ class PdfPageExtractor
         }
 
         return $this->fromBytes($raw);
+    }
+
+    /** Prefijo que la IA recibe con las casillas marcadas de la página. */
+    public static function bloqueCasillas(array $marcadas): string
+    {
+        return 'CASILLAS MARCADAS EN ESTA PÁGINA (leídas del PDF; las opciones no listadas NO están marcadas): '
+            . implode(' | ', $marcadas) . '.';
+    }
+
+    /** @param array<int, string> $pages */
+    private function esHojaDeVidaJne(array $pages): bool
+    {
+        // -layout parte el título en dos líneas ("DECLARACIÓN\n  JURADA"): se colapsan espacios.
+        $inicio = mb_strtoupper((string) preg_replace('/\s+/u', ' ', mb_substr(implode(' ', array_slice($pages, 0, 1)), 0, 4000)));
+
+        return str_contains($inicio, 'HOJA DE VIDA')
+            && (str_contains($inicio, 'DECLARACIÓN JURADA') || str_contains($inicio, 'DECLARACION JURADA'));
+    }
+
+    /**
+     * Casillas marcadas por página con resources/scripts/hv_casillas.py
+     * (PyMuPDF). null si no hay Python/PyMuPDF (p. ej. Laragon): se sigue sin ellas.
+     *
+     * @return array<int, array<int, string>>|null
+     */
+    private function casillasMarcadas(string $raw): ?array
+    {
+        $script = base_path('resources/scripts/hv_casillas.py');
+        if (! function_exists('proc_open') || ! is_file($script)) {
+            return null;
+        }
+
+        $tmp = tempnam(sys_get_temp_dir(), 'hv');
+        if ($tmp === false) {
+            return null;
+        }
+
+        try {
+            file_put_contents($tmp, $raw);
+            $proc = @proc_open(
+                ['timeout', '30', 'python3', $script, $tmp],
+                [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+                $pipes
+            );
+            if (! is_resource($proc)) {
+                return null;
+            }
+            $out = (string) stream_get_contents($pipes[1]);
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            if (proc_close($proc) !== 0) {
+                return null;
+            }
+        } catch (\Throwable) {
+            return null;
+        } finally {
+            @unlink($tmp);
+        }
+
+        $data = json_decode($out, true);
+
+        return is_array($data['pages'] ?? null) ? $data['pages'] : null;
     }
 
     /**
