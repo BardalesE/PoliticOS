@@ -509,6 +509,8 @@ export const adminApi = {
       request<KnowledgeDocument>(`/admin/knowledge/${id}`, { method: "PUT", body: JSON.stringify(data) }, token),
     delete: (token: string, id: number) =>
       request<{ deleted: boolean }>(`/admin/knowledge/${id}`, { method: "DELETE" }, token),
+    reindex: (token: string, id: number) =>
+      request<{ ok: boolean }>(`/admin/knowledge/${id}/reindex`, { method: "POST" }, token),
   },
 };
 

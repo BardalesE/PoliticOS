@@ -29,6 +29,10 @@ use Illuminate\Support\Str;
  */
 class DirectorioAdminController extends Controller
 {
+    private const DOC_COLUMNS = [
+        'id', 'candidate_id', 'title', 'topic', 'status', 'error_message', 'file_url', 'file_size', 'is_active', 'created_at',
+    ];
+
     /**
      * Foto del candidato subida desde el dispositivo. Devuelve la URL pública
      * (disco de media: R2 en producción) para guardarla en photo_url.
@@ -53,16 +57,28 @@ class DirectorioAdminController extends Controller
         $ready = fn (Builder $d) => $d->where('is_active', true)->where('status', 'ready');
 
         $rows = CandidateProfile::query()
-            ->with(['distrito.provincia:id,provincia', 'distrito.departamento:id,departamento'])
+            ->with([
+                'distrito.provincia:id,provincia', 'distrito.departamento:id,departamento',
+                // Documentos para la tabla del admin (sin `content`: el texto del RAG pesa).
+                'documents' => fn ($d) => $d->select(self::DOC_COLUMNS)->orderBy('created_at'),
+            ])
             ->withCount([
                 'documents as documentos_total',
                 'documents as documentos_listos' => $ready,
                 'documents as documentos_procesando' => fn (Builder $d) => $d->whereIn('status', ['pending', 'processing']),
                 'documents as documentos_fallidos'   => fn (Builder $d) => $d->where('status', 'failed'),
             ])
-            ->orderByDesc('id')
             ->get()
-            ->map(fn (CandidateProfile $c) => $this->fila($c));
+            ->map(fn (CandidateProfile $c) => $this->fila($c))
+            // Departamento › provincia › distrito › nombre. Sin distrito, al final.
+            ->sortBy(fn (array $r) => [
+                $r['distrito_id'] ? 0 : 1,
+                mb_strtolower((string) $r['departamento']),
+                mb_strtolower((string) $r['provincia']),
+                mb_strtolower((string) $r['distrito']),
+                mb_strtolower($r['name']),
+            ])
+            ->values();
 
         return response()->json(['data' => $rows]);
     }
@@ -244,6 +260,20 @@ class DirectorioAdminController extends Controller
             'distrito_id'        => $c->distrito_id,
             'departamento_id'    => $c->distrito?->departamento_id,
             'provincia_id'       => $c->distrito?->provincia_id,
+            'departamento'       => $c->distrito?->departamento?->departamento,
+            'provincia'          => $c->distrito?->provincia?->provincia,
+            'distrito'           => $c->distrito?->distrito,
+            'documentos'         => ($c->relationLoaded('documents') ? $c->documents : $c->documents()->select(self::DOC_COLUMNS)->orderBy('created_at')->get())
+                ->map(fn ($d) => [
+                    'id'            => $d->id,
+                    'title'         => $d->title,
+                    'topic'         => $d->topic,
+                    'status'        => $d->status,
+                    'error_message' => $d->error_message,
+                    'file_url'      => $d->file_url,
+                    'file_size'     => $d->file_size ? (int) $d->file_size : null,
+                    'is_active'     => (bool) $d->is_active,
+                ])->values()->all(),
             'estado_publicacion' => $c->estado_publicacion,
             'tipo_cuenta'        => $c->tipo_cuenta,
             'is_active'          => (bool) $c->is_active,

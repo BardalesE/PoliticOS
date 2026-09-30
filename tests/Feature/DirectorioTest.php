@@ -75,6 +75,7 @@ class DirectorioTest extends TestCase
             $t->unsignedBigInteger('file_size')->nullable();
             $t->boolean('is_active')->default(true);
             $t->string('status', 20)->default('pending');
+            $t->text('error_message')->nullable();
             $t->timestamps();
         });
 
@@ -346,6 +347,30 @@ class DirectorioTest extends TestCase
 
         $this->deleteJson("/api/admin/directorio/candidatos/{$activo->id}")->assertUnprocessable();
         $this->assertNotNull(CandidateProfile::find($activo->id));
+    }
+
+    public function test_admin_list_is_ordered_by_place_and_carries_its_documents_without_rag_text(): void
+    {
+        $this->actAs('admin');
+        $sinLugar = $this->candidato(['name' => 'Aaa Sin Lugar', 'distrito_id' => null, 'slug' => null], null, null);
+        $tru      = $this->candidato(['name' => 'Bbb Trujillo'], $this->trujillo);
+        $sg2      = $this->candidato(['name' => 'Zzz Gregorio'], $this->sanGregorio);
+        $sg1      = $this->candidato(['name' => 'Aaa Gregorio'], $this->sanGregorio);
+        $this->documento($sg1, ['title' => 'Propuestas de campaña', 'status' => 'failed', 'error_message' => 'PDF escaneado']);
+
+        $data = $this->getJson('/api/admin/directorio/candidatos')->assertOk()->json('data');
+
+        // Cajamarca (San Gregorio: A, Z) › La Libertad › sin distrito al final
+        $this->assertSame(['Aaa Gregorio', 'Zzz Gregorio', 'Bbb Trujillo', 'Aaa Sin Lugar'], array_column($data, 'name'));
+        $this->assertSame('CAJAMARCA', $data[0]['departamento']);
+        $this->assertSame('SAN MIGUEL', $data[0]['provincia']);
+        $this->assertSame('SAN GREGORIO', $data[0]['distrito']);
+
+        $docs = $data[0]['documentos'];
+        $this->assertSame(['Plan de Gobierno', 'Propuestas de campaña'], array_column($docs, 'title'));
+        $this->assertSame('PDF escaneado', $docs[1]['error_message']);
+        $this->assertArrayNotHasKey('content', $docs[0]);
+        $this->assertSame([], $data[3]['documentos']);
     }
 
     public function test_deleting_a_candidate_orphans_its_documents_instead_of_deleting_them(): void

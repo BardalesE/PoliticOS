@@ -1,14 +1,14 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { AlertCircle, Camera, CheckCircle2, ExternalLink, Link2, Loader2, MapPin, Pencil, Trash2, Upload, X } from "lucide-react";
+import { AlertCircle, Camera, CheckCircle2, ChevronDown, Link2, Loader2, MapPin, Plus, Upload, X } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { adminApi, normalizeApiBase, tenantHeaders } from "@/lib/api";
+import { normalizeApiBase, tenantHeaders } from "@/lib/api";
 import {
   directorioAdmin, ubigeoApi, prettyPlace,
   type AdminCandidato, type UbigeoItem,
 } from "@/lib/directorio";
 import { cn } from "@/lib/utils";
+import { CandidatosTabla } from "@/components/admin/directorio/CandidatosTabla";
 
 /**
  * Alta manual de candidatos del directorio público.
@@ -38,76 +38,6 @@ function Field({ label, children, hint }: { label: string; children: React.React
       {children}
       {hint && <span className="mt-1 block text-[11px] text-gray-400">{hint}</span>}
     </label>
-  );
-}
-
-// ─── Subida de documentos de un candidato ──────────────────────────────
-
-const TIPOS = [
-  { value: "hoja_de_vida", label: "Hoja de Vida" },
-  { value: "plan_de_gobierno", label: "Plan de Gobierno" },
-  { value: "otro", label: "Otro documento" },
-];
-
-function DocUpload({ candidato, onDone }: { candidato: AdminCandidato; onDone: () => void }) {
-  const { token } = useAuth();
-  const [tipo, setTipo] = useState(TIPOS[0].value);
-  const [source, setSource] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  async function submit() {
-    if (!token || !file) return;
-    setBusy(true); setError(null);
-    try {
-      const label = TIPOS.find((t) => t.value === tipo)!.label;
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("title", `${label} — ${candidato.name}`);
-      fd.append("candidate_id", String(candidato.id));
-      if (tipo !== "otro") fd.append("topic", tipo);
-      if (source.trim()) fd.append("source_url", source.trim());
-      await adminApi.knowledge.upload(token, fd);
-      setFile(null); setSource("");
-      if (fileRef.current) fileRef.current.value = "";
-      onDone();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo subir el documento.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="mt-3 rounded-xl border border-dashed border-gray-300 bg-gray-50/70 p-3">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Tipo de documento">
-          <select className={inputCls} value={tipo} onChange={(e) => setTipo(e.target.value)}>
-            {TIPOS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
-        </Field>
-        <Field label="Enlace al original en el JNE (opcional)" hint="Se muestra como “Fuente original” en su ficha.">
-          <input className={inputCls} type="url" placeholder="https://…" value={source} onChange={(e) => setSource(e.target.value)} />
-        </Field>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <input
-          ref={fileRef} type="file" accept="application/pdf"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          className="text-xs text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-2 file:text-xs file:font-semibold file:ring-1 file:ring-gray-200"
-        />
-        <button
-          type="button" onClick={submit} disabled={!file || busy}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-brand-500 px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
-        >
-          {busy ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Subir PDF
-        </button>
-      </div>
-      {error && <p className="mt-2 flex items-center gap-1.5 text-xs text-red-600"><AlertCircle size={13} /> {error}</p>}
-      <p className="mt-2 text-[11px] text-gray-400">Solo PDF con texto (no escaneado), máx. 50 MB. Se procesa solo; tarda unos segundos.</p>
-    </div>
   );
 }
 
@@ -220,10 +150,16 @@ export default function DirectorioAdminPage() {
   const [distId, setDistId] = useState("");
   const [saving, setSaving] = useState(false);
   const [uploadFor, setUploadFor] = useState<number | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const load = useCallback(async () => {
     if (!token) return;
-    try { setRows(await directorioAdmin.list(token)); } catch {} finally { setLoading(false); }
+    try {
+      const data = await directorioAdmin.list(token);
+      setRows(data);
+      if (data.length === 0) setFormOpen(true); // primer uso: el formulario a la vista
+    } catch {} finally { setLoading(false); }
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
@@ -246,6 +182,7 @@ export default function DirectorioAdminPage() {
   }
 
   function reset() {
+    setFormOpen(false);
     setEditing(null); setForm(EMPTY); setDepId(""); setProvId(""); setDistId(""); setProvs([]); setDists([]);
   }
 
@@ -266,7 +203,8 @@ export default function DirectorioAdminPage() {
       setDists(await ubigeoApi.distritos(c.provincia_id).catch(() => []));
     }
     setDistId(c.distrito_id ? String(c.distrito_id) : "");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setFormOpen(true);
+    requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
   async function save(e: React.FormEvent) {
@@ -329,12 +267,21 @@ export default function DirectorioAdminPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-        {/* Formulario */}
-        <form onSubmit={save} className="space-y-3 rounded-2xl border border-gray-200 bg-white p-5 lg:col-span-2 lg:self-start">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-bold uppercase tracking-widest text-gray-500">{editing ? `Editando: ${editing.name}` : "Nuevo candidato"}</p>
-            {editing && <button type="button" onClick={reset} className="text-xs font-semibold text-gray-500 hover:text-gray-800">Cancelar</button>}
+      <div className="space-y-6">
+        {/* Formulario (plegable: la tabla es la vista principal) */}
+        {!formOpen ? (
+          <button
+            type="button" onClick={() => setFormOpen(true)}
+            className="flex w-full items-center justify-between gap-3 rounded-2xl border border-dashed border-gray-300 bg-white px-5 py-4 text-left hover:border-brand-500 hover:bg-brand-500/5"
+          >
+            <span className="inline-flex items-center gap-2 text-sm font-bold text-gray-900"><Plus size={16} className="text-brand-500" /> Nuevo candidato</span>
+            <ChevronDown size={16} className="text-gray-400" aria-hidden />
+          </button>
+        ) : (
+        <form ref={formRef} onSubmit={save} className="grid scroll-mt-4 grid-cols-1 gap-3 rounded-2xl border border-gray-200 bg-white p-4 sm:p-5 md:grid-cols-2 md:gap-x-5">
+          <div className="flex items-center justify-between gap-3 md:col-span-2">
+            <p className="min-w-0 truncate text-xs font-bold uppercase tracking-widest text-gray-500">{editing ? `Editando: ${editing.name}` : "Nuevo candidato"}</p>
+            <button type="button" onClick={reset} className="shrink-0 text-xs font-semibold text-gray-500 hover:text-gray-800">{editing ? "Cancelar" : "Cerrar"}</button>
           </div>
 
           <Field label="Nombre completo *"><input required className={inputCls} value={form.name} onChange={set("name")} maxLength={150} /></Field>
@@ -347,7 +294,7 @@ export default function DirectorioAdminPage() {
             <Field label="N.º lista"><input className={inputCls} value={form.list_number} onChange={set("list_number")} maxLength={10} /></Field>
           </div>
 
-          <fieldset className="space-y-3 rounded-xl bg-gray-50 p-3">
+          <fieldset className="grid gap-3 rounded-xl bg-gray-50 p-3 sm:grid-cols-3 md:col-span-2">
             <legend className="px-1 text-xs font-semibold text-gray-600">Ubicación *</legend>
             <select required className={inputCls} value={depId} onChange={(e) => pickDep(e.target.value)} aria-label="Departamento">
               <option value="">Departamento…</option>
@@ -369,8 +316,8 @@ export default function DirectorioAdminPage() {
             value={form.logo_url} onChange={(url) => setForm((f) => ({ ...f, logo_url: url }))} token={token}
           />
           <Field label="Lema (opcional)"><input className={inputCls} value={form.tagline} onChange={set("tagline")} maxLength={300} /></Field>
-          <Field label="Biografía breve (opcional)"><textarea rows={3} className={inputCls} value={form.bio} onChange={set("bio")} maxLength={5000} /></Field>
-          <details className="rounded-xl bg-gray-50 p-3">
+          <div className="md:col-span-2"><Field label="Biografía breve (opcional)"><textarea rows={3} className={inputCls} value={form.bio} onChange={set("bio")} maxLength={5000} /></Field></div>
+          <details className="rounded-xl bg-gray-50 p-3 md:col-span-2">
             <summary className="cursor-pointer text-xs font-semibold text-gray-600">Redes sociales (opcional)</summary>
             <div className="mt-3 space-y-3">
               <Field label="Facebook"><input type="url" className={inputCls} value={form.facebook_url} onChange={set("facebook_url")} /></Field>
@@ -379,7 +326,7 @@ export default function DirectorioAdminPage() {
             </div>
           </details>
 
-          <label className="flex items-start gap-3 rounded-xl border border-brand-500/30 bg-brand-500/5 p-3">
+          <label className="flex items-start gap-3 rounded-xl border border-brand-500/30 bg-brand-500/5 p-3 md:col-span-2">
             <input
               type="checkbox" className="mt-0.5 h-4 w-4 accent-brand-500"
               checked={form.completado}
@@ -392,91 +339,19 @@ export default function DirectorioAdminPage() {
             </span>
           </label>
 
-          <button type="submit" disabled={saving || !distId} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3 text-sm font-bold text-white disabled:opacity-40">
+          <button type="submit" disabled={saving || !distId} className="inline-flex w-full items-center md:col-span-2 justify-center gap-2 rounded-xl bg-brand-500 px-4 py-3 text-sm font-bold text-white disabled:opacity-40">
             {saving && <Loader2 size={15} className="animate-spin" />}
             {editing ? "Guardar cambios" : "Crear candidato (borrador)"}
           </button>
         </form>
+        )}
 
-        {/* Lista */}
-        <div className="lg:col-span-3">
-          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
-            <div className="border-b border-gray-100 bg-gray-50/70 px-5 py-4">
-              <p className="text-xs font-bold uppercase tracking-widest text-gray-500">
-                Candidatos ({rows.length}) · visibles al público: {rows.filter((r) => r.visible).length}
-              </p>
-            </div>
-
-            {loading ? (
-              <div className="flex justify-center py-12"><Loader2 size={20} className="animate-spin text-brand-400" /></div>
-            ) : rows.length === 0 ? (
-              <p className="px-5 py-14 text-center text-sm text-gray-400">Aún no hay candidatos. Crea el primero con el formulario.</p>
-            ) : (
-              <ul className="divide-y divide-gray-100">
-                {rows.map((c) => {
-                  const estado = c.visible
-                    ? { t: "Publicado · visible", cls: "bg-green-50 text-green-700 border-green-200" }
-                    : c.estado_publicacion === "publicado"
-                    ? {
-                        t: !c.distrito_id
-                          ? "Publicado, pero oculto: falta asignar un distrito"
-                          : "Publicado, pero oculto: falta un documento procesado",
-                        cls: "bg-amber-50 text-amber-700 border-amber-200",
-                      }
-                    : { t: "Borrador", cls: "bg-gray-50 text-gray-600 border-gray-200" };
-                  return (
-                    <li key={c.id} className="px-5 py-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="flex min-w-0 items-start gap-2.5">
-                          {c.logo_url && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={c.logo_url} alt="" className="h-9 w-9 shrink-0 rounded-md bg-white object-contain p-0.5 ring-1 ring-gray-200" />
-                          )}
-                          <div className="min-w-0">
-                          <p className="truncate text-sm font-bold text-gray-900">{c.name}</p>
-                          <p className="truncate text-xs text-gray-500">{c.title} · {c.party}</p>
-                          <p className="mt-0.5 text-xs text-gray-400">{c.distrito_id ? c.location : "Sin distrito asignado"}</p>
-                          </div>
-                        </div>
-                        <span className={cn("rounded-full border px-2.5 py-1 text-[11px] font-semibold", estado.cls)}>{estado.t}</span>
-                      </div>
-
-                      <p className="mt-2 flex flex-wrap items-center gap-x-3 text-xs text-gray-500">
-                        <span>{c.documentos_listos} de {c.documentos_total} {c.documentos_total === 1 ? "documento listo" : "documentos listos"}</span>
-                        {c.documentos_procesando > 0 && <span className="inline-flex items-center gap-1 text-brand-600"><Loader2 size={11} className="animate-spin" /> procesando {c.documentos_procesando}…</span>}
-                        {c.documentos_fallidos > 0 && (
-                          <Link href="/admin/knowledge" className="inline-flex items-center gap-1 text-red-600 underline">
-                            <AlertCircle size={11} /> {c.documentos_fallidos} fallido(s): revisar
-                          </Link>
-                        )}
-                      </p>
-
-                      <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
-                        <button type="button" onClick={() => setUploadFor(uploadFor === c.id ? null : c.id)} className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-3 py-1.5 hover:bg-gray-200"><Upload size={12} /> Documentos</button>
-                        {c.estado_publicacion === "publicado" ? (
-                          <button type="button" onClick={() => token && act(() => directorioAdmin.unpublish(token, c.id), "Quitado de la web.")} className="rounded-lg bg-gray-100 px-3 py-1.5 hover:bg-gray-200">Quitar de la web</button>
-                        ) : (
-                          <button type="button" onClick={() => token && act(() => directorioAdmin.publish(token, c.id), "Publicado.")} className="rounded-lg bg-brand-500 px-3 py-1.5 text-white">Publicar</button>
-                        )}
-                        <button type="button" onClick={() => startEdit(c)} className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-3 py-1.5 hover:bg-gray-200"><Pencil size={12} /> Editar</button>
-                        {c.visible && c.slug && (
-                          <Link href={`/candidato/${c.slug}`} target="_blank" className="inline-flex items-center gap-1 rounded-lg bg-gray-100 px-3 py-1.5 hover:bg-gray-200"><ExternalLink size={12} /> Ver ficha</Link>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => token && confirm(`¿Eliminar a ${c.name}? Sus documentos se conservan sin candidato asignado.`) && act(() => directorioAdmin.remove(token, c.id), "Candidato eliminado.")}
-                          className="ml-auto inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-red-600 hover:bg-red-50"
-                        ><Trash2 size={12} /> Eliminar</button>
-                      </div>
-
-                      {uploadFor === c.id && <DocUpload candidato={c} onDone={load} />}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        </div>
+        {/* Tabla agrupada por Departamento › Provincia › Distrito */}
+        <CandidatosTabla
+          rows={rows} loading={loading} token={token}
+          onEdit={startEdit} onChanged={load} act={act}
+          openId={uploadFor} setOpenId={setUploadFor}
+        />
       </div>
     </div>
   );

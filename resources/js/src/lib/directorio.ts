@@ -141,6 +141,22 @@ export interface AdminCandidato {
   documentos_procesando: number;
   documentos_fallidos: number;
   visible: boolean;
+  /** Nombres del ubigeo (MAYÚSCULAS, como en el INEI) para agrupar la tabla. */
+  departamento: string | null;
+  provincia: string | null;
+  distrito: string | null;
+  documentos: AdminDocumento[];
+}
+
+export interface AdminDocumento {
+  id: number;
+  title: string;
+  topic: string | null;
+  status: "pending" | "processing" | "ready" | "failed";
+  error_message: string | null;
+  file_url: string | null;
+  file_size: number | null;
+  is_active: boolean;
 }
 
 export interface AdminCandidatoInput {
