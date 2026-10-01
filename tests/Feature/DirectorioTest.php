@@ -777,6 +777,21 @@ class DirectorioTest extends TestCase
         $this->assertSame('ok', $qa->evaluar($c, 'sectores', [$this->turno($resp, [$plan->id])])['estado']);
     }
 
+    public function test_qa_trick_questions_premise_achievements_and_undeveloped_topic(): void
+    {
+        [$c, $hv, $plan] = $this->qaCandidato();
+        $qa = app(\App\Services\ControlCalidadService::class);
+
+        $this->assertSame('ok', $qa->evaluar($c, 'premisa_falsa', [$this->turno('No encuentro esa promesa en sus documentos.')])['estado']);
+        $this->assertSame('falla', $qa->evaluar($c, 'premisa_falsa', [$this->turno('Sí, promete un aeropuerto internacional [S1].', [$plan->id])])['estado']);
+
+        $this->assertSame('falla', $qa->evaluar($c, 'logros', [$this->turno('Como regidor construyó tres puentes y logró bajar la pobreza.', [$hv->id])])['estado']);
+        $this->assertSame('ok', $qa->evaluar($c, 'logros', [$this->turno('Declara haber sido regidor distrital 2022–2026 [S1]; sus documentos no detallan obras.', [$hv->id])])['estado']);
+
+        // Su plan no desarrolla salud: decir que no hay propuestas de salud es correcto.
+        $this->assertSame('ok', $qa->evaluar($c, 'salud', [$this->turno('Sobre salud, en sus documentos no hay propuestas específicas [S1].', [$plan->id])])['estado']);
+    }
+
     public function test_admin_saves_a_qa_run_and_the_table_shows_its_status(): void
     {
         [$c] = $this->qaCandidato();

@@ -770,6 +770,37 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
     }
 
     /** Documentos de UN candidato → fragmentos por página. Solo aportan los que hablan del tema. */
+    /**
+     * ¿Algún documento del candidato (no su hoja de vida) DESARROLLA el tema, o sea,
+     * tiene una página que habla de él y propone algo? Lo usa el control de calidad
+     * para no marcar como error un "no hay propuestas de salud" que es verdad.
+     */
+    public function temaDesarrollado(int $candidateId, string $familia): bool
+    {
+        $variantes = self::TERM_FAMILIES[$familia] ?? [$familia];
+        $docs = KnowledgeDocument::query()->where('candidate_id', $candidateId)->where('is_active', true)
+            ->where('status', 'ready')->get(['id', 'title', 'topic', 'pages', 'content']);
+
+        foreach ($docs as $d) {
+            if (SensitiveData::isHojaDeVida($d->topic ?? null, (string) $d->title)) {
+                continue;
+            }
+            $paginas = is_array($d->pages) && $d->pages ? $d->pages : [(string) $d->content];
+            foreach ($paginas as $texto) {
+                $t = $this->fold((string) $texto);
+                $h = 0;
+                foreach ($variantes as $v) {
+                    $h += substr_count($t, $v);
+                }
+                if ($h >= 3 && $this->senales($t)[0] >= 2) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     private function searchWithinCandidate(string $query, int $candidateId): array
     {
         $docs = KnowledgeDocument::query()

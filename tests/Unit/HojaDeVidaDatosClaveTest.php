@@ -50,6 +50,28 @@ class HojaDeVidaDatosClaveTest extends TestCase
         $this->assertStringContainsString('Renuncias a otros partidos (sección VII): no declara', $t);
     }
 
+    public function test_reads_degree_work_party_posts_and_resignations_without_ruc_or_address(): void
+    {
+        $p = 'CASILLAS MARCADAS EN ESTA PÁGINA (leídas del PDF; las opciones no listadas NO están marcadas): '
+            . 'II. EXPERIENCIA DE TRABAJO EN OFICIOS, OCUPACIONES O PROFESIONES — ¿TENGO INFORMACIÓN POR DECLARAR?: SÍ TENGO | '
+            . 'ESTUDIOS UNIVERSITARIOS — ¿TENGO INFORMACIÓN POR DECLARAR?: SÍ TENGO | CARGOS PARTIDARIOS — ¿TENGO INFORMACIÓN POR DECLARAR?: SÍ TENGO | '
+            . 'VII. MENCIÓN DE LAS RENUNCIAS EFECTUADAS A OTROS PARTIDOS — ¿TENGO INFORMACIÓN POR DECLARAR?: SÍ TENGO [FIN CASILLAS] '
+            . 'HOJA DE VIDA NOMBRE DEL CENTRO DE PRESTACIÓN DEL SERVICIO O TRABAJO:EMPRESA DEMO S.A.C. OFICIOS / OCUPACIONES / PROFESIONES:CONTADOR '
+            . 'RUC EMPRESA (OPCIONAL): 20123456789 DIRECCIÓN: CALLE FALSA 123 DESDE (AÑO): 2 0 1 5 HASTA (AÑO): HASTA LA ACTUALIDAD PAÍS*: PERU '
+            . 'NOMBRE DE LA UNIVERSIDAD:UNIVERSIDAD DEMO CONCLUIDOS: SÍ GRADO O TÍTULO:BACHILLER EN ECONOMIA EGRESADO: SÍ AÑO DE INFORMACIÓN OBTENCIÓN: 2001 COMPLEMENTARIA: '
+            . '(Indique cuál o cuáles son los dos últimos cargos partidarios que ha desempeñado) ¿TENGO INFORMACIÓN POR DECLARAR? SÍ TENGO NO TENGO CARGO 1 '
+            . 'ORGANIZACIÓN POLÍTICA :PARTIDO DEMO CARGO: SECRETARIO DESDE (AÑO): 2 0 1 8 HASTA (AÑO): 2 0 2 0 INFORMACIÓN COMPLEMENTARIA: CARGOS DE ELECCIÓN POPULAR '
+            . 'ORGANIZACIÓN POLÍTICA A LA QUE RENUNCIÓ:MOVIMIENTO DEMO HASTA (Opcional): 2 0 1 9 INFORMACIÓN COMPLEMENTARIA:';
+        $t = $this->lineas([$p]);
+
+        $this->assertStringContainsString('Bachiller en Economia, Universidad Demo (concluido, 2001)', $t);
+        $this->assertStringContainsString('Contador en Empresa Demo S.A.C. (2015–hasta la actualidad)', $t);
+        $this->assertStringContainsString('Secretario de Partido Demo (2018–2020)', $t);
+        $this->assertStringContainsString('Renuncias a otros partidos (sección VII): Movimiento Demo (2019)', $t);
+        $this->assertStringNotContainsString('20123456789', $t);
+        $this->assertStringNotContainsString('CALLE FALSA', mb_strtoupper($t));
+    }
+
     public function test_never_leaks_id_number_or_income(): void
     {
         $t = $this->lineas($this->paginas());

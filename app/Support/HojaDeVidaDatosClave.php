@@ -79,17 +79,18 @@ final class HojaDeVidaDatosClave
             'ESTUDIOS DE POSGRADO'       => 'Posgrado',
         ] as $clave => $etiqueta) {
             if (($v = self::respuesta($casillas, $clave)) !== null) {
-                $out[] = "{$etiqueta}: " . ($v ? 'SÍ declara (el detalle está en la hoja de vida)' : 'no declara');
+                $detalle = $clave === 'ESTUDIOS UNIVERSITARIOS' ? self::universidades($texto) : '';
+                $out[] = "{$etiqueta}: " . ($v ? ($detalle ?: 'SÍ declara (el detalle está en la hoja de vida)') : 'no declara');
             }
         }
 
         // ── Experiencia y trayectoria ─────────────────────────────────
         if (($v = self::respuesta($casillas, 'II. EXPERIENCIA DE TRABAJO')) !== null) {
             $out[] = 'Experiencia laboral de los últimos 10 años (sección II): '
-                . ($v ? 'SÍ declara (el detalle está en la hoja de vida)' : 'no declara ninguna');
+                . ($v ? (self::experiencias($texto) ?: 'SÍ declara (el detalle está en la hoja de vida)') : 'no declara ninguna');
         }
         if (($v = self::respuesta($casillas, 'CARGOS PARTIDARIOS')) !== null) {
-            $out[] = 'Cargos partidarios: ' . ($v ? 'SÍ declara (el detalle está en la hoja de vida)' : 'no declara');
+            $out[] = 'Cargos partidarios: ' . ($v ? (self::cargosPartidarios($texto) ?: 'SÍ declara (el detalle está en la hoja de vida)') : 'no declara');
         }
         $eleccion = self::cargosDeEleccion($casillas, $texto);
         if ($eleccion !== null) {
@@ -106,10 +107,73 @@ final class HojaDeVidaDatosClave
                 . ($v ? 'SÍ declara (lee el detalle en la hoja de vida)' : 'no declara');
         }
         if (($v = self::respuesta($casillas, 'VII. MENCIÓN DE LAS RENUNCIAS')) !== null) {
-            $out[] = 'Renuncias a otros partidos (sección VII): ' . ($v ? 'SÍ declara' : 'no declara');
+            $out[] = 'Renuncias a otros partidos (sección VII): ' . ($v ? (self::renuncias($texto) ?: 'SÍ declara') : 'no declara');
         }
 
         return $out;
+    }
+
+    private static function anio(string $s): string
+    {
+        $s = trim($s);
+
+        return preg_match('/^[\d ]{4,7}$/u', $s) ? str_replace(' ', '', $s) : mb_strtolower($s);
+    }
+
+    /** "Bachiller en Administracion de Empresas, Universidad de Lima (concluido, 1977)" */
+    private static function universidades(string $t): string
+    {
+        preg_match_all('/NOMBRE DE LA UNIVERSIDAD:\s*(.+?)\s*CONCLUIDOS:\s*(SÍ|NO)\s*GRADO O TÍTULO:\s*(.*?)\s*EGRESADO:.{0,40}?OBTENCIÓN:\s*(\d{4})?/u', $t, $mm, PREG_SET_ORDER);
+        $out = [];
+        foreach (array_slice($mm, 0, 3) as $m) {
+            $grado = trim($m[3]) !== '' ? self::lindo($m[3]) . ', ' : '';
+            $out[] = $grado . self::lindo($m[1]) . ' (' . ($m[2] === 'SÍ' ? 'concluido' : 'no concluido') . (! empty($m[4]) ? ", {$m[4]}" : '') . ')';
+        }
+
+        return implode('; ', $out);
+    }
+
+    /** "Empresario en Red Bicolor de Comunicaciones S.A.A. (1986–2016)". Sin RUC ni dirección. */
+    private static function experiencias(string $t): string
+    {
+        preg_match_all('/NOMBRE DEL CENTRO DE PRESTACIÓN DEL SERVICIO O TRABAJO:\s*(.+?)\s*OFICIOS \/ OCUPACIONES \/ PROFESIONES:\s*(.+?)\s*RUC.{0,160}?DESDE \(AÑO\):\s*([\d ]{4,7})\s*HASTA \(AÑO\):\s*(HASTA LA ACTUALIDAD|[\d ]{4,7})/u', $t, $mm, PREG_SET_ORDER);
+        $out = [];
+        foreach (array_slice($mm, 0, 5) as $m) {
+            $out[] = self::lindo($m[2]) . ' en ' . self::lindo($m[1]) . ' (' . self::anio($m[3]) . '–' . self::anio($m[4]) . ')';
+        }
+
+        return implode('; ', $out);
+    }
+
+    /** "Fundador de Partido Civico Obras (2022–hasta la actualidad)" */
+    private static function cargosPartidarios(string $t): string
+    {
+        // El texto del formulario (no el bloque de casillas, que también dice "CARGOS PARTIDARIOS").
+        $ini = mb_strpos($t, 'últimos cargos partidarios');
+        $fin = mb_strpos($t, 'CARGOS DE ELECCIÓN POPULAR', $ini === false ? 0 : $ini + 1);
+        if ($ini === false) {
+            return '';
+        }
+        $tramo = mb_substr($t, $ini, $fin !== false ? $fin - $ini : 2000);
+        preg_match_all('/ORGANIZACIÓN POLÍTICA\s*:\s*(.+?)\s*CARGO:\s*(.+?)\s*DESDE \(AÑO\):\s*([\d ]{4,7})\s*HASTA \(AÑO\):\s*(HASTA LA ACTUALIDAD|[\d ]{4,7})/u', $tramo, $mm, PREG_SET_ORDER);
+        $out = [];
+        foreach (array_slice($mm, 0, 3) as $m) {
+            $out[] = self::lindo($m[2]) . ' de ' . self::lindo($m[1]) . ' (' . self::anio($m[3]) . '–' . self::anio($m[4]) . ')';
+        }
+
+        return implode('; ', $out);
+    }
+
+    /** "Union por el Peru (2021)" */
+    private static function renuncias(string $t): string
+    {
+        preg_match_all('/ORGANIZACIÓN POLÍTICA A LA QUE RENUNCIÓ:\s*(.+?)\s*HASTA \(Opcional\):\s*([\d ]{4,7})?/u', $t, $mm, PREG_SET_ORDER);
+        $out = [];
+        foreach (array_slice($mm, 0, 3) as $m) {
+            $out[] = self::lindo($m[1]) . (! empty($m[2]) ? ' (' . self::anio($m[2]) . ')' : '');
+        }
+
+        return implode('; ', $out);
     }
 
     /** @return array<int,string> casillas marcadas de todas las páginas, en orden */
@@ -194,7 +258,9 @@ final class HojaDeVidaDatosClave
         }
         $w = explode(' ', mb_strtolower($s));
         foreach ($w as $i => $x) {
-            if ($i === 0 || ! in_array($x, ['de', 'del', 'la', 'las', 'los', 'y', 'e'], true)) {
+            if (str_contains($x, '.')) {
+                $w[$i] = mb_strtoupper($x);   // siglas: S.A.A., L.I.N°
+            } elseif ($i === 0 || ! in_array($x, ['de', 'del', 'la', 'las', 'los', 'y', 'e', 'en', 'el', 'por', 'al', 'a'], true)) {
                 $w[$i] = mb_strtoupper(mb_substr($x, 0, 1)) . mb_substr($x, 1);
             }
         }
