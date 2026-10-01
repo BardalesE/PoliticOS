@@ -293,6 +293,9 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
         Route::put   ('/users/{id}', [AdminController::class, 'updateUser']);
         Route::delete('/users/{id}', [AdminController::class, 'deleteUser']);
 
+        // Consumo de IA: tokens y costo por proveedor, día, propósito y candidato
+        Route::get('/ai-uso', [\App\Http\Controllers\AiUsoController::class, 'resumen']);
+
         // Chat sessions (solo lectura)
         Route::get('/chat-sessions',      [AdminController::class, 'listSessions']);
         Route::get('/chat-sessions/{id}', [AdminController::class, 'showSession']);

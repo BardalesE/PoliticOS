@@ -120,6 +120,12 @@ class ClusterTopQuestionsJob implements ShouldQueue
                 'messages' => [['role' => 'user', 'content' => $prompt]],
             ]);
 
+            \App\Services\AiUsage::registrar(
+                str_contains($url, 'groq.com') ? 'groq' : 'openai', $model,
+                (int) $r->json('usage.prompt_tokens', 0), (int) $r->json('usage.completion_tokens', 0),
+                ok: $r->ok(), status: $r->status(), proposito: 'etiquetas',
+            );
+
             return trim($r->json('choices.0.message.content') ?? ucfirst($primaryConcern), " \t\n\"'.");
         } catch (\Throwable $e) {
             return ucfirst($primaryConcern);

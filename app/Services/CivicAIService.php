@@ -86,6 +86,7 @@ class CivicAIService
         $this->scopeCandidateId   = $candidate?->id;
         $this->scopeCandidateName = $candidate?->name;
         $this->scopeCandidate     = $candidate;
+        AiUsage::$candidatoId     = $candidate?->id;
 
         return $this;
     }
@@ -135,7 +136,13 @@ class CivicAIService
         $raw = null;
         foreach ($this->usableProviders() as $provider) {
             try {
-                $raw = $this->callProvider($provider, "¿Qué propone sobre {$topicLabel}? Devuelve solo el JSON.", $system, []);
+                $antes = AiUsage::$proposito;
+                AiUsage::$proposito = 'comparador';
+                try {
+                    $raw = $this->callProvider($provider, "¿Qué propone sobre {$topicLabel}? Devuelve solo el JSON.", $system, []);
+                } finally {
+                    AiUsage::$proposito = $antes;
+                }
                 if (trim((string) $raw) !== '') break;
             } catch (\Throwable $e) {
                 Log::warning('Comparador: proveedor falló', ['provider' => $provider, 'error' => $e->getMessage()]);
@@ -1519,8 +1526,10 @@ class CivicAIService
         }
 
         $response = Http::timeout(30)->withToken($apiKey)->post($url, $body);
+        $prov = str_contains($url, 'groq.com') ? 'groq' : 'openai';
 
         if (!$response->ok()) {
+            AiUsage::fallo($prov, $model, $response->status());
             Log::error('AI HTTP error (OpenAI-compatible)', [
                 'url'    => $url,
                 'model'  => $model,
@@ -1534,7 +1543,16 @@ class CivicAIService
             );
         }
 
-        return $response->json('choices.0.message.content') ?? '';
+        $texto = $response->json('choices.0.message.content') ?? '';
+        $uso   = $response->json('usage') ?? [];
+        AiUsage::registrar(
+            $prov, $model,
+            (int) ($uso['prompt_tokens'] ?? AiUsage::estimar(json_encode($messages))),
+            (int) ($uso['completion_tokens'] ?? AiUsage::estimar($texto)),
+            estimado: ! isset($uso['prompt_tokens']),
+        );
+
+        return $texto;
     }
 
     /**
@@ -1583,6 +1601,7 @@ class CivicAIService
         ]);
 
         if (!$response->ok()) {
+            AiUsage::fallo('claude', $model, $response->status());
             Log::error('AI HTTP error (Claude)', [
                 'model'  => $model,
                 'status' => $response->status(),
@@ -1594,6 +1613,14 @@ class CivicAIService
                 $this->parseRetryAfter($response->header('Retry-After'))
             );
         }
+
+        $uso = $response->json('usage') ?? [];
+        AiUsage::registrar(
+            'claude', $model,
+            (int) ($uso['input_tokens'] ?? 0), (int) ($uso['output_tokens'] ?? 0),
+            (int) ($uso['cache_read_input_tokens'] ?? 0), (int) ($uso['cache_creation_input_tokens'] ?? 0),
+            estimado: ! isset($uso['input_tokens']),
+        );
 
         return $response->json('content.0.text') ?? '';
     }
@@ -1702,14 +1729,26 @@ class CivicAIService
                 'stream' => true,
             ]);
         } catch (RequestException $e) {
+            AiUsage::fallo(str_contains($url, 'groq.com') ? 'groq' : 'openai', $model, $e->getResponse()?->getStatusCode());
             $this->rethrowAsAiProviderException($e);
         }
 
-        $this->processSSEStream($response->getBody(), $onChunk, function ($line) {
+        // Groq manda el uso en el último trozo (x_groq.usage); otros compatibles, en "usage".
+        $uso = null; $salida = '';
+        $this->processSSEStream($response->getBody(), $onChunk, function ($line) use (&$uso, &$salida) {
             if (!str_starts_with($line, 'data: ') || $line === 'data: [DONE]') return null;
             $payload = json_decode(substr($line, 6), true);
-            return $payload['choices'][0]['delta']['content'] ?? null;
+            $uso = $payload['x_groq']['usage'] ?? $payload['usage'] ?? $uso;
+            $t = $payload['choices'][0]['delta']['content'] ?? null;
+            $salida .= (string) $t;
+            return $t;
         });
+        AiUsage::registrar(
+            str_contains($url, 'groq.com') ? 'groq' : 'openai', $model,
+            (int) ($uso['prompt_tokens'] ?? AiUsage::estimar(json_encode($messages))),
+            (int) ($uso['completion_tokens'] ?? AiUsage::estimar($salida)),
+            estimado: ! isset($uso['prompt_tokens']),
+        );
     }
 
     private function streamClaude(string $userMessage, string $systemPrompt, array $history, callable $onChunk): void
@@ -1741,15 +1780,30 @@ class CivicAIService
                 'stream' => true,
             ]);
         } catch (RequestException $e) {
+            AiUsage::fallo('claude', $model, $e->getResponse()?->getStatusCode());
             $this->rethrowAsAiProviderException($e);
         }
 
-        $this->processSSEStream($response->getBody(), $onChunk, function ($line) {
+        // Uso: message_start trae la entrada (y caché); message_delta, la salida.
+        $uso = [];
+        $this->processSSEStream($response->getBody(), $onChunk, function ($line) use (&$uso) {
             if (!str_starts_with($line, 'data: ')) return null;
             $payload = json_decode(substr($line, 6), true);
-            if (($payload['type'] ?? '') !== 'content_block_delta') return null;
+            $tipo = $payload['type'] ?? '';
+            if ($tipo === 'message_start') {
+                $uso = array_merge($uso, $payload['message']['usage'] ?? []);
+            } elseif ($tipo === 'message_delta') {
+                $uso = array_merge($uso, $payload['usage'] ?? []);
+            }
+            if ($tipo !== 'content_block_delta') return null;
             return $payload['delta']['text'] ?? null;
         });
+        AiUsage::registrar(
+            'claude', $model,
+            (int) ($uso['input_tokens'] ?? 0), (int) ($uso['output_tokens'] ?? 0),
+            (int) ($uso['cache_read_input_tokens'] ?? 0), (int) ($uso['cache_creation_input_tokens'] ?? 0),
+            estimado: ! isset($uso['input_tokens']),
+        );
     }
 
     private function processSSEStream($body, callable $onChunk, callable $extractor): void

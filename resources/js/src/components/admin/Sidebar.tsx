@@ -11,7 +11,7 @@ import {
   LayoutDashboard, MessageSquare, FileText, Video, HelpCircle, Users,
   Brain, Shield, Radio, Settings, LogOut, Image as ImageIcon,
   MapPin, BookOpen, AlertCircle, Tag, FileQuestion, UserCircle, Calendar,
-  Lock, UserCheck, Rocket, ClipboardList, Award, Quote,
+  Lock, UserCheck, Rocket, ClipboardList, Award, Quote, Gauge,
 } from "lucide-react";
 
 type NavItem = {
@@ -44,6 +44,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Contenido y IA",
     items: [
       { href: "/admin/ai-settings",        label: "Configuración IA",      icon: Settings },
+      { href: "/admin/consumo-ia",         label: "Consumo de IA",         icon: Gauge,       badge: "NEW" },
       { href: "/admin/candidate-profile",  label: "Perfil del candidato",  icon: UserCircle },
       { href: "/admin/proposals",          label: "Propuestas",            icon: FileText,    feature: "proposals" },
       { href: "/admin/knowledge",          label: "Base de conocimiento",  icon: BookOpen,    feature: "knowledge" },

@@ -49,6 +49,9 @@ class ControlCalidadService
         }
 
         $conn = (new ChatSession())->getConnection();
+        $propositoAnterior = AiUsage::$proposito;
+        AiUsage::$proposito = 'qa';
+        AiUsage::diferir();          // el consumo del control sí se registra (después del rollback)
         $conn->beginTransaction();
         try {
             $session = ChatSession::create([
@@ -89,6 +92,8 @@ class ControlCalidadService
         } finally {
             $conn->rollBack();
             ChatMessage::$scopedCandidateId = null;
+            AiUsage::volcar();
+            AiUsage::$proposito = $propositoAnterior;
         }
 
         return $this->evaluar($c, $casoId, $turnos);

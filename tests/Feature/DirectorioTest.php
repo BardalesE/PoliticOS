@@ -89,6 +89,7 @@ class DirectorioTest extends TestCase
             '2026_09_30_000001_create_candidato_regidores_table',
             '2026_09_30_000002_add_ambito_to_candidate_profiles_table',
             '2026_10_01_000001_add_qa_to_candidate_profiles_table',
+            '2026_10_01_000002_create_ai_usage_table',
         ] as $migration) {
             (require database_path("migrations/{$migration}.php"))->up();
         }
@@ -790,6 +791,39 @@ class DirectorioTest extends TestCase
 
         // Su plan no desarrolla salud: decir que no hay propuestas de salud es correcto.
         $this->assertSame('ok', $qa->evaluar($c, 'salud', [$this->turno('Sobre salud, en sus documentos no hay propuestas específicas [S1].', [$plan->id])])['estado']);
+    }
+
+    public function test_ai_usage_is_recorded_priced_and_summarized_for_the_admin(): void
+    {
+        [$c] = $this->qaCandidato();
+        \App\Services\AiUsage::$candidatoId = $c->id;
+        \App\Services\AiUsage::registrar('groq', 'openai/gpt-oss-120b', 8000, 400);
+        \App\Services\AiUsage::registrar('claude', 'claude-haiku-4-5-20251001', 6000, 300, 2000, 0);
+        \App\Services\AiUsage::fallo('groq', 'openai/gpt-oss-120b', 429);
+        \App\Services\AiUsage::$proposito = 'qa';
+        \App\Services\AiUsage::registrar('groq', 'openai/gpt-oss-120b', 1000, 100);
+        \App\Services\AiUsage::$proposito = 'chat';
+        \App\Services\AiUsage::$candidatoId = null;
+
+        // Haiku: 6000×1 + 300×5 + 2000×0.10 = 7700 / 1M = 0.0077
+        $this->assertEqualsWithDelta(0.0077, \App\Services\AiUsage::costo('claude', 'claude-haiku-4-5-20251001', 6000, 300, 2000), 1e-9);
+
+        $this->actAs('admin');
+        $r = $this->getJson('/api/admin/ai-uso?dias=7')->assertOk();
+        $this->assertSame(17800, $r->json('totales.tokens'));
+        $this->assertSame(4, $r->json('totales.llamadas'));
+        $this->assertSame(1, $r->json('totales.fallos'));
+        $this->assertEqualsWithDelta(0.0077, $r->json('totales.costo_real_usd'), 1e-6);   // Groq en plan gratis no suma
+        $this->assertSame($c->name, $r->json('por_candidato.0.nombre'));
+        $this->assertEqualsCanonicalizing(['chat', 'qa'], array_column($r->json('por_proposito'), 'proposito'));
+
+        // El control de calidad corre en una transacción revertida: su consumo igual queda.
+        \App\Services\AiUsage::diferir();
+        \Illuminate\Support\Facades\DB::beginTransaction();
+        \App\Services\AiUsage::registrar('groq', 'openai/gpt-oss-120b', 10, 10);
+        \Illuminate\Support\Facades\DB::rollBack();
+        \App\Services\AiUsage::volcar();
+        $this->assertSame(5, \Illuminate\Support\Facades\DB::table('ai_usage')->count());
     }
 
     public function test_admin_saves_a_qa_run_and_the_table_shows_its_status(): void
