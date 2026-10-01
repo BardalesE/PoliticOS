@@ -502,7 +502,13 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
             $pages  = is_array($d->pages) ? array_values($d->pages) : [];
             // Hoja de vida pedida explícitamente: sus 3 páginas (la trayectoria y los
             // cargos de elección están en la 2; con 2 páginas se perdían — bug 2026-09-30).
-            $porDoc = ($esHv && $this->queryTargetsDocument($query, 'hoja_de_vida', '')) ? self::HV_PAGES : self::PAGES_PER_DOC;
+            // Un documento puede aportar hasta MAX_EXCERPTS páginas: primero entra la mejor
+            // página de CADA documento (diversidad) y los cupos libres se llenan con las
+            // siguientes mejores. Antes, un plan de 60 páginas aportaba solo 2 aunque
+            // sobraran cupos (2026-10-01, Lima).
+            $porDoc = $esHv
+                ? ($this->queryTargetsDocument($query, 'hoja_de_vida', '') ? self::HV_PAGES : self::PAGES_PER_DOC)
+                : self::MAX_EXCERPTS;
             // null = no se puede ordenar (sin páginas, o pregunta sin términos de tema);
             // [] = hay páginas pero ninguna habla del tema → el documento no aporta.
             $ranked = $pages ? $this->rankPages($pages, $query, (string) $d->title) : null;
@@ -625,7 +631,12 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
             foreach ($byGroup as $gi => $h) {
                 $score += (1 / log(2 + $totals[$gi])) * (1 + log($h));
             }
-            $scores[$i + 1] = $score;
+            // Planes largos (2026-10-01, Lima): "¿qué propone en salud?" traía la página
+            // del objetivo general o del diagnóstico, no la de propuestas. Entre páginas
+            // que hablan del tema, se prefieren las que proponen (construir, implementar,
+            // metas…) sobre las que describen el problema.
+            [$pro, $diag] = $this->senales((string) $pages[$i]);
+            $scores[$i + 1] = $score * (1 + 0.15 * min($pro, 8)) / (1 + 0.1 * min($diag, 8));
         }
 
         arsort($scores);
@@ -657,8 +668,61 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
      *
      * @return array<int, float>  número de página (1-based) => puntaje
      */
+    private const SENALES_DIAGNOSTICO = [
+        'diagnostico', 'problematica', 'situacion actual', 'brecha', 'segun inei', 'segun el inei', 'tasa de',
+        'poblacion censada', 'antecedentes', 'caracteristicas', 'se observa', 'se evidencia',
+    ];
+
+    /** Familias de "sector" para repartir una respuesta general entre temas distintos. */
+    private const SECTORES = ['salud', 'educa', 'segur', 'agua', 'carreter', 'empleo', 'agri', 'ambient', 'turism'];
+
+    /** @return array{0:int,1:int} [señales de propuesta, señales de diagnóstico] */
+    private function senales(string $text): array
+    {
+        $t = $this->fold($text);
+        $pro = 0;
+        foreach (self::SENALES_PROPUESTA as $w) {
+            $pro += substr_count($t, $w);
+        }
+        $diag = 0;
+        foreach (self::SENALES_DIAGNOSTICO as $w) {
+            $diag += substr_count($t, $w);
+        }
+
+        return [$pro, $diag];
+    }
+
     private function paginasDePropuestas(array $pages, int $max): array
     {
+        // Plan largo: una página por sector distinto (salud, educación, seguridad…), así
+        // "¿qué ofrece para cada sector?" no sale con 2 páginas de un solo tema.
+        if (count($pages) > 8 && $max > 1) {
+            $porSector = [];
+            foreach (self::SECTORES as $sector) {
+                $familia = self::TERM_FAMILIES[$sector] ?? [$sector];
+                $mejor = null; $mejorPts = 0.0;
+                foreach ($pages as $i => $text) {
+                    $t = $this->fold((string) $text);
+                    if (mb_strlen(trim($t)) < self::MIN_CONTENT_PAGE_CHARS) continue;
+                    $h = 0;
+                    foreach ($familia as $v) { $h += substr_count($t, $v); }
+                    if ($h === 0) continue;
+                    [$pro, $diag] = $this->senales($t);
+                    if ($pro === 0) continue;   // habla del tema pero no propone nada
+                    $pts = (1 + log($h)) * (1 + 0.15 * min($pro, 8)) / (1 + 0.1 * min($diag, 8));
+                    if ($pts > $mejorPts) { $mejorPts = $pts; $mejor = $i + 1; }
+                }
+                if ($mejor !== null && ! isset($porSector[$mejor])) {
+                    $porSector[$mejor] = $mejorPts;
+                }
+            }
+            if (count($porSector) >= 2) {
+                arsort($porSector);
+
+                return array_slice($porSector, 0, $max, true);
+            }
+        }
+
         $puntos = [];
         foreach ($pages as $i => $text) {
             $t = $this->fold((string) $text);
@@ -680,8 +744,10 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
         }
 
         arsort($puntos);
+        // Solo páginas que proponen algo: la reseña o los valores no entran aunque sobren cupos.
+        $buenas = array_filter($puntos, fn ($p) => $p >= 1);
 
-        return array_slice($puntos, 0, $max, true);
+        return array_slice($buenas ?: $puntos, 0, $max, true);
     }
 
     private function paginasConContenido(array $pages, int $max = self::PAGES_PER_DOC): array

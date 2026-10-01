@@ -797,6 +797,39 @@ class DirectorioTest extends TestCase
         ]])->assertJsonPath('estado', 'aprobado');
     }
 
+    public function test_long_plan_serves_proposal_pages_per_topic_and_per_sector(): void
+    {
+        $c = $this->candidato(['name' => 'Ricardo', 'slug' => 'ricardo'], null, null);
+        $relleno = fn ($s) => $s . str_repeat(' Texto del plan metropolitano.', 12);
+        $pages = array_fill(0, 40, $relleno('Página de relleno sin tema.'));
+        $pages[4]  = $relleno('OBJETIVO GENERAL: lograr la prestación de servicios de salud universal de calidad.');
+        $pages[9]  = $relleno('DIAGNÓSTICO de salud: según INEI la tasa de anemia y la brecha de hospitales; situación actual de salud.');
+        $pages[29] = $relleno('PROPUESTAS EN SALUD: implementar hospitales de la solidaridad, construir postas y contratación de médicos para la salud de Lima.');
+        $pages[31] = $relleno('EDUCACIÓN: construcción de colegios, implementar becas para estudiantes y mejoramiento de escuelas.');
+        $pages[33] = $relleno('SEGURIDAD: implementar cámaras de vigilancia, fortalecer el serenazgo y crear la policía municipal.');
+        $this->documento($c, ['title' => 'Plan de Gobierno — Ricardo', 'topic' => 'plan_de_gobierno', 'content' => 'x', 'pages' => $pages]);
+
+        $emb = new \App\Services\MySQLFulltextEmbeddings();
+        $salud = $emb->search('¿Qué propone en salud?', 3, ['candidate_id' => $c->id]);
+        $this->assertSame(30, $salud[0]['page'], 'La página con propuestas de salud va primero (no el objetivo general ni el diagnóstico)');
+
+        $sectores = array_column($emb->search('¿Qué ofrece para cada sector?', 3, ['candidate_id' => $c->id]), 'page');
+        foreach ([30, 32, 34] as $p) {
+            $this->assertContains($p, $sectores, "Falta la página {$p}: una por sector");
+        }
+    }
+
+    public function test_reply_never_claims_the_plan_lacks_other_sectors(): void
+    {
+        [$c] = $this->qaCandidato();
+        $ai = (new \App\Services\CivicAIService(new \App\Services\MySQLFulltextEmbeddings()))->scopeToCandidate($c);
+        $r = $ai->pulirRespuesta("- Riego [S1]\n- Gradas [S2]\nEn los documentos cargados no hay propuestas detalladas sobre otros sectores como salud o educación.\n¿Quieres más detalle?", '¿Qué ofrece para cada sector?');
+
+        $this->assertStringNotContainsString('otros sectores', $r);
+        $this->assertStringContainsString('- Gradas [S2]', $r);
+        $this->assertStringContainsString('¿Quieres más detalle?', $r);
+    }
+
     public function test_casillas_block_always_reaches_the_model_even_if_the_window_is_mid_page(): void
     {
         $c = $this->candidato(['name' => 'Daniel', 'slug' => 'daniel'], null, null);

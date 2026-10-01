@@ -1221,6 +1221,9 @@ class CivicAIService
             . "\n- PLAZOS: si la matriz del plan dice \"METAS 2027-2030\" (u otro periodo), ese es el plazo: dilo (\"plantea sus metas para 2027–2030\") "
             . "y aclara en una línea si no fija fechas por propuesta. COSTOS: si ningún fragmento trae montos o fuente de financiamiento, "
             . "dilo en una línea; no digas que están en otro sitio."
+            . "\n- SOLO VES ALGUNAS PÁGINAS de cada documento. Nunca digas que el plan \"no tiene\" o \"no detalla\" propuestas sobre un tema "
+            . "que no aparece en tus fragmentos, ni sobre \"otros sectores\": di \"Pregúntame por ese tema y lo busco en su plan\". "
+            . "Si un fragmento trae un objetivo o una línea de acción sobre el tema, eso ES lo que propone: preséntalo con su etiqueta."
             . "\n- ¿ES VIABLE?: no lo calificas. Di en 2-3 líneas qué trae el plan (objetivos, indicadores, metas, periodo) y qué no trae "
             . "(montos, fuente de financiamiento), con sus etiquetas, para que el ciudadano juzgue. Nunca digas que no ves propuestas si hay fragmentos con propuestas."
             . "\n- SI EL CIUDADANO DICE QUE TE EQUIVOCASTE: revisa los fragmentos de ESTE turno. Si respaldan lo que dijiste, "
@@ -1368,6 +1371,19 @@ class CivicAIService
             }
             $reply = trim(preg_replace("/\n{3,}/u", "\n\n", implode("\n", $lineas)));
         }
+
+        // Ve solo algunas páginas del plan: no puede afirmar que "no hay propuestas sobre
+        // otros sectores" (Lima, 2026-10-01). Se quita esa frase.
+        $lineas = [];
+        foreach (preg_split('/\R/u', $reply) as $linea) {
+            $frases = preg_split('/(?<=[.!?])\s+/u', $linea);
+            $quedan = array_filter($frases, fn ($f) => ! preg_match(
+                '/\bno\b[^.]{0,80}\b(otros|dem[aá]s|otras)\s+(sectores|temas|[aá]reas)\b|\b(otros|dem[aá]s)\s+(sectores|temas)[^.]{0,40}\bno\s+(aparecen|est[aá]n|figuran|se detallan)/iu', $f));
+            if ($quedan || trim($linea) === '') {
+                $lineas[] = implode(' ', $quedan);
+            }
+        }
+        $reply = trim(preg_replace("/\n{3,}/u", "\n\n", implode("\n", $lineas)));
 
         if (preg_match(self::RE_CORRECCION, $userMessage)) {
             $reply = preg_replace('/^\s*(?:¡?\s*(?:tienes (?:toda la )?raz[oó]n|disculpa(?:me)?|perd[oó]n(?:a)?|lo siento|me equivoqu[eé]|mil disculpas)[^.!?\n]*[.!?]\s*)+/iu', '', $reply);
