@@ -747,6 +747,27 @@ class DirectorioTest extends TestCase
         $this->assertStringContainsString('Voto Informado', $libre->pulirRespuesta('Revisa Voto Informado.', 'plan'));
     }
 
+    public function test_in_a_candidate_chat_the_ai_says_it_is_neutral_not_his_assistant(): void
+    {
+        [$c] = $this->qaCandidato();
+        $ai = (new \App\Services\CivicAIService(new \App\Services\MySQLFulltextEmbeddings()))->scopeToCandidate($c);
+        $prop = new \ReflectionProperty($ai, 'candidate'); $prop->setAccessible(true);
+        $prop->setValue($ai, new \App\Models\CandidateProfile(['name' => 'PoliticosIA']));   // perfil del tenant
+        $m = new \ReflectionMethod($ai, 'detectIdentityQuestion'); $m->setAccessible(true);
+
+        foreach (['¿eres Daniel?', '¿eres el candidato?', '¿trabajas para su campaña?', '¿eres una IA?'] as $q) {
+            $r = $m->invoke($ai, $q);
+            $this->assertNotNull($r, $q);
+            $this->assertStringContainsString('plataforma cívica neutral', $r['reply']);
+            $this->assertStringNotContainsString('asistente virtual oficial', $r['reply']);
+        }
+        $this->assertNull($m->invoke($ai, '¿qué propone en salud?'));
+
+        $l = new \ReflectionMethod($ai, 'candidatesWithDocs'); $l->setAccessible(true);
+        $this->assertStringStartsWith('Daniel Ronaldo Demo Prueba', $l->invoke($ai));
+        $this->assertStringNotContainsString('Otro Candidato', $l->invoke($ai));
+    }
+
     public function test_qa_counts_emoji_and_bold_items_as_list(): void
     {
         [$c, , $plan] = $this->qaCandidato();

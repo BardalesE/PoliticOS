@@ -478,6 +478,29 @@ class CivicAIService
             '/\beres\s+un\s+bot\b/u',
         ];
 
+        // En el chat de un candidato del directorio la IA NO es su asistente: es la
+        // plataforma neutral (antes respondía "Soy el asistente virtual oficial de…").
+        if ($this->scopeCandidate) {
+            $sc       = $this->scopeCandidate;
+            $scFirst  = mb_strtolower(explode(' ', $sc->name)[0] ?? '');
+            $patterns[] = '/\beres\s+(tu\s+)?' . preg_quote($scFirst, '/') . '\b/u';
+            $patterns[] = '/\bhablo\s+con\s+(el|la)?\s*' . preg_quote($scFirst, '/') . '\b/u';
+            $patterns[] = '/\b(trabajas|eres)\s+(para|de)\s+(su|la)\s+campa[ñn]a\b/u';
+            foreach ($patterns as $p) {
+                if (preg_match($p, $msg)) {
+                    return [
+                        'reply' => "Soy una inteligencia artificial de PoliticOS, una plataforma cívica neutral. No soy {$sc->name} "
+                            . 'ni trabajo para su campaña ni para ningún partido. Respondo solo con sus documentos oficiales (hoja de vida, '
+                            . 'plan de gobierno y propuestas) y te muestro la fuente. ¿Qué quieres saber?',
+                        'topic' => null,
+                        'media' => [],
+                    ];
+                }
+            }
+
+            return null;
+        }
+
         foreach ($patterns as $p) {
             if (preg_match($p, $msg)) {
                 $name = $this->candidate->name;
@@ -1125,6 +1148,15 @@ class CivicAIService
      */
     private function candidatesWithDocs(): string
     {
+        // Chat de UN candidato: solo él. La lista completa crece con cada candidato
+        // (cientos de tokens por mensaje) y metía nombres ajenos al contexto.
+        if ($this->scopeCandidate) {
+            $c = $this->scopeCandidate;
+
+            return $c->name . ($c->party && $c->party !== 'Por definir' ? " ({$c->party})" : '')
+                . ($c->title ? " — {$c->title}" : '') . ($c->location ? ", {$c->location}" : '');
+        }
+
         $rows = KnowledgeDocument::query()
             ->where('knowledge_documents.is_active', true)
             ->whereNotNull('knowledge_documents.candidate_id')
@@ -1132,6 +1164,7 @@ class CivicAIService
             ->selectRaw('candidate_profiles.name as name, candidate_profiles.party as party, COUNT(*) as docs')
             ->groupBy('candidate_profiles.id', 'candidate_profiles.name', 'candidate_profiles.party')
             ->orderByDesc('docs')
+            ->limit(40)   // tope: el prompt no puede crecer sin fin con el directorio
             ->get();
 
         if ($rows->isEmpty()) {
