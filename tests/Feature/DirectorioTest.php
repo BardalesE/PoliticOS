@@ -628,6 +628,27 @@ class DirectorioTest extends TestCase
         }
     }
 
+    public function test_resumen_de_propuestas_serves_proposal_pages_not_the_history_of_the_district(): void
+    {
+        $c = $this->candidato(['name' => 'Daniel', 'slug' => 'daniel'], null, null);
+        $this->documento($c, [
+            'title' => 'Plan de Gobierno — Daniel', 'topic' => 'plan_de_gobierno', 'content' => 'x',
+            'pages' => [
+                'RESEÑA HISTÓRICA del distrito, su historia, fundación, ubicación geográfica, límites, clima y altitud. ' . str_repeat('Relato histórico largo del distrito. ', 40),
+                'MISIÓN, VISIÓN Y VALORES institucionales: honestidad, responsabilidad. ' . str_repeat('Texto de presentación. ', 30),
+                'OBJETIVOS ESTRATÉGICOS Y METAS: gestionar la ampliación del agua potable, construcción de reservorios, mantenimiento de vías. ' . str_repeat('Detalle de la meta del distrito. ', 8),
+                'PROPUESTAS: contratación de enfermeras, instalación de biodigestores, fortalecimiento de rondas campesinas. ' . str_repeat('Detalle de la propuesta del distrito. ', 8),
+            ],
+        ]);
+
+        foreach (['Hazme un resumen de sus propuestas', 'sus propuestas'] as $q) {
+            $out   = (new \App\Services\MySQLFulltextEmbeddings())->search($q, 3, ['candidate_id' => $c->id]);
+            $pages = array_column($out, 'page');
+            sort($pages);
+            $this->assertSame([3, 4], $pages, "«{$q}» debe traer las páginas con propuestas");
+        }
+    }
+
     public function test_casillas_block_always_reaches_the_model_even_if_the_window_is_mid_page(): void
     {
         $c = $this->candidato(['name' => 'Daniel', 'slug' => 'daniel'], null, null);

@@ -587,8 +587,19 @@ class CivicAIService
 
         $history = [];
         $lastRole = null;
+        // Solo los turnos de ESTE candidato (2026-10-01: respuestas sobre el plan de un
+        // candidato regional quedaron en el historial de Monzón y el modelo terminó
+        // "disculpándose" y negando sus propias propuestas). La respuesta de la IA
+        // hereda el candidato de la pregunta que la originó.
+        $turnoAjeno = false;
         foreach ($rawMessages as $m) {
             $role = $m->role === 'user' ? 'user' : 'assistant';
+            if ($role === 'user') {
+                $deQuien    = $m->candidate_profile_id ?? null;
+                $turnoAjeno = $this->scopeCandidateId !== null && $deQuien !== null
+                    && (int) $deQuien !== (int) $this->scopeCandidateId;
+            }
+            if ($turnoAjeno) continue;
             if ($role === $lastRole) continue;
             $history[] = ['role' => $role, 'content' => SensitiveData::redact((string) $m->content)];
             $lastRole = $role;
@@ -1169,6 +1180,10 @@ class CivicAIService
             . "dilo en una línea; no digas que están en otro sitio."
             . "\n- ¿ES VIABLE?: no lo calificas. Di en 2-3 líneas qué trae el plan (objetivos, indicadores, metas, periodo) y qué no trae "
             . "(montos, fuente de financiamiento), con sus etiquetas, para que el ciudadano juzgue. Nunca digas que no ves propuestas si hay fragmentos con propuestas."
+            . "\n- SI EL CIUDADANO DICE QUE TE EQUIVOCASTE: revisa los fragmentos de ESTE turno. Si respaldan lo que dijiste, "
+            . "mantenlo con calma y sus etiquetas; corrige solo lo que los fragmentos contradigan. No pidas disculpas por algo que está "
+            . "documentado ni niegues propuestas que ya diste. Lo que dijiste antes sin etiqueta de este turno no es evidencia."
+            . "\n- Nunca mandes al ciudadano a Voto Informado para ver propuestas si hay fragmentos con propuestas: responde con ellos."
             . "\n- REDES SOCIALES: si la FICHA trae redes oficiales, dalas tal cual (enlace completo)."
             . "\n- ¿POR QUIÉN VOTO?: no recomiendas; ofrece revisar o comparar por el tema que más le importe."
             . "\n- Sin frases de relleno ni empatía de apertura (\"Entiendo que te importa…\", \"Es una pregunta clave\"). "

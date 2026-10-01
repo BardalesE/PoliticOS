@@ -179,6 +179,9 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
         'ciudadano','ciudadana','ciudadanos','ciudadanas','documento','documentos','informacion','información','favor','puedes','podrias',
         'resume','resumen','resumir','resumeme','resúmeme','explica','explicame','explícame',
         'cuentame','cuéntame','hablame','háblame','dime','principales','principal','puntos','ideas',
+        // Bug 2026-10-01: "Hazme un resumen de sus propuestas" tomaba "hazme" como tema.
+        'hazme','haz','dame','muestrame','muéstrame','enseñame','enséñame','quiero','saber','conocer','ver',
+        'ofrece','ofrecen','todo','todas','todos','cada','sector','sectores','tema','temas','general','completo','completa',
     ];
 
     /**
@@ -507,7 +510,11 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
             // Pregunta general ("resume el plan"): sin términos de tema no hay qué ordenar;
             // en un documento con páginas sirven sus primeras páginas con texto.
             if ($ranked === null && $pages) {
-                $ranked = $this->paginasConContenido($pages, $porDoc);
+                // "tus propuestas", "resumen de sus propuestas": las páginas con propuestas
+                // concretas, no la reseña histórica ni los valores (bug 2026-10-01).
+                $ranked = $pidePropuestas
+                    ? $this->paginasDePropuestas($pages, $porDoc)
+                    : $this->paginasConContenido($pages, $porDoc);
             }
 
             // Ninguna página "habla del tema", pero la pregunta pide este documento
@@ -633,6 +640,50 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
      * @param array<int, string> $pages
      * @return array<int, float>
      */
+    private const SENALES_PROPUESTA = [
+        'propuesta', 'construccion', 'construir', 'gestionar', 'implementar', 'implementacion', 'mejoramiento',
+        'ampliacion', 'instalacion', 'contratacion', 'mantenimiento', 'objetivo estrategico', 'objetivos estrategicos',
+        'metas', 'indicador', 'fortalecer', 'fortalecimiento', 'promover', 'ejecutar', 'dotacion', 'creacion',
+    ];
+
+    private const SENALES_INTRO = [
+        'resena', 'historia', 'historica', 'presentacion', 'mision', 'vision', 'valores', 'ubicacion geografica',
+        'limites', 'altitud', 'clima', 'fundacion', 'creacion politica', 'indice', 'introduccion',
+    ];
+
+    /**
+     * Para una pregunta general de propuestas: páginas con más señales de propuesta
+     * concreta y menos de introducción. Empate o sin señales → las más largas.
+     *
+     * @return array<int, float>  número de página (1-based) => puntaje
+     */
+    private function paginasDePropuestas(array $pages, int $max): array
+    {
+        $puntos = [];
+        foreach ($pages as $i => $text) {
+            $t = $this->fold((string) $text);
+            if (mb_strlen(trim($t)) < self::MIN_CONTENT_PAGE_CHARS) {
+                continue;
+            }
+            $pro = 0;
+            foreach (self::SENALES_PROPUESTA as $w) {
+                $pro += substr_count($t, $w);
+            }
+            $intro = 0;
+            foreach (self::SENALES_INTRO as $w) {
+                $intro += substr_count($t, $w);
+            }
+            $puntos[$i + 1] = $pro - 2 * $intro + mb_strlen($t) / 100000;   // largo solo desempata
+        }
+        if (! $puntos || max($puntos) < 1) {
+            return $this->paginasConContenido($pages, $max);
+        }
+
+        arsort($puntos);
+
+        return array_slice($puntos, 0, $max, true);
+    }
+
     private function paginasConContenido(array $pages, int $max = self::PAGES_PER_DOC): array
     {
         $largos = [];
