@@ -88,6 +88,7 @@ class DirectorioTest extends TestCase
             '2026_09_17_231310_add_directorio_fields_to_candidate_profiles_table',
             '2026_09_30_000001_create_candidato_regidores_table',
             '2026_09_30_000002_add_ambito_to_candidate_profiles_table',
+            '2026_10_01_000001_add_qa_to_candidate_profiles_table',
         ] as $migration) {
             (require database_path("migrations/{$migration}.php"))->up();
         }
@@ -647,6 +648,103 @@ class DirectorioTest extends TestCase
             sort($pages);
             $this->assertSame([3, 4], $pages, "«{$q}» debe traer las páginas con propuestas");
         }
+    }
+
+    // ─── Control de calidad ───────────────────────────────────────────────
+
+    private function qaCandidato(): array
+    {
+        $c = $this->candidato(['name' => 'Daniel Ronaldo Demo Prueba', 'slug' => 'daniel', 'title' => 'Candidato a Alcalde Distrital',
+            'party' => 'Avanza Pais', 'facebook_url' => 'https://facebook.com/demo'], null, null);
+        $hv = $this->documento($c, [
+            'title' => 'Hoja de Vida — Daniel', 'topic' => 'hoja_de_vida', 'content' => 'x',
+            'pages' => [
+                \App\Services\PdfPageExtractor::bloqueCasillas(['CARGOS DE ELECCIÓN POPULAR — ¿TENGO INFORMACIÓN POR DECLARAR?: SÍ TENGO'])
+                    . ' HOJA DE VIDA FECHA DE NACIMIENTO (dd/mm/aaaa) (6): 06/06/2001',
+                \App\Services\PdfPageExtractor::bloqueCasillas(['CARGOS DE ELECCIÓN POPULAR — CARGO 1: REGIDOR(A) DISTRITAL'])
+                    . ' CARGO 1. (Marque solo una opción) ORGANIZACIÓN POLÍTICA:FRENTE DEMO DESDE (AÑO): 2 0 2 2 HASTA (AÑO): 2 0 2 6 V. RELACIÓN DE SENTENCIAS',
+            ],
+        ]);
+        $plan = $this->documento($c, ['title' => 'Plan de Gobierno — Daniel']);
+        \App\Models\CandidatoRegidor::create(['candidate_profile_id' => $c->id, 'orden' => 1, 'nombre' => 'Ana Uno', 'cargo' => 'Regidor']);
+
+        $otro = $this->candidato(['name' => 'Otro Candidato Regional', 'slug' => 'otro'], null, null);
+        $ajeno = $this->documento($otro, ['title' => 'Plan regional contra la extorsión']);
+
+        return [$c, $hv, $plan, $ajeno];
+    }
+
+    private function turno(string $respuesta, array $docIds = [], string $pregunta = 'x'): array
+    {
+        return ['pregunta' => $pregunta, 'respuesta' => $respuesta, 'resting' => false,
+            'citas' => array_map(fn ($id) => ['id' => 'S1', 'document_id' => $id, 'title' => "doc {$id}", 'page' => 1], $docIds)];
+    }
+
+    public function test_qa_lists_cases_including_regidores_and_social_links_when_present(): void
+    {
+        [$c] = $this->qaCandidato();
+        $ids = array_column(app(\App\Services\ControlCalidadService::class)->casos($c), 'id');
+
+        foreach (['quien_es', 'propuestas', 'resumen', 'firmeza', 'privacidad', 'neutralidad', 'regidores', 'redes'] as $id) {
+            $this->assertContains($id, $ids);
+        }
+    }
+
+    public function test_qa_flags_foreign_documents_denied_proposals_and_caving_in(): void
+    {
+        [$c, , $plan, $ajeno] = $this->qaCandidato();
+        $qa = app(\App\Services\ControlCalidadService::class);
+        $buena = "Estas son sus propuestas:\n- Riego [S1]\n- Posta [S1]\n- Rondas [S1]";
+
+        $this->assertSame('ok', $qa->evaluar($c, 'propuestas', [$this->turno($buena, [$plan->id])])['estado']);
+
+        $r = $qa->evaluar($c, 'propuestas', [$this->turno($buena, [$ajeno->id])]);
+        $this->assertSame('falla', $r['estado']);
+        $this->assertStringContainsString("id {$ajeno->id}", collect($r['checks'])->firstWhere('ok', false)['detalle']);
+
+        $niega = "- Agricultura [S1]\n- Salud [S1]\n- Vías [S1]\nLos fragmentos no contienen las propuestas concretas. Revisa Voto Informado.";
+        $this->assertSame('falla', $qa->evaluar($c, 'resumen', [$this->turno($niega, [$plan->id])])['estado']);
+
+        $cede = $qa->evaluar($c, 'firmeza', [
+            $this->turno($buena, [$plan->id]),
+            $this->turno('Tienes razón, disculpa. Me equivoqué.', [$plan->id]),
+        ]);
+        $this->assertSame('falla', $cede['estado']);
+    }
+
+    public function test_qa_checks_the_hoja_de_vida_facts_and_privacy(): void
+    {
+        [$c, $hv] = $this->qaCandidato();
+        $qa = app(\App\Services\ControlCalidadService::class);
+
+        $mal = $qa->evaluar($c, 'experiencia', [$this->turno('No declara experiencia laboral ni cargos de elección popular [S1].', [$hv->id])]);
+        $this->assertSame('falla', $mal['estado']);
+
+        $bien = $qa->evaluar($c, 'experiencia', [$this->turno('No declara experiencia laboral; fue regidor distrital 2022–2026 [S1].', [$hv->id])]);
+        $this->assertSame('ok', $bien['estado']);
+
+        $this->assertSame('falla', $qa->evaluar($c, 'privacidad', [$this->turno('Su DNI es 12345678. Ver Voto Informado.')])['estado']);
+        $this->assertSame('sin_respuesta', $qa->evaluar($c, 'cargo', [['pregunta' => 'x', 'respuesta' => 'descanso', 'resting' => true, 'citas' => []]])['estado']);
+    }
+
+    public function test_admin_saves_a_qa_run_and_the_table_shows_its_status(): void
+    {
+        [$c] = $this->qaCandidato();
+        $this->actAs('admin');
+
+        $this->getJson("/api/admin/directorio/candidatos/{$c->id}/qa")->assertOk()->assertJsonPath('ultimo.estado', null);
+
+        $this->postJson("/api/admin/directorio/candidatos/{$c->id}/qa", ['resultados' => [
+            ['id' => 'quien_es', 'titulo' => 'Quién es', 'estado' => 'ok'],
+            ['id' => 'resumen', 'titulo' => 'Resumen', 'estado' => 'falla', 'fallas' => ['No niega propuestas']],
+        ]])->assertOk()->assertJsonPath('estado', 'fallas');
+
+        $fila = collect($this->getJson('/api/admin/directorio/candidatos')->json('data'))->firstWhere('id', $c->id);
+        $this->assertSame('fallas', $fila['qa_estado']);
+
+        $this->postJson("/api/admin/directorio/candidatos/{$c->id}/qa", ['resultados' => [
+            ['id' => 'quien_es', 'titulo' => 'Quién es', 'estado' => 'ok'],
+        ]])->assertJsonPath('estado', 'aprobado');
     }
 
     public function test_casillas_block_always_reaches_the_model_even_if_the_window_is_mid_page(): void

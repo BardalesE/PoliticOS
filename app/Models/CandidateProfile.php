@@ -44,6 +44,8 @@ class CandidateProfile extends Model
         'priority_topics'    => 'array',
         'target_segments'    => 'array',
         'bio_timeline'       => 'array',
+        'qa_resumen'         => 'array',
+        'qa_at'              => 'datetime',
     ];
 
     /**

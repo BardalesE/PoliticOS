@@ -417,6 +417,8 @@ class DirectorioAdminController extends Controller
 
         return [
             'id'                 => $c->id,
+            'qa_estado'          => $c->qa_estado ?? null,
+            'qa_at'              => $c->qa_at?->toIso8601String(),
             'name'               => $c->name,
             'title'              => $c->title,
             'party'              => $c->party,
@@ -459,5 +461,56 @@ class DirectorioAdminController extends Controller
             // Visible al público = publicado + slug + distrito + ≥1 documento listo
             'visible'            => $c->estado_publicacion === 'publicado' && $c->slug && ($c->departamento_id || $c->distrito_id) && $listos > 0,
         ];
+    }
+
+    // ─── Control de calidad del chat (ver ControlCalidadService) ──────────
+
+    /** Casos que se le harán al chat de este candidato + el último resultado guardado. */
+    public function qaCasos(int $id, \App\Services\ControlCalidadService $qa): JsonResponse
+    {
+        $c = CandidateProfile::findOrFail($id);
+
+        return response()->json([
+            'casos'  => $qa->casos($c),
+            'ultimo' => [
+                'estado'  => $c->qa_estado ?? null,
+                'at'      => $c->qa_at?->toIso8601String(),
+                'resumen' => $c->qa_resumen ?? [],
+            ],
+        ]);
+    }
+
+    /** Ejecuta UN caso (el panel los recorre de a uno: cada caso tarda unos segundos). */
+    public function qaEjecutar(int $id, string $caso, \App\Services\ControlCalidadService $qa): JsonResponse
+    {
+        $c = CandidateProfile::findOrFail($id);
+        @set_time_limit(120);
+
+        try {
+            return response()->json($qa->ejecutar($c, $caso));
+        } catch (\InvalidArgumentException $e) {
+            return response()->json(['message' => $e->getMessage()], 404);
+        }
+    }
+
+    /** Guarda el resultado de una corrida completa: aprobado solo si TODOS los casos salieron ok. */
+    public function qaGuardar(Request $request, int $id): JsonResponse
+    {
+        $c = CandidateProfile::findOrFail($id);
+        $data = $request->validate([
+            'resultados'            => ['required', 'array', 'min:1', 'max:60'],
+            'resultados.*.id'       => ['required', 'string', 'max:40'],
+            'resultados.*.titulo'   => ['required', 'string', 'max:120'],
+            'resultados.*.estado'   => ['required', 'in:ok,falla,sin_respuesta'],
+            'resultados.*.fallas'   => ['nullable', 'array', 'max:20'],
+            'resultados.*.fallas.*' => ['string', 'max:300'],
+        ]);
+
+        $estados = collect($data['resultados'])->pluck('estado');
+        $estado  = $estados->contains('falla') ? 'fallas' : ($estados->contains('sin_respuesta') ? 'incompleto' : 'aprobado');
+
+        $c->forceFill(['qa_estado' => $estado, 'qa_at' => now(), 'qa_resumen' => $data['resultados']])->save();
+
+        return response()->json(['estado' => $estado, 'at' => $c->qa_at->toIso8601String()]);
     }
 }

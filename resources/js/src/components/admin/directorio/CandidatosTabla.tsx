@@ -4,10 +4,11 @@ import Link from "next/link";
 import {
   AlertCircle, BadgeCheck, ChevronDown, ExternalLink, FileText, Loader2, MapPin, Pencil, Search, Trash2, X,
 } from "lucide-react";
-import { directorioAdmin, prettyPlace, type AdminCandidato } from "@/lib/directorio";
+import { directorioAdmin, prettyPlace, type AdminCandidato, type QaEstadoGlobal } from "@/lib/directorio";
 import { cn } from "@/lib/utils";
 import { DocumentosPanel } from "./DocumentosPanel";
 import { RegidoresPanel } from "./RegidoresPanel";
+import { ControlCalidadPanel } from "./ControlCalidadPanel";
 
 /**
  * Tabla del directorio agrupada por Departamento › Provincia › Distrito.
@@ -57,9 +58,17 @@ function Avatar({ c }: { c: AdminCandidato }) {
   );
 }
 
+/** Punto de color del último control de calidad (gris = nunca corrido). */
+function QaPunto({ estado }: { estado: QaEstadoGlobal | null }) {
+  const cls = estado === "aprobado" ? "bg-green-500" : estado === "fallas" ? "bg-red-500" : estado === "incompleto" ? "bg-amber-400" : "bg-gray-300";
+  const txt = estado === "aprobado" ? "Control de calidad aprobado" : estado === "fallas" ? "Control de calidad con fallas"
+    : estado === "incompleto" ? "Control de calidad incompleto" : "Sin control de calidad";
+  return <span className={cn("ml-1 inline-block h-2 w-2 rounded-full align-middle", cls)} title={txt} aria-label={txt} />;
+}
+
 /** Detalle expandido de una fila: documentos del candidato o su lista de regidores. */
 function PanelCandidato({ candidato, token, onChanged }: { candidato: AdminCandidato; token: string; onChanged: () => void }) {
-  const [tab, setTab] = useState<"docs" | "regidores">("docs");
+  const [tab, setTab] = useState<"docs" | "regidores" | "calidad">("docs");
   const nReg = candidato.regidores?.length ?? 0;
   const tabCls = (on: boolean) =>
     cn("rounded-lg px-3 py-1.5 text-xs font-bold", on ? "bg-white text-gray-900 shadow-sm ring-1 ring-gray-200" : "text-gray-500 hover:text-gray-800");
@@ -72,10 +81,13 @@ function PanelCandidato({ candidato, token, onChanged }: { candidato: AdminCandi
         <button type="button" role="tab" aria-selected={tab === "regidores"} className={tabCls(tab === "regidores")} onClick={() => setTab("regidores")}>
           Regidores{nReg > 0 ? ` (${nReg})` : ""}
         </button>
+        <button type="button" role="tab" aria-selected={tab === "calidad"} className={tabCls(tab === "calidad")} onClick={() => setTab("calidad")}>
+          Calidad <QaPunto estado={candidato.qa_estado ?? null} />
+        </button>
       </div>
-      {tab === "docs"
-        ? <DocumentosPanel candidato={candidato} token={token} onChanged={onChanged} />
-        : <RegidoresPanel candidato={candidato} token={token} onChanged={onChanged} />}
+      {tab === "docs" && <DocumentosPanel candidato={candidato} token={token} onChanged={onChanged} />}
+      {tab === "regidores" && <RegidoresPanel candidato={candidato} token={token} onChanged={onChanged} />}
+      {tab === "calidad" && <ControlCalidadPanel candidato={candidato} token={token} onChanged={onChanged} />}
     </div>
   );
 }
@@ -235,6 +247,7 @@ export function CandidatosTabla({
                             {c.tipo_cuenta === "cliente_pago" && (
                               <BadgeCheck size={14} className="shrink-0 text-brand-500" aria-label="Perfil completado" />
                             )}
+                            {(c.tipo_cuenta === "cliente_pago" || c.qa_estado) && <QaPunto estado={c.qa_estado ?? null} />}
                           </p>
                           <p className="truncate text-xs text-gray-500">{c.title}</p>
                         </div>

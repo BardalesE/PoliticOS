@@ -162,7 +162,27 @@ export interface AdminCandidato {
   ambito?: Ambito | null;
   documentos: AdminDocumento[];
   regidores?: AdminRegidor[];
+  /** Último control de calidad del chat: aprobado | fallas | incompleto | null (nunca corrido). */
+  qa_estado?: QaEstadoGlobal | null;
+  qa_at?: string | null;
 }
+
+// ─── Control de calidad del chat ───────────────────────────────────────
+
+export type QaEstadoGlobal = "aprobado" | "fallas" | "incompleto";
+export type QaEstadoCaso = "ok" | "falla" | "sin_respuesta";
+
+export interface QaCaso { id: string; titulo: string }
+
+export interface QaResultado {
+  id: string;
+  titulo: string;
+  estado: QaEstadoCaso;
+  turnos: { pregunta: string; respuesta: string; citas: { id: string | null; title: string | null; page: number | null }[] }[];
+  checks: { nombre: string; ok: boolean; detalle: string }[];
+}
+
+export interface QaResumenItem { id: string; titulo: string; estado: QaEstadoCaso; fallas?: string[] }
 
 export interface AdminRegidor {
   id: number;
@@ -235,6 +255,13 @@ export const directorioAdmin = {
     request<AdminCandidato>(`/admin/directorio/regidores/${id}`, { method: "PUT", body: json(data) }, token),
   removeRegidor: (token: string, id: number) =>
     request<AdminCandidato>(`/admin/directorio/regidores/${id}`, { method: "DELETE" }, token),
+  qaCasos: (token: string, id: number) =>
+    request<{ casos: QaCaso[]; ultimo: { estado: QaEstadoGlobal | null; at: string | null; resumen: QaResumenItem[] } }>(
+      `/admin/directorio/candidatos/${id}/qa`, {}, token, 0),
+  qaEjecutar: (token: string, id: number, caso: string) =>
+    request<QaResultado>(`/admin/directorio/candidatos/${id}/qa/${caso}`, { method: "POST" }, token),
+  qaGuardar: (token: string, id: number, resultados: QaResumenItem[]) =>
+    request<{ estado: QaEstadoGlobal; at: string }>(`/admin/directorio/candidatos/${id}/qa`, { method: "POST", body: json({ resultados }) }, token),
 };
 
 export const ubigeoApi = {
