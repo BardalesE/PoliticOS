@@ -220,7 +220,7 @@ class CivicAIService
             AttackResponse::where('id', $attack['id'])->increment('times_used');
         }
 
-        $reply = SensitiveData::redact($this->stripUnknownCitations($parsed['reply']));
+        $reply = SensitiveData::redact($this->stripUnknownCitations($this->pulirRespuesta($parsed['reply'], $userMessage)));
 
         return [
             'reply'           => $reply,
@@ -290,6 +290,10 @@ class CivicAIService
         // cambio de que NINGUNA respuesta normal (incluidas todas las cortas)
         // sufra retraso. Pasada CONTEXT_LEAK_SCAN_CAP se deja de escanear: tanto
         // texto coherente sin match = el modelo está sintetizando, no volcando.
+        // Chat acotado a un candidato del directorio: también bufferizado (2026-10-01).
+        // Cuesta el efecto de "tipeo" en vivo, pero permite aplicar los arreglos
+        // deterministas (pulirRespuesta, citas inventadas) a TODO lo que ve el vecino.
+        $buffered            = $isPepa || $this->scopeCandidateId !== null;
         $rawBuffer           = '';
         $campaignBuf         = '';    // cola acumulada para el chequeo
         $campaignLastScan    = 0;     // longitud del buffer en el último escaneo
@@ -299,13 +303,14 @@ class CivicAIService
         $this->callAIStream($userMessage, $context, $history, $segment, $attack, $session, $topic,
             function (string $chunk) use (
                 &$rawBuffer, &$campaignBuf, &$campaignLastScan, &$campaignScanDone, &$campaignLeakAborted,
-                $onChunk, $isPepa, $context
+                $onChunk, $buffered, $context
             ) {
                 $rawBuffer .= $chunk;
 
-                // PEPA: se maneja bufferizado más abajo. Centinela de descanso:
+                // PEPA o chat de un candidato: bufferizado para poder corregir la
+                // respuesta completa antes de mostrarla. Centinela de descanso:
                 // nunca se reenvía crudo.
-                if ($isPepa || $chunk === '__AI_RESTING__') {
+                if ($buffered || $chunk === '__AI_RESTING__') {
                     return;
                 }
 
@@ -379,7 +384,7 @@ class CivicAIService
         // bufferizado (ver comentario arriba). En campaña los chunks ya se streamearon
         // en vivo según llegaban, así que esta capa de salida no puede cubrir ese
         // camino (queda cubierto solo por el refuerzo de prompt); ver reporte.
-        if ($isPepa && $this->looksLikeJailbreakAcceptance($parsed['reply'])) {
+        if ($buffered && $this->looksLikeJailbreakAcceptance($parsed['reply'])) {
             Log::warning('AI response looked like a jailbreak acceptance (stream/pepa) — discarded', [
                 'snippet' => mb_substr($parsed['reply'], 0, 150),
             ]);
@@ -393,12 +398,12 @@ class CivicAIService
         // PEPA va bufferizado: aquí sí se pueden limpiar etiquetas [S#] inventadas antes
         // de emitir. En campaña el texto ya salió en vivo; el frontend ignora las
         // etiquetas sin cita correspondiente.
-        if ($isPepa) {
-            $parsed['reply'] = SensitiveData::redact($this->stripUnknownCitations($parsed['reply']));
+        if ($buffered) {
+            $parsed['reply'] = SensitiveData::redact($this->stripUnknownCitations($this->pulirRespuesta($parsed['reply'], $userMessage)));
         }
 
-        // Solo en PEPA enviamos el texto ya parseado en trozos; en campaña ya se streameó arriba.
-        if ($isPepa) {
+        // Bufferizado: se envía el texto ya corregido en trozos; en campaña libre ya se streameó arriba.
+        if ($buffered) {
             foreach (mb_str_split($parsed['reply'], 30) as $chunk) {
                 $onChunk($chunk);
             }
@@ -695,6 +700,11 @@ class CivicAIService
             // de casillas (Presidente… Alcalde… Regidor) y la marca no sale en el texto.
             if ($ficha = $this->fichaCandidato()) {
                 $parts[] = $ficha;
+            }
+            if (preg_match(self::RE_CORRECCION, $userMessage)) {
+                $parts[] = "EL CIUDADANO CUESTIONA TU RESPUESTA ANTERIOR. Revisa los fragmentos de abajo: si respaldan lo que dijiste, "
+                    . "repítelo con calma y con sus etiquetas [S#] (\"Según su plan de gobierno…\"). No empieces con \"tienes razón\", "
+                    . "\"disculpa\" ni \"me equivoqué\" y no niegues propuestas que están en los fragmentos. Corrige solo lo que los fragmentos contradigan.";
             }
 
             // Lista de regidores cargada por el admin (dato de la plancha, no de la IA):
@@ -1281,6 +1291,59 @@ class CivicAIService
      */
     private const MIN_MAX_TOKENS = 1200;
 
+    /**
+     * Consistencia (2026-10-01): con temperatura alta dos vecinos que preguntan lo mismo
+     * recibían respuestas distintas (y a veces una mala). En el chat de un candidato del
+     * directorio la temperatura se limita a 0.2: respuestas casi iguales cada vez.
+     * Claude sin temperatura usa 1.0 por defecto: ahora también se envía.
+     */
+    private function effectiveTemperature(): float
+    {
+        $t = (float) ($this->config->temperature ?? 0.4);
+
+        return $this->scopeCandidateId ? min($t, 0.2) : $t;
+    }
+
+    private const RE_PATRIMONIO = '/\b(dni|gana|ganan|ingreso|ingresos|bienes|patrimonio|sueldo|salario|vehiculo|vehículo|propiedades?|declaraci[oó]n (jurada )?completa|hoja de vida completa)\b/iu';
+    private const RE_CORRECCION = '/(te equivoc|te has equivocado|estas equivocad|estás equivocad|no es cierto|es mentira|mentira|eso no es|esas no son|esos no son|incorrect|es falso|eso es falso|no son sus)/iu';
+
+    /**
+     * Arreglos deterministas sobre la respuesta final del chat de un candidato (las reglas
+     * del prompt no bastan: el modelo a veces las ignora — control de calidad 2026-10-01):
+     *  - No manda a Voto Informado salvo que pregunten por DNI, ingresos o bienes.
+     *  - Ante "te equivocaste" no abre con "Tienes razón, disculpa…".
+     */
+    public function pulirRespuesta(string $reply, string $userMessage): string
+    {
+        if (! $this->scopeCandidateId || trim($reply) === '') {
+            return $reply;
+        }
+        $original = $reply;
+
+        if (! preg_match(self::RE_PATRIMONIO, $userMessage)) {
+            $lineas = [];
+            foreach (preg_split('/\R/u', $reply) as $linea) {
+                if (! preg_match('/voto\s*informado|votoinformado/iu', $linea)) {
+                    $lineas[] = $linea;
+                    continue;
+                }
+                $frases = preg_split('/(?<=[.!?])\s+/u', $linea);
+                $quedan = array_filter($frases, fn ($f) => ! preg_match('/voto\s*informado|votoinformado/iu', $f));
+                if ($quedan) {
+                    $lineas[] = implode(' ', $quedan);
+                }
+            }
+            $reply = trim(preg_replace("/\n{3,}/u", "\n\n", implode("\n", $lineas)));
+        }
+
+        if (preg_match(self::RE_CORRECCION, $userMessage)) {
+            $reply = preg_replace('/^\s*(?:¡?\s*(?:tienes (?:toda la )?raz[oó]n|disculpa(?:me)?|perd[oó]n(?:a)?|lo siento|me equivoqu[eé]|mil disculpas)[^.!?\n]*[.!?]\s*)+/iu', '', $reply);
+            $reply = trim($reply);
+        }
+
+        return $reply !== '' ? $reply : $original;
+    }
+
     private function effectiveMaxTokens(): int
     {
         $configured = (int) ($this->config->max_tokens ?? self::MIN_MAX_TOKENS);
@@ -1395,7 +1458,7 @@ class CivicAIService
 
         $body = [
             'model'       => $model,
-            'temperature' => $this->config->temperature,
+            'temperature' => $this->effectiveTemperature(),
             'max_tokens'  => $this->effectiveMaxTokens(),
             'messages'    => $messages,
         ];
@@ -1465,6 +1528,7 @@ class CivicAIService
         ])->post('https://api.anthropic.com/v1/messages', [
             'model'      => $model,
             'max_tokens' => $this->effectiveMaxTokens(),
+            'temperature' => $this->effectiveTemperature(),
             'system'     => $this->claudeSystem($systemPrompt),
             'messages'   => $messages,
         ]);
@@ -1579,7 +1643,7 @@ class CivicAIService
                 ],
                 'body' => json_encode(array_merge([
                     'model' => $model,
-                    'temperature' => $this->config->temperature,
+                    'temperature' => $this->effectiveTemperature(),
                     'max_tokens'  => $this->effectiveMaxTokens(),
                     'messages'    => $messages,
                     'stream'      => true,
@@ -1620,6 +1684,7 @@ class CivicAIService
                 'body' => json_encode([
                     'model' => $model,
                     'max_tokens' => $this->effectiveMaxTokens(),
+                    'temperature' => $this->effectiveTemperature(),
                     'system' => $this->claudeSystem($systemPrompt),
                     'messages' => $messages,
                     'stream' => true,

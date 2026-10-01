@@ -727,6 +727,35 @@ class DirectorioTest extends TestCase
         $this->assertSame('sin_respuesta', $qa->evaluar($c, 'cargo', [['pregunta' => 'x', 'respuesta' => 'descanso', 'resting' => true, 'citas' => []]])['estado']);
     }
 
+    public function test_reply_is_polished_no_voto_informado_for_proposals_and_no_caving_in(): void
+    {
+        [$c] = $this->qaCandidato();
+        $ai = (new \App\Services\CivicAIService(new \App\Services\MySQLFulltextEmbeddings()))->scopeToCandidate($c);
+
+        $r = $ai->pulirRespuesta("Plantea metas para 2027–2030 [S1]. Para el plan completo revisa Voto Informado del JNE: votoinformado.jne.gob.pe\n¿Sobre qué tema quieres más detalle?", '¿Es viable su plan?');
+        $this->assertStringNotContainsString('Voto Informado', $r);
+        $this->assertStringContainsString('metas para 2027–2030 [S1]', $r);
+
+        // Patrimonio: ahí sí corresponde derivar.
+        $this->assertStringContainsString('Voto Informado', $ai->pulirRespuesta('PoliticOS no muestra ingresos. Revisa Voto Informado.', '¿Cuánto gana?'));
+
+        $r = $ai->pulirRespuesta("Tienes razón, disculpa. Según su plan propone reservorios [S1].", 'te equivocaste, esas no son sus propuestas');
+        $this->assertStringStartsWith('Según su plan', $r);
+
+        // Fuera del chat de un candidato no se toca nada.
+        $libre = new \App\Services\CivicAIService(new \App\Services\MySQLFulltextEmbeddings());
+        $this->assertStringContainsString('Voto Informado', $libre->pulirRespuesta('Revisa Voto Informado.', 'plan'));
+    }
+
+    public function test_qa_counts_emoji_and_bold_items_as_list(): void
+    {
+        [$c, , $plan] = $this->qaCandidato();
+        $qa = app(\App\Services\ControlCalidadService::class);
+        $resp = "Por sector:\n🌾 **Agricultura:** riego [S1]\n🏥 **Salud:** posta [S1]\n🛡️ **Seguridad:** rondas [S1]";
+
+        $this->assertSame('ok', $qa->evaluar($c, 'sectores', [$this->turno($resp, [$plan->id])])['estado']);
+    }
+
     public function test_admin_saves_a_qa_run_and_the_table_shows_its_status(): void
     {
         [$c] = $this->qaCandidato();

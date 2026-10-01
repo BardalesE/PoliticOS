@@ -245,7 +245,8 @@ class ControlCalidadService
     private function checkVinetas(int $min): \Closure
     {
         return function (array $turnos) use ($min) {
-            $n = preg_match_all('/^\s*(?:[-*•]|\d+[.)])\s+/mu', $this->ultima($turnos)['respuesta']);
+            // Ítems: viñeta, número, emoji o subtítulo en negrita al inicio de línea ("🌾 **Agricultura:** …").
+            $n = preg_match_all('/^\s*(?:[-*•]\s+|\d+[.)]\s+|[\x{1F300}-\x{1FAFF}\x{2600}-\x{27BF}]|\*\*[^*\n]{2,}\*\*)/mu', $this->ultima($turnos)['respuesta']);
 
             return $this->res("Lista al menos {$min} propuestas", $n >= $min, "Solo lista {$n}.");
         };
