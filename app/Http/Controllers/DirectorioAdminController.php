@@ -490,6 +490,11 @@ class DirectorioAdminController extends Controller
             return response()->json($qa->ejecutar($c, $caso));
         } catch (\InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 404);
+        } catch (\Throwable $e) {
+            // Endpoint solo de admin: se muestra la causa para poder corregirla.
+            \Illuminate\Support\Facades\Log::error('Control de calidad falló', ['caso' => $caso, 'candidato' => $id, 'error' => $e->getMessage()]);
+
+            return response()->json(['message' => 'El caso falló en el servidor: ' . mb_substr($e->getMessage(), 0, 300)], 500);
         }
     }
 

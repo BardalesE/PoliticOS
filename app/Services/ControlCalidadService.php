@@ -53,7 +53,8 @@ class ControlCalidadService
         try {
             $session = ChatSession::create([
                 'session_id'   => 'qa-' . Str::uuid(),
-                'visitor_uuid' => 'qa-' . Str::uuid(),
+                // visitor_uuid es CHAR(36): un prefijo lo desborda (error 500 en MySQL estricto).
+                'visitor_uuid' => (string) Str::uuid(),
                 'started_at'   => now(),
                 'user_agent'   => 'PoliticOS control de calidad',
             ]);

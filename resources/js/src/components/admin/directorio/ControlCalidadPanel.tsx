@@ -105,11 +105,16 @@ export function ControlCalidadPanel({ candidato, token, onChanged }: { candidato
         if (i > 0) await sleep(PAUSA_MS);
         const caso = casos[i];
         setActual(caso.titulo);
-        let r = await directorioAdmin.qaEjecutar(token, candidato.id, caso.id);
+        // Un caso que revienta en el servidor no corta la corrida: queda como ⚠️ con la causa.
+        const ejecutar = () => directorioAdmin.qaEjecutar(token, candidato.id, caso.id).catch((e): QaResultado => ({
+          id: caso.id, titulo: caso.titulo, estado: "sin_respuesta", turnos: [],
+          checks: [{ nombre: "El caso se ejecutó", ok: false, detalle: e instanceof Error ? e.message : "Error del servidor." }],
+        }));
+        let r = await ejecutar();
         if (r.estado === "sin_respuesta" && !cancelar.current) {   // un reintento: suele ser el límite por minuto
           setActual(`${caso.titulo} (reintentando…)`);
           await sleep(ESPERA_REINTENTO_MS);
-          r = await directorioAdmin.qaEjecutar(token, candidato.id, caso.id);
+          r = await ejecutar();
         }
         hechos.push(r);
         setResultados([...hechos]);
