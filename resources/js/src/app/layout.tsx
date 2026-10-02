@@ -8,6 +8,7 @@ import { DynamicTitle } from "@/components/DynamicTitle";
 import { TenantGuard } from "@/components/TenantGuard";
 import type { CandidatePublicData } from "@/lib/api";
 import { normalizeApiBase } from "@/lib/api";
+import { Analytics } from '@vercel/analytics/next';
 
 const API_URL = normalizeApiBase(process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api");
 
@@ -139,6 +140,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             {children}
           </CandidateProvider>
         </ThemeProvider>
+        <Analytics />
       </body>
     </html>
   );
