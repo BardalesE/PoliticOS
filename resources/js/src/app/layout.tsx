@@ -6,6 +6,7 @@ import { ThemeProvider } from "next-themes";
 import { CandidateProvider } from "@/context/CandidateContext";
 import { DynamicTitle } from "@/components/DynamicTitle";
 import { TenantGuard } from "@/components/TenantGuard";
+import { VercelAnalytics } from "@/components/VercelAnalytics";
 import type { CandidatePublicData } from "@/lib/api";
 import { normalizeApiBase } from "@/lib/api";
 
@@ -139,6 +140,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             {children}
           </CandidateProvider>
         </ThemeProvider>
+        <VercelAnalytics />
       </body>
     </html>
   );
