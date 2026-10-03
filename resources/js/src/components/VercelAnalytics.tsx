@@ -3,12 +3,14 @@ import { Analytics } from "@vercel/analytics/next";
 
 /**
  * Vercel Web Analytics: visitas y páginas vistas sin cookies ni datos personales.
- * No cuenta el panel admin (ni las pruebas del equipo): solo el tráfico ciudadano.
+ * No cuenta /admin ni /superadmin (pruebas del equipo): solo el tráfico ciudadano.
  */
+const INTERNO = /^\/(admin|superadmin)(\/|$)/;
+
 export function VercelAnalytics() {
   return (
     <Analytics
-      beforeSend={(event) => (new URL(event.url).pathname.startsWith("/admin") ? null : event)}
+      beforeSend={(event) => (INTERNO.test(new URL(event.url).pathname) ? null : event)}
     />
   );
 }
