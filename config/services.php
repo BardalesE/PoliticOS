@@ -52,6 +52,38 @@ return [
         'groq_key'      => env('GROQ_API_KEY'),
         'groq_model'    => env('GROQ_MODEL', 'openai/gpt-oss-120b'),
 
+        // ─── Respaldo gratuito (2026-10-03: caídas de Groq) ─────────
+        // Todos hablan el formato /chat/completions de OpenAI. Entran AL FINAL de
+        // la cadena (después de provider → fallback → último recurso), en este
+        // orden, y solo los que tengan key. Sin key = no existe (sin costo, sin
+        // requests condenados). Modelos y URLs cambiables por .env sin tocar código.
+        'respaldo_orden' => env('AI_RESPALDO_GRATIS', 'cerebras,gemini,openrouter,mistral'),
+        'respaldo' => [
+            'cerebras' => [
+                'url'   => env('CEREBRAS_BASE_URL', 'https://api.cerebras.ai/v1/chat/completions'),
+                'key'   => env('CEREBRAS_API_KEY'),
+                'model' => env('CEREBRAS_MODEL', 'gpt-oss-120b'),
+            ],
+            'gemini' => [
+                'url'   => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions'),
+                'key'   => env('GEMINI_API_KEY'),
+                'model' => env('GEMINI_MODEL', 'gemini-2.5-flash'),
+            ],
+            'openrouter' => [
+                'url'   => env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1/chat/completions'),
+                'key'   => env('OPENROUTER_API_KEY'),
+                'model' => env('OPENROUTER_MODEL', 'openai/gpt-oss-120b:free'),
+            ],
+            'mistral' => [
+                'url'   => env('MISTRAL_BASE_URL', 'https://api.mistral.ai/v1/chat/completions'),
+                'key'   => env('MISTRAL_API_KEY'),
+                'model' => env('MISTRAL_MODEL', 'mistral-small-latest'),
+            ],
+        ],
+        // Segundos que un proveedor caído (429 / 5xx / timeout) se salta antes de
+        // volver a probarlo: así el vecino no espera a Groq caído en cada mensaje.
+        'enfriamiento_segundos' => (int) env('AI_ENFRIAMIENTO_SEGUNDOS', 60),
+
         // ─── Embeddings (RAG real) ──────────────────────────────────
         'embeddings_driver' => env('AI_EMBEDDINGS_DRIVER', 'mysql_fulltext'),
         'embeddings_model'  => env('EMBEDDINGS_MODEL', 'text-embedding-3-small'),

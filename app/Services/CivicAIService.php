@@ -21,6 +21,7 @@ use App\Models\Topic;
 use App\Models\VisitorProfile;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\Exception\RequestException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -1319,12 +1320,14 @@ class CivicAIService
                         'attempt'  => $attempt + 1,
                         'model'    => $this->config->model ?? 'unknown',
                     ]);
-                    if ($e->isRateLimited() && $attempt < self::MAX_RATE_LIMIT_RETRIES) {
+                    if ($e->isRateLimited() && $attempt < self::MAX_RATE_LIMIT_RETRIES && ! $this->enfriando($provider)) {
                         sleep(min($e->retryAfterSeconds ?? 2, self::MAX_RETRY_WAIT_SECONDS));
                         continue; // reintenta el mismo provider una vez
                     }
+                    $this->enfriar($provider, $e);
                     break; // 401/403/5xx, o ya se agotó el reintento: siguiente provider
                 } catch (\Throwable $e) {
+                    $this->enfriar($provider, $e);
                     Log::warning("AI provider '{$provider}' failed", [
                         'error'    => $e->getMessage(),
                         'provider' => $provider,
@@ -1453,6 +1456,10 @@ class CivicAIService
                 $this->resolveApiKey('openai', config('services.ai.openai_key')),
                 config('services.ai.openai_model', 'gpt-4o-mini')
             ),
+            'cerebras', 'gemini', 'openrouter', 'mistral' => $this->callOpenCompatible(
+                $userMessage, $systemPrompt, $history,
+                ...$this->respaldo($provider), prov: $provider
+            ),
             default => $this->callOpenCompatible(
                 $userMessage, $systemPrompt, $history,
                 'https://api.groq.com/openai/v1/chat/completions',
@@ -1480,6 +1487,55 @@ class CivicAIService
         ]);
 
         return $ownKey ?: $globalKey;
+    }
+
+    // ─── Respaldo gratuito + enfriamiento (2026-10-03: caídas de Groq) ──────
+    private const RESPALDO = ['cerebras', 'gemini', 'openrouter', 'mistral'];
+
+    private function esRespaldo(?string $provider): bool
+    {
+        return in_array($provider, self::RESPALDO, true);
+    }
+
+    /** @return array{0: string, 1: string, 2: string} url, key, modelo */
+    private function respaldo(string $provider): array
+    {
+        $c = config("services.ai.respaldo.{$provider}", []);
+
+        return [(string) ($c['url'] ?? ''), (string) ($c['key'] ?? ''), (string) ($c['model'] ?? '')];
+    }
+
+    private function enfriando(string $provider): bool
+    {
+        try {
+            return (bool) Cache::get("ai:enfriando:{$provider}");
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
+    /**
+     * Proveedor caído (429 agotado, 5xx, timeout): se salta durante unos segundos para
+     * que el vecino no espere su falla en cada mensaje. 401/403/400 no enfrían: son de
+     * configuración y no cambian con el tiempo (ya se saltan al instante).
+     */
+    private function enfriar(string $provider, \Throwable $e): void
+    {
+        $status = $e instanceof AiProviderException ? $e->status : null;
+        if ($status !== null && $status >= 400 && $status < 500 && $status !== 429) {
+            return;
+        }
+
+        $seg = max(10, (int) config('services.ai.enfriamiento_segundos', 60));
+        if ($e instanceof AiProviderException && $e->isRateLimited() && $e->retryAfterSeconds) {
+            $seg = max($seg, min($e->retryAfterSeconds, 900));
+        }
+
+        try {
+            Cache::put("ai:enfriando:{$provider}", true, $seg);
+        } catch (\Throwable) {
+            // sin caché disponible: se sigue sin enfriamiento
+        }
     }
 
     private function getLastResortProvider(): ?string
@@ -1511,7 +1567,16 @@ class CivicAIService
             $this->getLastResortProvider(),
         ]));
 
+        // Respaldo gratuito al final de la cadena (ver config/services.php → ai.respaldo).
+        $orden = array_map('trim', explode(',', (string) config('services.ai.respaldo_orden', '')));
+        $chain = array_values(array_unique(array_merge($chain, array_filter($orden, fn ($p) => $this->esRespaldo($p)))));
+
         $usable = array_values(array_filter($chain, fn ($p) => $this->hasKeyFor($p)));
+
+        // Los que fallaron hace poco van al final (no se descartan: si todos están
+        // enfriándose, se prueban igual antes de rendirse).
+        $frescos = array_values(array_filter($usable, fn ($p) => ! $this->enfriando($p)));
+        $usable  = array_values(array_unique(array_merge($frescos, $usable)));
 
         if (count($usable) < count($chain)) {
             Log::warning('AI: providers descartados por falta de API key', [
@@ -1532,6 +1597,10 @@ class CivicAIService
     /** ¿Hay API key (del tenant o global) para este provider? */
     private function hasKeyFor(string $provider): bool
     {
+        if ($this->esRespaldo($provider)) {
+            return !empty(config("services.ai.respaldo.{$provider}.key"));
+        }
+
         $globalKey = match ($provider) {
             'claude' => config('services.ai.claude_key'),
             'openai' => config('services.ai.openai_key'),
@@ -1542,7 +1611,7 @@ class CivicAIService
     }
 
     private function callOpenCompatible(string $userMessage, string $systemPrompt, array $history,
-                                        string $url, string $apiKey, string $model): string
+                                        string $url, string $apiKey, string $model, ?string $prov = null): string
     {
         $messages = [['role' => 'system', 'content' => $systemPrompt]];
         $messages = array_merge($messages, $history);
@@ -1561,8 +1630,13 @@ class CivicAIService
             $body['response_format'] = ['type' => 'json_object'];
         }
 
-        $response = Http::timeout(30)->withToken($apiKey)->post($url, $body);
-        $prov = str_contains($url, 'groq.com') ? 'groq' : 'openai';
+        $prov ??= str_contains($url, 'groq.com') ? 'groq' : 'openai';
+        // OpenRouter pide identificar la app (sin esto igual funciona, con límites más bajos).
+        $req = Http::timeout($this->esRespaldo($prov) ? 20 : 30)->withToken($apiKey);
+        if ($prov === 'openrouter') {
+            $req = $req->withHeaders(['HTTP-Referer' => config('app.url'), 'X-Title' => 'PoliticOS']);
+        }
+        $response = $req->post($url, $body);
 
         if (!$response->ok()) {
             AiUsage::fallo($prov, $model, $response->status());
@@ -1684,12 +1758,14 @@ class CivicAIService
                         'status'  => $e->status,
                         'attempt' => $attempt + 1,
                     ]);
-                    if ($e->isRateLimited() && $attempt < self::MAX_RATE_LIMIT_RETRIES) {
+                    if ($e->isRateLimited() && $attempt < self::MAX_RATE_LIMIT_RETRIES && ! $this->enfriando($provider)) {
                         sleep(min($e->retryAfterSeconds ?? 2, self::MAX_RETRY_WAIT_SECONDS));
                         continue;
                     }
+                    $this->enfriar($provider, $e);
                     break;
                 } catch (\Throwable $e) {
+                    $this->enfriar($provider, $e);
                     Log::warning("Streaming provider '{$provider}' failed", ['error' => $e->getMessage()]);
                     break;
                 }
@@ -1723,6 +1799,10 @@ class CivicAIService
     {
         match ($provider) {
             'claude' => $this->streamClaude($userMessage, $systemPrompt, $history, $onChunk),
+            'cerebras', 'gemini', 'openrouter', 'mistral' => $this->streamOpenCompatible(
+                $userMessage, $systemPrompt, $history, $onChunk,
+                ...$this->respaldo($provider), prov: $provider
+            ),
             'openai' => $this->streamOpenCompatible(
                 $userMessage, $systemPrompt, $history, $onChunk,
                 config('services.ai.openai_url', 'https://api.openai.com/v1/chat/completions'),
@@ -1739,8 +1819,10 @@ class CivicAIService
     }
 
     private function streamOpenCompatible(string $userMessage, string $systemPrompt, array $history,
-                                          callable $onChunk, string $url, string $apiKey, string $model): void
+                                          callable $onChunk, string $url, string $apiKey, string $model,
+                                          ?string $prov = null): void
     {
+        $prov ??= str_contains($url, 'groq.com') ? 'groq' : 'openai';
         $messages = [['role' => 'system', 'content' => $systemPrompt]];
         $messages = array_merge($messages, $history);
         $messages[] = ['role' => 'user', 'content' => self::wrapUserTurn($userMessage)];
@@ -1748,11 +1830,11 @@ class CivicAIService
         $client = new GuzzleClient(['timeout' => 60]);
         try {
             $response = $client->post($url, [
-                'headers' => [
+                'headers' => array_merge([
                     'Authorization' => "Bearer {$apiKey}",
                     'Content-Type'  => 'application/json',
                     'Accept'        => 'text/event-stream',
-                ],
+                ], $prov === 'openrouter' ? ['HTTP-Referer' => (string) config('app.url'), 'X-Title' => 'PoliticOS'] : []),
                 'body' => json_encode(array_merge([
                     'model' => $model,
                     'temperature' => $this->effectiveTemperature(),
@@ -1765,7 +1847,7 @@ class CivicAIService
                 'stream' => true,
             ]);
         } catch (RequestException $e) {
-            AiUsage::fallo(str_contains($url, 'groq.com') ? 'groq' : 'openai', $model, $e->getResponse()?->getStatusCode());
+            AiUsage::fallo($prov, $model, $e->getResponse()?->getStatusCode());
             $this->rethrowAsAiProviderException($e);
         }
 
@@ -1780,7 +1862,7 @@ class CivicAIService
             return $t;
         });
         AiUsage::registrar(
-            str_contains($url, 'groq.com') ? 'groq' : 'openai', $model,
+            $prov, $model,
             (int) ($uso['prompt_tokens'] ?? AiUsage::estimar(json_encode($messages))),
             (int) ($uso['completion_tokens'] ?? AiUsage::estimar($salida)),
             estimado: ! isset($uso['prompt_tokens']),
