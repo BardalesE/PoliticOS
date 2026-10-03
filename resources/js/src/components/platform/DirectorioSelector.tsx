@@ -57,7 +57,12 @@ interface Lugar {
   dist: DistritoDisp | null;
   titulo: string;
   subtitulo: string;
+  /** Candidatos de ESTE nivel (los que se eligen aquí). */
   count: number;
+  /** Candidatos de niveles superiores por los que también vota quien vive aquí. */
+  arriba: number;
+  /** "la provincia", "la región" o "la provincia y la región". */
+  arribaDe: string;
   haystack: string;
 }
 
@@ -107,10 +112,16 @@ function LugarCard({ l, active, onPick }: { l: Lugar; active: boolean; onPick: (
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[15px] font-bold leading-snug">{l.titulo}</span>
           <span className={`block truncate text-[12px] ${active ? "text-white/80" : "text-ink-500"}`}>{l.subtitulo}</span>
+          {l.arriba > 0 && (
+            <span className={`block truncate text-[11px] ${active ? "text-white/70" : "text-ink-400"}`}>
+              También votas por {l.arriba} de {l.arribaDe}
+            </span>
+          )}
         </span>
         <span
           className={`shrink-0 rounded-full px-2.5 py-1 text-[12px] font-bold ${active ? "bg-white" : "text-white"}`}
           style={active ? { color: PRIMARY } : { background: PRIMARY }}
+          aria-label={`${l.count} ${l.count === 1 ? "candidato" : "candidatos"} de ${l.nivel === "region" ? "la región" : l.nivel === "provincia" ? "la provincia" : "el distrito"}`}
         >
           {l.count}
         </span>
@@ -200,6 +211,13 @@ function CandidatoCard({ c }: { c: CandidatoResumen }) {
 export function DirectorioSelector({ ubicaciones }: { ubicaciones: Ubicaciones | null }) {
   const deps: DepartamentoDisp[] = useMemo(() => ubicaciones?.departamentos ?? [], [ubicaciones]);
 
+  // Cobertura real: lugares con al menos un candidato visible (propio o en un nivel inferior).
+  const totales = useMemo(() => ({
+    departamentos: deps.length,
+    provincias: deps.reduce((n, d) => n + d.provincias.length, 0),
+    distritos: deps.reduce((n, d) => n + d.provincias.reduce((m, p) => m + p.distritos.length, 0), 0),
+  }), [deps]);
+
   // Lugares elegibles aplanados: regiones y provincias con candidatos propios
   // (gobernador, alcalde provincial) y distritos. Cada distrito cuenta también
   // a los candidatos de su provincia y región: son los que ese vecino elige.
@@ -211,7 +229,7 @@ export function DirectorioSelector({ ubicaciones }: { ubicaciones: Ubicaciones |
         if (reg > 0) {
           out.push({
             key: `r${dep.id}`, nivel: "region", dep, prov: null, dist: null,
-            titulo: `Región ${prettyPlace(dep.nombre)}`, subtitulo: "Gobierno regional", count: reg,
+            titulo: `Región ${prettyPlace(dep.nombre)}`, subtitulo: "Gobierno regional", count: reg, arriba: 0, arribaDe: "",
             haystack: norm(`region ${dep.nombre} gobierno regional gobernador`),
           });
         }
@@ -221,7 +239,7 @@ export function DirectorioSelector({ ubicaciones }: { ubicaciones: Ubicaciones |
             out.push({
               key: `p${prov.id}`, nivel: "provincia", dep, prov, dist: null,
               titulo: `Provincia de ${prettyPlace(prov.nombre)}`, subtitulo: `Municipalidad provincial · ${prettyPlace(dep.nombre)}`,
-              count: pv + reg,
+              count: pv, arriba: reg, arribaDe: "la región",
               haystack: norm(`provincia ${prov.nombre} ${dep.nombre}`),
             });
           }
@@ -229,7 +247,8 @@ export function DirectorioSelector({ ubicaciones }: { ubicaciones: Ubicaciones |
             out.push({
               key: `d${dist.id}`, nivel: "distrito", dep, prov, dist,
               titulo: prettyPlace(dist.nombre), subtitulo: `${prettyPlace(prov.nombre)} · ${prettyPlace(dep.nombre)}`,
-              count: dist.candidatos + pv + reg,
+              count: dist.candidatos, arriba: pv + reg,
+              arribaDe: pv > 0 && reg > 0 ? "la provincia y la región" : pv > 0 ? "la provincia" : "la región",
               haystack: norm(`${dist.nombre} ${prov.nombre} ${dep.nombre}`),
             });
           }
@@ -336,13 +355,23 @@ export function DirectorioSelector({ ubicaciones }: { ubicaciones: Ubicaciones |
               Los candidatos cambian según dónde votas. Busca tu distrito: solo mostramos lugares con información verificada.
             </p>
           </div>
-          {ubicaciones && ubicaciones.total_distritos > 0 && (
-            <p className="rounded-full bg-[#EAF3E6] px-3 py-1.5 text-[12px] font-semibold" style={{ color: PRIMARY }}>
-              {ubicaciones.total_candidatos} {ubicaciones.total_candidatos === 1 ? "candidato" : "candidatos"} en {ubicaciones.total_distritos}{" "}
-              {ubicaciones.total_distritos === 1 ? "distrito" : "distritos"}
-            </p>
-          )}
         </div>
+
+        {ubicaciones && ubicaciones.total_candidatos > 0 && (
+          <dl className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Cobertura del directorio">
+            {[
+              { n: ubicaciones.total_candidatos, uno: "Candidato", varios: "Candidatos" },
+              { n: totales.departamentos, uno: "Región", varios: "Regiones" },
+              { n: totales.provincias, uno: "Provincia", varios: "Provincias" },
+              { n: totales.distritos, uno: "Distrito", varios: "Distritos" },
+            ].map((t) => (
+              <div key={t.varios} className="rounded-2xl bg-[#EAF3E6] px-4 py-3">
+                <dd className="text-[24px] font-bold leading-none" style={{ color: PRIMARY }}>{t.n}</dd>
+                <dt className="mt-1 text-[12px] font-semibold text-ink-600">{t.n === 1 ? t.uno : t.varios}</dt>
+              </div>
+            ))}
+          </dl>
+        )}
 
         {deps.length === 0 ? (
           <div className="mt-6 rounded-2xl bg-[#EAF3E6] p-6 text-center">
@@ -465,12 +494,12 @@ export function DirectorioSelector({ ubicaciones }: { ubicaciones: Ubicaciones |
                     )}
                   </div>
                   <h3 className="mb-3 text-[20px] font-bold leading-tight text-ink-800">
-                    {candidatos?.length ?? 0} {candidatos?.length === 1 ? "candidato" : "candidatos"} en {lugarLabel}
+                    {grupos.length > 1 ? "Votas por " : ""}{candidatos?.length ?? 0} {candidatos?.length === 1 ? "candidato" : "candidatos"} en {lugarLabel}
                   </h3>
                   {grupos.map((g) => (
                     <div key={g.nivel} className="mb-5 last:mb-0">
                       {grupos.length > 1 && (
-                        <p className="mb-2 text-[12px] font-bold uppercase tracking-wider text-ink-500">{NIVEL_TITULO[g.nivel]}</p>
+                        <p className="mb-2 text-[12px] font-bold uppercase tracking-wider text-ink-500">{NIVEL_TITULO[g.nivel]} · {g.items.length}</p>
                       )}
                       <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                         {g.items.map((c) => <CandidatoCard key={c.id} c={c} />)}
