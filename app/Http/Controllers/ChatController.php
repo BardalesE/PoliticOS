@@ -15,6 +15,7 @@ use App\Models\CitizenData;
 use App\Models\VisitorProfile;
 use App\Services\ChatQuotaService;
 use App\Services\CivicAIService;
+use App\Services\Security\PromptGuard;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -109,6 +110,11 @@ class ChatController extends Controller
             $this->saveExchange($session, $data['message'], $welcome);
             $this->capturePotentialDeclaredData($session, $data['declared'] ?? []);
             return $this->jsonChatResponse($welcome, $session, $request);
+        }
+
+        // ── 2b. Guardia de entrada: manipulación / tareas fuera de rol ───
+        if ($guarded = $this->promptGuard($session, $data['message'])) {
+            return $this->jsonChatResponse($guarded, $session, $request);
         }
 
         // ── 3. Moderación: mensaje sin sentido (antes de llamar a la IA) ─
@@ -251,6 +257,11 @@ class ChatController extends Controller
             $this->saveExchange($session, $data['message'], $welcome);
             $this->capturePotentialDeclaredData($session, $data['declared'] ?? []);
             return $this->streamPrebuilt($welcome, $session);
+        }
+
+        // ── 2b. Guardia de entrada: manipulación / tareas fuera de rol ───
+        if ($guarded = $this->promptGuard($session, $data['message'])) {
+            return $this->streamPrebuilt($guarded, $session);
         }
 
         // ── 3. Moderación: mensaje sin sentido ───────────────────────────
@@ -398,6 +409,47 @@ class ChatController extends Controller
         $session = ChatSession::where('session_id', $id)->first();
 
         return response()->json(['quota' => $session ? $this->quota()->evaluate($session) : null]);
+    }
+
+    /**
+     * Capa 1 del blindaje (incidente 2026-10-03). Si el mensaje intenta cambiar las
+     * reglas, sacar el prompt o pedir código/juegos/propaganda, NO se llama a la IA:
+     * respuesta fija + strike. Dos strikes seguidos (este o "sin sentido") bloquean la
+     * sesión con la misma política que ya existe para el spam.
+     */
+    private function promptGuard(ChatSession $session, string $message): ?array
+    {
+        $verdict = PromptGuard::inspect($message);
+        if (! $verdict->blocked()) {
+            return null;
+        }
+
+        Log::warning('chat.security: mensaje bloqueado por PromptGuard', [
+            'category' => $verdict->category,
+            'matched'  => mb_substr((string) $verdict->matched, 0, 80),
+            'session'  => $session->session_id,
+        ]);
+
+        $strikes = ($session->nonsense_count ?? 0) + 1;
+        $session->update(['nonsense_count' => $strikes]);
+
+        if ($strikes >= 2) {
+            $session->update(['blocked_at' => now()]);
+            $response = $this->ai->buildBlockedResponse();
+        } else {
+            $response = $this->ai->buildGuardResponse($verdict->category);
+        }
+
+        ChatMessage::create(['session_id' => $session->id, 'role' => 'user', 'content' => $message]);
+        ChatMessage::create([
+            'session_id'  => $session->id,
+            'role'        => 'assistant',
+            'content'     => $response['reply'],
+            'media'       => '[]',
+            'is_fallback' => true, // no realimenta el historial del LLM
+        ]);
+
+        return $response;
     }
 
     /** POST /api/chat/consent — registrar consentimiento explícito */
