@@ -829,7 +829,7 @@ function SuggestionCarousel({ name, disabled, onPick }: { name: string; disabled
 
   return (
     <div
-      className="mb-3 ml-10 max-w-[85%]"
+      className="mb-3 sm:ml-10 max-w-full sm:max-w-[85%]"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
@@ -1992,13 +1992,13 @@ export default function ChatPage() {
     if (regPhase === "offered")    return "Escribe sí o no...";
     if (regPhase === "name")       return "Tu nombre completo...";
     if (regPhase === "dni")        return "Tu DNI (8 dígitos)...";
-    if (regPhase === "phone")      return "Tu WhatsApp (ej: 51987654321)...";
+    if (regPhase === "phone")      return "Tu WhatsApp (51987654321)";
     if (regPhase === "email")      return "Tu correo o escribe 'omitir'...";
     if (regPhase === "registering")return "Registrando...";
-    if (blocked)                   return "Escribe 'hola', 'menú' o 'inicio' para continuar...";
-    if (needsCandidate)            return "Primero elige un candidato...";
-    if (voiceMode && micSupported) return "Toca el micrófono y habla...";
-    return "Escribe tu pregunta...";
+    if (blocked)                   return "Escribe 'hola' para continuar";
+    if (needsCandidate)            return "Elige un candidato";
+    if (voiceMode && micSupported) return "Toca el micrófono y habla";
+    return "Escribe tu pregunta";
   };
 
   // Zona elegida con varios candidatos y ninguno seleccionado: no se consulta a ciegas (mezclaría zonas).
@@ -2185,7 +2185,7 @@ export default function ChatPage() {
         <div className="flex-1 min-w-0 min-h-0 flex flex-col">
           {/* ── Chat: solo esta zona hace scroll ── */}
           <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-          <main className="max-w-3xl w-full mx-auto px-4 py-5">
+          <main className="max-w-3xl w-full mx-auto px-3 sm:px-4 py-3 sm:py-5">
 
             {shown.length === 0 && regPhase === null && !autoStarting && (
               <motion.div
@@ -2212,17 +2212,17 @@ export default function ChatPage() {
                       <img
                         src={profile.photo_url ?? profile.logo_url ?? undefined}
                         alt={profile.name}
-                        className="h-8 w-8 rounded-full object-cover shrink-0 border border-gray-200"
+                        className="hidden sm:block h-8 w-8 rounded-full object-cover shrink-0 border border-gray-200"
                       />
                     ) : (
-                      <div className="h-8 w-8 rounded-full bg-brand-500 flex items-center justify-center shrink-0">
+                      <div className="hidden sm:flex h-8 w-8 rounded-full bg-brand-500 items-center justify-center shrink-0">
                         <span className="font-serif font-bold text-white text-xs leading-none">{shortName[0]}</span>
                       </div>
                     )
                   )}
                   <div className={`flex flex-col min-w-0 ${msg.role === "user" ? "items-end" : "items-start"}`}>
                     <div
-                      className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                      className={`max-w-[90%] sm:max-w-[85%] rounded-2xl px-3.5 sm:px-4 py-2.5 text-[15px] sm:text-sm leading-relaxed break-words ${
                         msg.role === "user"
                           ? "bg-chat-500 text-white rounded-tr-md shadow-sm"
                           : "bg-white border border-gray-200 text-gray-800 rounded-tl-md shadow-sm"
@@ -2416,7 +2416,7 @@ export default function ChatPage() {
           </div>
 
           {/* Composer */}
-          <footer className="shrink-0 bg-white border-t border-gray-200 px-3 sm:px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <footer className="shrink-0 bg-white border-t border-gray-200 px-2.5 sm:px-4 pt-2 sm:pt-3 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
             {quota?.blocked && (
               <QuotaWall
                 quota={quota}
@@ -2448,7 +2448,7 @@ export default function ChatPage() {
                 }}
                 placeholder={inputPlaceholder()}
                 disabled={inputDisabled}
-                className="min-w-0 flex-1 resize-none overflow-y-auto max-h-40 px-4 py-3 border border-gray-300 rounded-3xl leading-snug break-words focus:outline-none focus:ring-2 focus:ring-chat-500 text-base sm:text-[15px] disabled:opacity-50"
+                className="min-w-0 flex-1 resize-none overflow-y-auto max-h-40 px-4 py-2.5 sm:py-3 border border-gray-300 rounded-3xl leading-snug break-words focus:outline-none focus:ring-2 focus:ring-chat-500 text-base sm:text-[15px] disabled:opacity-50"
               />
               {ttsSupported && (
                 <button
@@ -2457,7 +2457,7 @@ export default function ChatPage() {
                   aria-label={voiceMode ? "Desactivar respuestas en voz alta" : "Escuchar las respuestas en voz alta"}
                   aria-pressed={voiceMode}
                   title={voiceMode ? "Modo voz activado" : "Activar modo voz"}
-                  className={`shrink-0 w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-colors ${
+                  className={`shrink-0 w-11 h-11 rounded-full flex items-center justify-center transition-colors ${
                     voiceMode ? "bg-chat-500 text-white shadow-sm" : "bg-gray-100 text-gray-400 hover:bg-gray-200"
                   }`}
                 >
@@ -2471,7 +2471,9 @@ export default function ChatPage() {
                   disabled={inputDisabled}
                   aria-label={listening ? "Detener grabación" : "Hablar en vez de escribir"}
                   aria-pressed={listening}
-                  className={`shrink-0 w-10 h-10 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                  className={`shrink-0 w-11 h-11 rounded-full items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    input.trim() && !listening ? "hidden sm:flex" : "flex"
+                  } ${
                     listening
                       ? "bg-red-500 text-white shadow-sm"
                       : "bg-gray-100 text-gray-400 hover:bg-gray-200"
@@ -2484,7 +2486,9 @@ export default function ChatPage() {
                 onClick={send}
                 disabled={inputDisabled || !input.trim()}
                 aria-label="Enviar mensaje"
-                className="shrink-0 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-chat-500 text-white flex items-center justify-center hover:bg-chat-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className={`shrink-0 w-11 h-11 rounded-full bg-chat-500 text-white items-center justify-center hover:bg-chat-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
+                  input.trim() || streaming || !micSupported ? "flex" : "hidden sm:flex"
+                }`}
               >
                 {streaming ? (
                   <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
@@ -2507,8 +2511,9 @@ export default function ChatPage() {
             {micError && (
               <p role="alert" className="text-[11px] text-red-600 text-center mt-1.5">{micError}</p>
             )}
-            <p className="text-[10px] text-gray-400 text-center mt-1.5">
-              IA basada en información pública. Verifica decisiones electorales en{" "}
+            <p className="text-[10px] leading-tight text-gray-400 text-center mt-1.5">
+              <span className="hidden sm:inline">IA basada en información pública. Verifica decisiones electorales en{" "}</span>
+              <span className="sm:hidden">Verifica en{" "}</span>
               <a className="underline" href="https://infogob.jne.gob.pe" target="_blank" rel="noopener noreferrer">infogob.jne.gob.pe</a>
               {" · "}
               <Link className="underline" href="/privacidad">Privacidad y tus datos</Link>

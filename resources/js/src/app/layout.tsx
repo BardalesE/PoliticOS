@@ -85,6 +85,12 @@ const anton = Anton({
   display: "swap",
 });
 
+// En el celular se puede "Agregar a pantalla de inicio" y abre como app (ver app/manifest.ts).
+const APP_META: Metadata = {
+  appleWebApp: { capable: true, title: "PoliticOS", statusBarStyle: "default" },
+  icons: { apple: "/icons/apple-touch-icon.png" },
+};
+
 export async function generateMetadata(): Promise<Metadata> {
   const data = await fetchCandidate();
   const name      = data?.profile?.name     ?? "Candidato";
@@ -97,10 +103,12 @@ export async function generateMetadata(): Promise<Metadata> {
     return {
       title: "PoliticOS",
       description: "Plataforma de campaña política",
+      ...APP_META,
     };
   }
 
   return {
+    ...APP_META,
     title: `Habla con ${shortName} — ${location}`,
     description: `Conversa directamente con ${name}. Pregúntale sobre sus propuestas y lo que hará por ${location}.`,
     openGraph: {
