@@ -14,7 +14,7 @@ import { resolveTenantSlug, normalizeApiBase, tenantHeaders } from "@/lib/api";
 import { tenantStorageKey } from "@/lib/utils";
 import { getVisitorId, getZona, setZona as saveZona, votarApoyo, type SegmentacionEstado, type ZonaInfo, type ZonaSeleccion } from "@/lib/segmentacion";
 import { DIRECTORY_TENANT, prettyPlace, type Ubicaciones } from "@/lib/directorio";
-import { SupportPoll, ZoneBadge, ZonePicker } from "@/components/chat/ZonaYApoyo";
+import { SupportPoll, ZonePicker } from "@/components/chat/ZonaYApoyo";
 import { TenantLink } from "@/components/ui/TenantLink";
 import ContactVerifyField from "@/components/ContactVerifyField";
 import { PartySymbol } from "@/components/ui/PartySymbol";
@@ -900,8 +900,8 @@ function CandidateGrid({
       }`}
     >
       {logo}
-      <span className="line-clamp-2 text-[12px] font-semibold leading-tight text-gray-800">{title}</span>
-      {sub && <span className="line-clamp-1 w-full text-[10px] leading-tight text-gray-400">{sub}</span>}
+      <span className="text-[13px] font-semibold leading-tight text-gray-800 break-words">{title}</span>
+      {sub && <span className="w-full text-[11px] font-medium uppercase leading-tight text-gray-500 break-words">{sub}</span>}
     </button>
   );
 
@@ -1059,6 +1059,15 @@ export default function ChatPage() {
   // (o cuando falta elegir); el historial en móvil es un panel lateral.
   const [pickerOpen, setPickerOpen]   = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Caja de texto tipo WhatsApp: crece con lo que se escribe (hasta ~6 líneas) y luego hace scroll.
+  const inputBoxRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    // Al enviar (o al dictar por voz) la caja vuelve a su alto según el texto.
+    const el = inputBoxRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    if (input) el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [input]);
   const [compareOpen, setCompareOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
@@ -1357,7 +1366,8 @@ export default function ChatPage() {
     if (!est) return;
     setChangingZone(false);
     applyEstado(est, null);
-    if (!welcomed) showWelcome(limits, est);
+    // Siempre: el saludo dice la zona y cuántos candidatos hay; si cambia la zona, se actualiza.
+    showWelcome(limits, est);
   };
 
   const cancelZone = () => {
@@ -2027,15 +2037,33 @@ export default function ChatPage() {
   const renderModules = (enMenu: boolean) => (
     <div className="space-y-6">
       {zoneMode && zona && !changingZone && (
-        <section>
-          <ZoneBadge zona={zona} onChange={() => { cerrarMenu(); setChangingZone(true); }} />
+        <section className="rounded-2xl border border-brand-600/20 bg-brand-50 p-3.5">
+          <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-brand-600">
+            <MapPin size={14} aria-hidden /> Tu zona
+          </p>
+          <p className="mt-1 text-[18px] font-bold leading-tight text-gray-900">
+            {prettyPlace(String(zona.distrito ?? zona.provincia ?? zona.departamento))}
+          </p>
+          {(zona.distrito || zona.provincia) && (
+            <p className="text-[13px] text-gray-600">
+              {[zona.distrito ? zona.provincia : null, zona.departamento].filter(Boolean).map((n) => prettyPlace(String(n))).join(", ")}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => { cerrarMenu(); setChangingZone(true); }}
+            className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-xl border border-brand-600 bg-white py-2 text-[14px] font-bold text-brand-600 hover:bg-brand-600 hover:text-white"
+          >
+            <MapPin size={15} aria-hidden /> Cambiar zona
+          </button>
         </section>
       )}
 
       {candidates.length > 0 && !(zoneMode && (!zona || changingZone)) && (
         <section>
-          <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
-            Candidatos · {candidates.length}
+          <p className="mb-2.5 flex items-baseline gap-1.5">
+            <span className="text-[26px] font-bold leading-none text-brand-600">{candidates.length}</span>
+            <span className="text-[15px] font-bold text-gray-800">{candidates.length === 1 ? "candidato" : "candidatos"}</span>
           </p>
           {needsCandidate && (
             <p className="mb-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] font-medium text-amber-700">Elige un candidato para empezar a consultar.</p>
@@ -2399,16 +2427,28 @@ export default function ChatPage() {
               />
             )}
             {!quota?.blocked && (<>
-            <div className="max-w-3xl mx-auto flex items-center gap-1.5 sm:gap-2">
-              <input
-                type="text"
+            <div className="max-w-3xl mx-auto flex items-end gap-1.5 sm:gap-2">
+              <textarea
+                ref={inputBoxRef}
+                rows={1}
                 aria-label="Escribe tu mensaje"
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && send()}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  const el = e.currentTarget;
+                  el.style.height = "auto";
+                  el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+                }}
+                onKeyDown={(e) => {
+                  // Enter envía; Shift+Enter hace salto de línea (como WhatsApp Web).
+                  if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    send();
+                  }
+                }}
                 placeholder={inputPlaceholder()}
                 disabled={inputDisabled}
-                className="min-w-0 flex-1 px-4 py-3 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-chat-500 text-base sm:text-sm disabled:opacity-50"
+                className="min-w-0 flex-1 resize-none overflow-y-auto max-h-40 px-4 py-3 border border-gray-300 rounded-3xl leading-snug break-words focus:outline-none focus:ring-2 focus:ring-chat-500 text-base sm:text-[15px] disabled:opacity-50"
               />
               {ttsSupported && (
                 <button
