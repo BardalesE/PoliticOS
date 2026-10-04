@@ -5,6 +5,7 @@ import { TenantLink } from "@/components/ui/TenantLink";
 import { ElectionCountdown } from "@/components/platform/ElectionCountdown";
 import { VisitCounter } from "@/components/platform/VisitCounter";
 import { DirectorioSelector } from "@/components/platform/DirectorioSelector";
+import { CalificacionesEnVivo } from "@/components/platform/CalificacionesEnVivo";
 import { getUbicaciones } from "@/lib/directorio";
 
 /**
@@ -103,6 +104,8 @@ export async function PlatformLanding() {
       <div className="relative z-10">
         <DirectorioSelector ubicaciones={ubicaciones} />
       </div>
+
+      <CalificacionesEnVivo />
 
       {/* Accesos: la IA dentro de la plataforma + la fuente oficial */}
       <section className="relative z-10 mx-auto max-w-6xl px-5 pb-8" aria-label="Accesos directos">

@@ -34,3 +34,38 @@ export async function sendFeedback(input: SendFeedbackInput): Promise<boolean> {
     return false;
   }
 }
+
+// ─── Lectura pública (home) ─────────────────────────────────────────
+
+export interface FeedbackResumen {
+  total: number;
+  average: number;
+  /** cantidad por estrellas: { "5": n, "4": n, ... "1": n } */
+  distribucion: Record<string, number>;
+  ultimos_7_dias: number;
+  con_comentario: number;
+}
+
+export interface FeedbackPublico {
+  id: number;
+  stars: number;
+  comment: string;
+  context: string;
+  created_at: string;
+}
+
+async function getJson<T>(path: string): Promise<T | null> {
+  try {
+    const res = await fetch(`${API_URL}${path}`, { headers: { Accept: "application/json" }, cache: "no-store" });
+    return res.ok ? ((await res.json()) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+export const getFeedbackResumen = () => getJson<FeedbackResumen>("/feedback/summary");
+
+export async function getFeedbackPublicos(): Promise<FeedbackPublico[]> {
+  const r = await getJson<{ data: FeedbackPublico[] }>("/feedback/publicos");
+  return r?.data ?? [];
+}

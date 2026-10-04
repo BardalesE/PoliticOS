@@ -144,6 +144,7 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
     // ─── Calificacion de la plataforma (público, global — sin tenant) ─
     Route::get('/feedback/summary', [PlatformFeedbackController::class, 'summary'])->middleware('throttle:60,1,feedback-read');
     Route::post('/feedback', [PlatformFeedbackController::class, 'store'])->middleware('throttle:10,1,feedback');
+    Route::get('/feedback/publicos', [PlatformFeedbackController::class, 'publicos'])->middleware('throttle:60,1,feedback-read');
 
     // ─── Directorio público de candidatos (solo lectura) ─────────────
     // Solo expone lugares/candidatos publicados con base de conocimiento lista
@@ -430,6 +431,10 @@ Route::middleware(['throttle:30,1,superadmin', \App\Http\Middleware\EnsureSuperA
         Route::get   ('/privacy-requests',            [PrivacyRequestController::class, 'index']);
         Route::put   ('/privacy-requests/{id}',       [PrivacyRequestController::class, 'update'])->whereNumber('id');
         Route::post  ('/privacy-requests/{id}/erase', [PrivacyRequestController::class, 'erase'])->whereNumber('id');
+        // Calificaciones de la plataforma (moderación de comentarios públicos).
+        Route::get   ('/feedback',                    [PlatformFeedbackController::class, 'adminIndex']);
+        Route::put   ('/feedback/{id}',               [PlatformFeedbackController::class, 'adminUpdate'])->whereNumber('id');
+        Route::delete('/feedback/{id}',               [PlatformFeedbackController::class, 'adminDestroy'])->whereNumber('id');
     });
 
 // ─── Cron externo (sin tenant) ──────────────────────────────────────────

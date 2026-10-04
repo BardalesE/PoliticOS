@@ -1159,6 +1159,25 @@ export type ProvisionPayload = {
   db_password?: string;
 };
 
+export interface FeedbackAdminItem {
+  id: number;
+  stars: number;
+  comment: string | null;
+  context: string;
+  candidate_slug: string | null;
+  tenant_slug: string | null;
+  publicado: boolean;
+  created_at: string;
+}
+
+export interface FeedbackAdminList {
+  resumen: { total: number; average: number; distribucion: Record<string, number>; ultimos_7_dias: number; con_comentario: number };
+  data: FeedbackAdminItem[];
+  total: number;
+  last_page: number;
+  candidatos: string[];
+}
+
 export const superadminApi = {
   tenants: {
     list: (saKey: string) =>
@@ -1208,6 +1227,21 @@ export const superadminApi = {
       saRequest<Tenant>(`/superadmin/tenants/${id}/plan`, saKey, {
         method: "PUT", body: JSON.stringify(data),
       }),
+  },
+
+  feedback: {
+    list: (saKey: string, params: Record<string, string | number | boolean | undefined> = {}) => {
+      const qs = new URLSearchParams(
+        Object.entries(params).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, typeof v === "boolean" ? (v ? "1" : "0") : String(v)]),
+      ).toString();
+      return saRequest<FeedbackAdminList>(`/superadmin/feedback${qs ? `?${qs}` : ""}`, saKey);
+    },
+    setPublicado: (saKey: string, id: number, publicado: boolean) =>
+      saRequest<{ ok: boolean; publicado: boolean }>(`/superadmin/feedback/${id}`, saKey, {
+        method: "PUT", body: JSON.stringify({ publicado }),
+      }),
+    remove: (saKey: string, id: number) =>
+      saRequest<{ deleted: boolean }>(`/superadmin/feedback/${id}`, saKey, { method: "DELETE" }),
   },
 
   privacy: {
