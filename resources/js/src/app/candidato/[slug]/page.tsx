@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, BadgeCheck, ExternalLink, Facebook, FileText, Instagram, MapPin, MessageCircle, Users } from "lucide-react";
 import { DIRECTORY_TENANT, getCandidato } from "@/lib/directorio";
+import { PartyLogo } from "@/components/ui/PartyLogo";
 
 /**
  * Ficha pública de un candidato del directorio. Solo existe si el candidato
@@ -69,18 +70,8 @@ export default async function CandidatoPage({ params }: Props) {
       <div className="mx-auto max-w-4xl space-y-6 px-5 py-10">
         {/* Identidad */}
         <section className="flex flex-col gap-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-black/5 sm:flex-row sm:items-center sm:p-8">
-          {c.photo_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={c.photo_url} alt={`Foto de ${c.name}`} className="h-28 w-28 shrink-0 rounded-full object-cover ring-4 ring-black/5" />
-          ) : (
-            <span
-              className="flex h-28 w-28 shrink-0 items-center justify-center rounded-full font-condensed text-[40px] text-white"
-              style={{ background: "rgb(var(--brand-primary-rgb))" }}
-              aria-hidden
-            >
-              {c.name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("")}
-            </span>
-          )}
+          {/* Imagen principal = símbolo del partido (decisión 2026-10-04: sin foto del candidato) */}
+          <PartyLogo src={c.logo_url} party={c.party} name={c.name} size={112} />
           <div className="min-w-0">
             <h1 className="text-[clamp(28px,4vw,40px)] font-bold leading-tight">{c.name}</h1>
             {c.perfil_completado && (

@@ -41,8 +41,12 @@ export function CalificacionesEnVivo() {
     return () => { alive = false; clearInterval(id); };
   }, []);
 
-  if (!res || res.total === 0) return null;
-  const max = Math.max(1, ...Object.values(res.distribucion));
+  // Defensivo: si el API responde algo inesperado (o una versión anterior sin
+  // distribución), la sección no se muestra en vez de romper toda la home.
+  if (!res || !(Number(res.total) > 0)) return null;
+  const dist = res.distribucion ?? {};
+  const average = Number(res.average) || 0;
+  const max = Math.max(1, ...Object.values(dist).map(Number));
 
   return (
     <section className="relative z-10 mx-auto max-w-6xl px-5 pb-10" aria-labelledby="opiniones-title">
@@ -59,19 +63,19 @@ export function CalificacionesEnVivo() {
         <div className="mt-5 grid gap-6 md:grid-cols-[260px_1fr]">
           <div>
             <p className="flex items-baseline gap-2">
-              <span className="text-[56px] font-bold leading-none text-ink-800">{res.average.toFixed(1)}</span>
+              <span className="text-[56px] font-bold leading-none text-ink-800">{average.toFixed(1)}</span>
               <span className="text-[16px] font-semibold text-ink-500">de 5</span>
             </p>
-            <div className="mt-1" role="img" aria-label={`${res.average.toFixed(1)} de 5 estrellas`}>
-              <Estrellas valor={res.average} size={22} />
+            <div className="mt-1" role="img" aria-label={`${average.toFixed(1)} de 5 estrellas`}>
+              <Estrellas valor={average} size={22} />
             </div>
             <p className="mt-1 text-[14px] text-ink-500">
               {res.total} {res.total === 1 ? "calificación" : "calificaciones"}
-              {res.ultimos_7_dias > 0 && <> · {res.ultimos_7_dias} esta semana</>}
+              {Number(res.ultimos_7_dias) > 0 && <> · {res.ultimos_7_dias} esta semana</>}
             </p>
             <div className="mt-4 space-y-1.5" aria-label="Calificaciones por estrellas">
               {[5, 4, 3, 2, 1].map((n) => {
-                const c = res.distribucion[String(n)] ?? 0;
+                const c = Number(dist[String(n)] ?? 0);
                 return (
                   <div key={n} className="flex items-center gap-2 text-[13px]">
                     <span className="w-7 text-right font-semibold text-ink-600">{n}★</span>

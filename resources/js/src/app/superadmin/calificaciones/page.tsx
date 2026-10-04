@@ -116,7 +116,7 @@ export default function SuperAdminCalificacionesPage() {
   }, [load]);
 
   const res = data?.resumen;
-  const maxDist = res ? Math.max(1, ...Object.values(res.distribucion)) : 1;
+  const maxDist = res ? Math.max(1, ...Object.values(res.distribucion ?? {}).map(Number)) : 1;
   const resetPage = <T,>(fn: (v: T) => void) => (v: T) => { setPage(1); fn(v); };
 
   return (
@@ -163,7 +163,7 @@ export default function SuperAdminCalificacionesPage() {
           </div>
           <div className="rounded-2xl border border-gray-200 bg-white p-4">
             {[5, 4, 3, 2, 1].map((n) => {
-              const c = res.distribucion[String(n)] ?? 0;
+              const c = Number(res.distribucion?.[String(n)] ?? 0);
               return (
                 <button key={n} type="button" onClick={() => { setPage(1); setStars(stars === String(n) ? "" : String(n)); }}
                   className={`flex w-full items-center gap-2 rounded py-0.5 text-xs ${stars === String(n) ? "font-bold" : ""}`}

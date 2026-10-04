@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { BadgeCheck, ChevronDown, ChevronRight, FileText, MapPin, MessageCircle, MessagesSquare, Search, X } from "lucide-react";
-import { PartySymbol } from "@/components/ui/PartySymbol";
+import { PartyLogo } from "@/components/ui/PartyLogo";
 import {
   DIRECTORY_TENANT,
   getCandidatos,
@@ -39,8 +39,6 @@ const selectCls =
   "w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-[15px] text-ink-800 shadow-sm " +
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 disabled:cursor-not-allowed disabled:bg-ink-100 disabled:text-ink-400";
 
-const initials = (name: string) =>
-  name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("");
 
 /** "Cajamarca" == "cajamarca", "Chepén" == "chepen". */
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
@@ -145,22 +143,8 @@ function CandidatoCard({ c }: { c: CandidatoResumen }) {
                    focus-within:ring-2 focus-within:ring-[#2F7D4F]/40 sm:p-4"
       >
         <div className="flex items-center gap-3 sm:gap-4">
-          <span className="relative shrink-0">
-            {c.photo_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={c.photo_url} alt="" loading="lazy" className="h-14 w-14 sm:h-16 sm:w-16 rounded-full object-cover ring-2 ring-[#2F7D4F]/20" />
-            ) : (
-              <span
-                className="flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-full font-condensed text-[22px] text-white"
-                style={{ background: PRIMARY }}
-                aria-hidden
-              >
-                {initials(c.name)}
-              </span>
-            )}
-            {/* El símbolo del partido: así lo reconoce la mayoría en la cédula */}
-            <PartySymbol src={c.logo_url} party={c.party} size={30} className="absolute -bottom-1 -right-2" />
-          </span>
+          {/* El símbolo del partido es la imagen principal: así lo reconoce la gente en la cédula */}
+          <PartyLogo src={c.logo_url} party={c.party} name={c.name} size={64} />
           <span className="min-w-0 flex-1">
             {/* Enlace "estirado": toda la tarjeta abre la ficha (after:inset-0). */}
             <Link

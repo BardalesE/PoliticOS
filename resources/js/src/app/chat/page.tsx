@@ -18,6 +18,7 @@ import { SupportPoll, ZonePicker } from "@/components/chat/ZonaYApoyo";
 import { TenantLink } from "@/components/ui/TenantLink";
 import ContactVerifyField from "@/components/ContactVerifyField";
 import { PartySymbol } from "@/components/ui/PartySymbol";
+import { PartyLogo } from "@/components/ui/PartyLogo";
 import dynamic from "next/dynamic";
 import { getVerificationConfig, type VerificationConfig } from "@/lib/verification";
 
@@ -911,11 +912,7 @@ function CandidateGrid({
         <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-900 text-[11px] font-bold text-white">Todos</span>,
         "Todos los candidatos")}
       {candidates.map((c) => card(c.slug, active === c.slug, () => onPick(c.slug),
-        c.logo_url
-          ? <PartySymbol src={c.logo_url} party={c.party} size={44} className="rounded-lg" />
-          : <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-brand-50 text-[13px] font-bold text-brand-600 ring-1 ring-brand-600/20" aria-hidden>
-              {(c.party || c.name).split(/\s+/).filter((w) => w.length > 2).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || c.name[0]}
-            </span>,
+        <PartyLogo src={c.logo_url} party={c.party} name={c.name} size={48} />,
         c.name, c.party))}
     </div>
   );
