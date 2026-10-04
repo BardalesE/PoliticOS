@@ -1229,6 +1229,15 @@ export const superadminApi = {
       }),
   },
 
+  seguridad: {
+    diagnostico: (saKey: string) =>
+      saRequest<{
+        ip_que_ve_laravel: string; pais_geoip: string | null;
+        cabeceras: Record<string, string | null>;
+        config: Record<string, string | number | string[] | null>;
+      }>("/superadmin/seguridad/diagnostico", saKey),
+  },
+
   feedback: {
     list: (saKey: string, params: Record<string, string | number | boolean | undefined> = {}) => {
       const qs = new URLSearchParams(

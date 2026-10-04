@@ -92,6 +92,13 @@ services:
       - key: GROQ_MODEL
         value: openai/gpt-oss-120b
       # Respaldo gratuito si Groq cae: solo entran los que tengan key.
+      # Blindaje de accesos: ver /superadmin → Seguridad antes de fijar las cabeceras.
+      - key: ADMIN_ALLOWED_COUNTRIES
+        value: PE
+      - key: CLIENT_IP_HEADER
+        sync: false               # p. ej. CF-Connecting-IP (confirmar en el diagnóstico)
+      - key: CLIENT_COUNTRY_HEADER
+        sync: false               # p. ej. CF-IPCountry
       - key: CEREBRAS_API_KEY
         sync: false               # cloud.cerebras.ai
       - key: GEMINI_API_KEY

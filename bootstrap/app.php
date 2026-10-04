@@ -24,6 +24,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // CORS aplicado a todas las rutas (necesario para Next.js en puerto 3000)
         $middleware->prepend(\Illuminate\Http\Middleware\HandleCors::class);
 
+        // IP real del visitante (antes de TrustProxies): ver App\Http\Middleware\RealClientIp.
+        $middleware->prepend(\App\Http\Middleware\RealClientIp::class);
+
         // Throttle por defecto para todo el grupo 'api' (QA_COMPLETO.md, Fase 9):
         // varias rutas públicas de contenido (candidate, proposals, gallery,
         // videos, team-members, events, hero-settings, home-settings,
@@ -41,6 +44,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // ahead of anything not in the priority list. prependToPriorityList fixes that.
         $middleware->appendToGroup('api', \App\Http\Middleware\ResolveTenant::class);
         $middleware->appendToGroup('api', \App\Http\Middleware\SecurityHeaders::class);
+        // Paneles (admin, superadmin, login) solo desde los países permitidos.
+        $middleware->appendToGroup('api', \App\Http\Middleware\AdminGeoFence::class);
         $middleware->prependToPriorityList(
             \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
             \App\Http\Middleware\ResolveTenant::class

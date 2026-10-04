@@ -431,6 +431,8 @@ Route::middleware(['throttle:30,1,superadmin', \App\Http\Middleware\EnsureSuperA
         Route::get   ('/privacy-requests',            [PrivacyRequestController::class, 'index']);
         Route::put   ('/privacy-requests/{id}',       [PrivacyRequestController::class, 'update'])->whereNumber('id');
         Route::post  ('/privacy-requests/{id}/erase', [PrivacyRequestController::class, 'erase'])->whereNumber('id');
+        // Diagnóstico de IP real y país (para configurar el blindaje).
+        Route::get   ('/seguridad/diagnostico',       [\App\Http\Controllers\SeguridadController::class, 'diagnostico']);
         // Calificaciones de la plataforma (moderación de comentarios públicos).
         Route::get   ('/feedback',                    [PlatformFeedbackController::class, 'adminIndex']);
         Route::put   ('/feedback/{id}',               [PlatformFeedbackController::class, 'adminUpdate'])->whereNumber('id');

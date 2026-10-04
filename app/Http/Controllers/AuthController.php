@@ -6,6 +6,8 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -17,11 +19,33 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
+        // Bloqueo por fuerza bruta: N fallos por IP o por correo → espera (config/seguridad.php).
+        $max     = max(1, (int) config('seguridad.max_intentos', 5));
+        $segs    = 60 * max(1, (int) config('seguridad.bloqueo_minutos', 15));
+        $porIp   = 'login-ip:' . $request->ip();
+        $porMail = 'login-mail:' . sha1(mb_strtolower(trim((string) $request->input('email'))));
+
+        if (RateLimiter::tooManyAttempts($porIp, $max) || RateLimiter::tooManyAttempts($porMail, $max)) {
+            $espera = max(RateLimiter::availableIn($porIp), RateLimiter::availableIn($porMail));
+
+            return response()->json([
+                'message'     => 'Demasiados intentos fallidos. Intenta de nuevo en ' . max(1, (int) ceil($espera / 60)) . ' minutos.',
+                'retry_after' => $espera,
+            ], 429);
+        }
+
         if (! Auth::attempt($request->only('email', 'password'))) {
+            RateLimiter::hit($porIp, $segs);
+            RateLimiter::hit($porMail, $segs);
+            Log::warning('seguridad: login fallido', ['ip' => $request->ip()]);
+
             throw ValidationException::withMessages([
                 'email' => ['Las credenciales no son correctas.'],
             ]);
         }
+
+        RateLimiter::clear($porIp);
+        RateLimiter::clear($porMail);
 
         /** @var User $user */
         $user = Auth::user();
