@@ -112,11 +112,6 @@ function LugarCard({ l, active, onPick }: { l: Lugar; active: boolean; onPick: (
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[15px] font-bold leading-snug">{l.titulo}</span>
           <span className={`block truncate text-[12px] ${active ? "text-white/80" : "text-ink-500"}`}>{l.subtitulo}</span>
-          {l.arriba > 0 && (
-            <span className={`block truncate text-[11px] ${active ? "text-white/70" : "text-ink-400"}`}>
-              También votas por {l.arriba} de {l.arribaDe}
-            </span>
-          )}
         </span>
         <span
           className={`shrink-0 rounded-full px-2.5 py-1 text-[12px] font-bold ${active ? "bg-white" : "text-white"}`}
@@ -502,7 +497,7 @@ export function DirectorioSelector({ ubicaciones }: { ubicaciones: Ubicaciones |
                     )}
                   </div>
                   <h3 className="mb-3 text-[20px] font-bold leading-tight text-ink-800">
-                    {grupos.length > 1 ? "Votas por " : ""}{delLugar.length} {delLugar.length === 1 ? "candidato" : "candidatos"} en {lugarLabel}
+                    {delLugar.length} {delLugar.length === 1 ? "candidato" : "candidatos"} en {lugarLabel}
                   </h3>
                   {grupos.map((g) => (
                     <div key={g.nivel} className="mb-5 last:mb-0">
