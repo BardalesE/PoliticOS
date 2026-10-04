@@ -183,7 +183,7 @@ class SegmentacionTest extends TestCase
         $this->candidato('Gina Trujillo', $this->trujillo);        // La Libertad
     }
 
-    public function test_regional_and_provincial_candidates_appear_in_the_chat_of_every_zone_below(): void
+    public function test_chat_zone_lists_only_the_candidates_of_its_own_level(): void
     {
         $this->sembrar();
         $caj = $this->sanGregorio->departamento_id;
@@ -197,12 +197,11 @@ class SegmentacionTest extends TestCase
             KnowledgeDocument::create(['title' => 'Plan', 'candidate_id' => $c->id, 'status' => 'ready', 'is_active' => true]);
         }
 
-        // Distrito: su alcalde + el provincial + el gobernador.
-        $this->assertSame(['Ana Gregorio', 'Gobernador Caj', 'Provincial SM'], $this->nombres($this->zona(self::V1, $this->sanGregorio)->assertOk()));
-        // Otra provincia de la misma región: solo el gobernador sube.
-        $this->assertSame(['Dario Cajamarca', 'Gobernador Caj'], $this->nombres($this->zona(self::V1, $this->cajamarca)->assertOk()));
-        // Solo la región (deep link desde la ficha de un gobernador).
-        $this->assertContains('Gobernador Caj', $this->nombres($this->zonaNivel(self::V1, ['departamento_id' => $caj])->assertOk()));
+        // Decisión 2026-10-03: cada zona lista solo los candidatos de su nivel.
+        $this->assertSame(['Ana Gregorio'], $this->nombres($this->zona(self::V1, $this->sanGregorio)->assertOk()));
+        $this->assertSame(['Dario Cajamarca'], $this->nombres($this->zona(self::V1, $this->cajamarca)->assertOk()));
+        $this->assertSame(['Provincial SM'], $this->nombres($this->zonaNivel(self::V1, ['provincia_id' => $sm])->assertOk()));
+        $this->assertSame(['Gobernador Caj'], $this->nombres($this->zonaNivel(self::V1, ['departamento_id' => $caj])->assertOk()));
         // Otra región: nada de Cajamarca.
         $this->assertSame(['Gina Trujillo'], $this->nombres($this->zona(self::V1, $this->trujillo)->assertOk()));
     }
@@ -233,26 +232,26 @@ class SegmentacionTest extends TestCase
         $this->assertNotContains('De otro distrito', $this->nombres($res));
     }
 
-    public function test_province_shows_candidates_of_all_its_districts_and_no_other_province(): void
+    public function test_province_does_not_list_district_candidates(): void
     {
         $this->sembrar();
 
         $res = $this->zonaNivel(self::V1, ['provincia_id' => $this->sanMiguel->provincia_id])->assertOk();
 
-        $this->assertSame(['Ana Gregorio', 'Beto Miguel', 'Carla Miguel'], $this->nombres($res));
+        $this->assertSame([], $this->nombres($res));   // solo hay distritales sembrados
         $this->assertSame('provincia', $res->json('zona.nivel'));
         $this->assertNull($res->json('zona.distrito'));
         $this->assertSame('SAN MIGUEL', $res->json('zona.provincia'));
         $this->assertSame('CAJAMARCA', $res->json('zona.departamento'));
     }
 
-    public function test_department_shows_every_candidate_of_the_department_and_no_other(): void
+    public function test_department_does_not_list_provincial_or_district_candidates(): void
     {
         $this->sembrar();
 
         $res = $this->zonaNivel(self::V1, ['departamento_id' => $this->sanMiguel->departamento_id])->assertOk();
 
-        $this->assertSame(['Ana Gregorio', 'Beto Miguel', 'Carla Miguel', 'Dario Cajamarca'], $this->nombres($res));
+        $this->assertSame([], $this->nombres($res));
         $this->assertSame('departamento', $res->json('zona.nivel'));
         $this->assertNull($res->json('zona.provincia'));
         $this->assertNull($res->json('zona.distrito'));

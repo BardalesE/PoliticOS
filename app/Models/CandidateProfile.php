@@ -130,35 +130,31 @@ class CandidateProfile extends Model
      * borra su último documento el lugar deja de mostrarse solo.
      */
     /**
-     * Candidatos por los que vota quien vive en un lugar: los de su nivel y los de
-     * arriba (el vecino de un distrito elige alcalde distrital, provincial y
-     * gobernador regional). Una provincia o región sin distrito ve todo lo de abajo.
-     * Única fuente de la regla: la usan la home (/directorio) y el chat (segmentación).
+     * Candidatos del lugar elegido, SOLO de ese nivel (decisión 2026-10-03):
+     *   distrito     → solo los distritales de ese distrito
+     *   provincia    → solo los provinciales (alcaldía provincial)
+     *   departamento → solo los regionales (gobierno regional)
+     * Antes cada nivel arrastraba a los de arriba/abajo y el vecino veía 9
+     * candidatos en San Gregorio cuando el distrito tiene 5. Única fuente de la
+     * regla: la usan la home (/directorio) y el chat (segmentación).
      */
     public function scopeVotaEn(Builder $query, ?int $departamentoId, ?int $provinciaId = null, ?int $distritoId = null): Builder
     {
-        if (! self::tieneAmbito($query->getModel())) {      // tenant sin migración de ámbito
-            return $distritoId
-                ? $query->where('distrito_id', $distritoId)
-                : $query->whereHas('distrito', fn (Builder $d) => $provinciaId
-                    ? $d->where('provincia_id', $provinciaId)
-                    : $d->where('departamento_id', $departamentoId));
+        if ($distritoId) {
+            return $query->where('distrito_id', $distritoId);
         }
 
-        if ($distritoId) {
-            return $query->where(fn (Builder $q) => $q
-                ->where('distrito_id', $distritoId)
-                ->when($provinciaId, fn (Builder $q) => $q->orWhere(fn (Builder $q) => $q->whereNull('distrito_id')->where('provincia_id', $provinciaId)))
-                ->when($departamentoId, fn (Builder $q) => $q->orWhere(fn (Builder $q) => $q->whereNull('provincia_id')->where('departamento_id', $departamentoId))));
+        if (! self::tieneAmbito($query->getModel())) {      // tenant sin migración de ámbito: solo hay distritales
+            return $query->whereRaw('1 = 0');
         }
 
         if ($provinciaId) {
-            return $query->where(fn (Builder $q) => $q
-                ->where('provincia_id', $provinciaId)
-                ->when($departamentoId, fn (Builder $q) => $q->orWhere(fn (Builder $q) => $q->whereNull('provincia_id')->where('departamento_id', $departamentoId))));
+            return $query->whereNull('distrito_id')->where('provincia_id', $provinciaId);
         }
 
-        return $departamentoId ? $query->where('departamento_id', $departamentoId) : $query;
+        return $departamentoId
+            ? $query->whereNull('distrito_id')->whereNull('provincia_id')->where('departamento_id', $departamentoId)
+            : $query;
     }
 
     public function scopeVisibleInDirectory(Builder $query): Builder

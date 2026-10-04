@@ -164,10 +164,10 @@ class SegmentacionController extends Controller
     }
 
     /**
-     * Candidatos por los que vota esa zona (misma regla que la home):
-     *   distrito     → los del distrito + alcalde provincial + gobernador regional
-     *   provincia    → los de la provincia y sus distritos + gobernador regional
-     *   departamento → todos los del departamento
+     * Candidatos de esa zona, solo de su nivel (misma regla que la home):
+     *   distrito     → los distritales de ese distrito
+     *   provincia    → los provinciales
+     *   departamento → los regionales
      */
     private function candidatosDe(VisitorSegment $z): array
     {

@@ -203,11 +203,12 @@ class DirectorioTest extends TestCase
         $this->getJson('/api/directorio/candidatos?distrito_id=' . $this->sanGregorio->id)
             ->assertJsonCount(1, 'data')->assertJsonPath('data.0.slug', $sg->slug);
 
+        // Cada nivel lista solo sus propios cargos: provincia y región no arrastran distritales.
         $this->getJson('/api/directorio/candidatos?provincia_id=' . $this->sanGregorio->provincia_id)
-            ->assertJsonCount(2, 'data');
+            ->assertJsonCount(0, 'data');
 
         $this->getJson('/api/directorio/candidatos?departamento_id=' . $this->trujillo->departamento_id)
-            ->assertJsonCount(1, 'data')->assertJsonPath('data.0.name', 'Carla Trujillo');
+            ->assertJsonCount(0, 'data');
     }
 
     public function test_public_responses_never_leak_private_fields(): void
@@ -899,7 +900,7 @@ class DirectorioTest extends TestCase
         $this->assertStringContainsString('FORMACIÓN ACADÉMICA', $out[0]['excerpt'], 'y además la ventana relevante');
     }
 
-    public function test_regional_and_provincial_candidates_reach_every_voter_below_them(): void
+    public function test_each_place_lists_only_the_candidates_of_its_own_level(): void
     {
         $this->actAs('admin');
         $caj = $this->sanGregorio->departamento_id;
@@ -930,14 +931,12 @@ class DirectorioTest extends TestCase
 
         $nombres = fn (array $f) => array_column($this->getJson('/api/directorio/candidatos?' . http_build_query($f))->json('data'), 'name');
 
-        // Quien vota en San Gregorio ve a su alcalde distrital, al provincial y al gobernador.
-        $this->assertEqualsCanonicalizing(['Alcalde Prov', 'Distrital SG', 'Gobernador Uno'], $nombres(['distrito_id' => $this->sanGregorio->id]));
-        // En San Miguel distrito (misma provincia) no aparece el distrital de San Gregorio.
-        $this->assertEqualsCanonicalizing(['Alcalde Prov', 'Gobernador Uno'], $nombres(['distrito_id' => $this->sanMiguel->id]));
-        // En Trujillo (otra región) ninguno de Cajamarca.
+        // Decisión 2026-10-03: cada lugar lista SOLO los candidatos de su nivel.
+        $this->assertSame(['Distrital SG'], $nombres(['distrito_id' => $this->sanGregorio->id]));
+        $this->assertSame([], $nombres(['distrito_id' => $this->sanMiguel->id]));
         $this->assertSame(['Distrital Trujillo'], $nombres(['distrito_id' => $this->trujillo->id]));
-        // Elegir solo la región muestra todo lo de la región.
-        $this->assertEqualsCanonicalizing(['Alcalde Prov', 'Distrital SG', 'Gobernador Uno'], $nombres(['departamento_id' => $caj]));
+        $this->assertSame(['Alcalde Prov'], $nombres(['provincia_id' => $sm]));
+        $this->assertSame(['Gobernador Uno'], $nombres(['departamento_id' => $caj]));
 
         // El árbol de la home marca la región y la provincia aunque no haya distrito.
         $cajNodo = collect($this->getJson('/api/directorio/ubicaciones')->json('departamentos'))->firstWhere('nombre', 'CAJAMARCA');
