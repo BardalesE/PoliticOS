@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { FileText, Play, Link as LinkIcon, X, ImageIcon, ShieldAlert, AlertTriangle, Mic, Square, Volume2, VolumeX, Send, MapPin, Lock, Clock, MessagesSquare, ChevronDown, ThumbsUp, ThumbsDown, History, Scale, Star } from "lucide-react";
+import { FileText, Play, Link as LinkIcon, X, ImageIcon, ShieldAlert, AlertTriangle, Mic, Square, Volume2, VolumeX, Send, MapPin, Lock, Clock, MessagesSquare, ChevronDown, ThumbsUp, ThumbsDown, History, Scale, Star, Menu } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import ConsentModal from "@/components/chat/ConsentModal";
@@ -875,6 +875,52 @@ function SuggestionCarousel({ name, disabled, onPick }: { name: string; disabled
 
 // ─── Historial por candidato (se cierra a la hora) ─────────────────────────────
 
+/**
+ * Candidatos en cuadrícula con el símbolo del partido (como la cédula): se
+ * reconocen por el logo, no por la foto. Va en el panel lateral (escritorio),
+ * en el menú (celular) y dentro del chat cuando aún no se eligió a nadie.
+ */
+function CandidateGrid({
+  candidates, active, allowAll, onPick,
+}: {
+  candidates: ChatCandidate[];
+  active: string | null;
+  allowAll: boolean;
+  onPick: (slug: string | null) => void;
+}) {
+  const card = (key: string, isActive: boolean, onClick: () => void, logo: React.ReactNode, title: string, sub?: string | null) => (
+    <button
+      key={key}
+      type="button"
+      onClick={onClick}
+      aria-pressed={isActive}
+      title={sub ? `${title} · ${sub}` : title}
+      className={`flex flex-col items-center justify-start gap-1.5 rounded-xl border p-2.5 text-center transition-colors ${
+        isActive ? "border-brand-600 bg-brand-50 ring-2 ring-brand-600/20" : "border-gray-200 bg-white hover:border-brand-600/40 hover:bg-gray-50"
+      }`}
+    >
+      {logo}
+      <span className="line-clamp-2 text-[12px] font-semibold leading-tight text-gray-800">{title}</span>
+      {sub && <span className="line-clamp-1 w-full text-[10px] leading-tight text-gray-400">{sub}</span>}
+    </button>
+  );
+
+  return (
+    <div className="grid grid-cols-2 gap-2" role="group" aria-label="Elegir candidato">
+      {allowAll && card("__todos", active === null, () => onPick(null),
+        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gray-900 text-[11px] font-bold text-white">Todos</span>,
+        "Todos los candidatos")}
+      {candidates.map((c) => card(c.slug, active === c.slug, () => onPick(c.slug),
+        c.logo_url
+          ? <PartySymbol src={c.logo_url} party={c.party} size={44} className="rounded-lg" />
+          : <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-brand-50 text-[13px] font-bold text-brand-600 ring-1 ring-brand-600/20" aria-hidden>
+              {(c.party || c.name).split(/\s+/).filter((w) => w.length > 2).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || c.name[0]}
+            </span>,
+        c.name, c.party))}
+    </div>
+  );
+}
+
 function ThreadsPanel({
   threads, activeKey, now, onOpen, compact = false,
 }: {
@@ -1512,9 +1558,11 @@ export default function ChatPage() {
       const zonaLine = lugar
         ? n > 0
           ? `En **${lugar}** encontré **${n} ${n === 1 ? "candidato" : "candidatos"}**. `
-          : `En **${lugar}** aún no hay candidatos publicados. Prueba con otra zona. `
+          : est?.zona?.distrito
+            ? `En **${lugar}** aún no hay candidatos publicados. Prueba con otra zona. `
+            : `Elige tu **distrito** para ver a sus candidatos (toca **Cambiar** en tu zona). `
         : "";
-      content = `¡Bienvenido/a! 👋 Soy **PoliticOSIA**, un asistente neutral que escucha al pueblo.\n\n${zonaLine}**Elige un candidato** arriba y pregúntame lo que quieras: te respondo solo con sus documentos oficiales y te muestro la fuente.${ttlLine}${limitLine}`;
+      content = `¡Bienvenido/a! 👋 Soy **PoliticOSIA**, un asistente neutral que escucha al pueblo.\n\n${zonaLine}**Elige un candidato** y pregúntame lo que quieras: te respondo solo con sus documentos oficiales y te muestro la fuente.${ttlLine}${limitLine}`;
     } else {
       content = `¡Hola! 👋 Soy el asistente de **${profile.name || "tu candidato"}**.\n\nPregúntame lo que quieras saber: te respondo al toque, en base a los documentos oficiales que tengo de ${profile.name || "este candidato"}.${ttlLine}${limitLine}`;
     }
@@ -1938,7 +1986,7 @@ export default function ChatPage() {
     if (regPhase === "email")      return "Tu correo o escribe 'omitir'...";
     if (regPhase === "registering")return "Registrando...";
     if (blocked)                   return "Escribe 'hola', 'menú' o 'inicio' para continuar...";
-    if (needsCandidate)            return "Elige un candidato arriba...";
+    if (needsCandidate)            return "Primero elige un candidato...";
     if (voiceMode && micSupported) return "Toca el micrófono y habla...";
     return "Escribe tu pregunta...";
   };
@@ -1947,7 +1995,6 @@ export default function ChatPage() {
   const needsCandidate = zoneMode && !!zona && candidates.length > 0 && !candidateSlug && (regPhase === null || regPhase === "done");
   const inputDisabled = streaming || autoStarting || regPhase === "registering" || needsCandidate;
   // Selector completo: cuando falta elegir candidato o el ciudadano pidió cambiar.
-  const showSelector = pickerOpen || needsCandidate;
 
   // ── Hilos visibles + mensajes a mostrar ─────────────────────────────────────
   const threadList = Object.values(threads)
@@ -1974,6 +2021,74 @@ export default function ChatPage() {
       : [];
   const shown: ChatMessage[] = [...intro, ...candIntro, ...messages];
 
+  // Módulos del chat: al costado en escritorio, en el menú ☰ en celular.
+  const cerrarMenu = () => { setPickerOpen(false); setHistoryOpen(false); };
+  const activeCandidate = candidates.find((c) => c.slug === candidateSlug);
+  const renderModules = (enMenu: boolean) => (
+    <div className="space-y-6">
+      {zoneMode && zona && !changingZone && (
+        <section>
+          <ZoneBadge zona={zona} onChange={() => { cerrarMenu(); setChangingZone(true); }} />
+        </section>
+      )}
+
+      {candidates.length > 0 && !(zoneMode && (!zona || changingZone)) && (
+        <section>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+            Candidatos · {candidates.length}
+          </p>
+          {needsCandidate && (
+            <p className="mb-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] font-medium text-amber-700">Elige un candidato para empezar a consultar.</p>
+          )}
+          <CandidateGrid
+            candidates={candidates}
+            active={candidateSlug}
+            allowAll={!zoneMode}
+            onPick={(slug) => { chooseCandidate(slug); if (enMenu) cerrarMenu(); }}
+          />
+          {activeCandidate && (
+            <p className="mt-2 text-[11px] text-gray-500">
+              Las respuestas usan solo los documentos de <span className="font-semibold">{activeCandidate.name}</span>.
+            </p>
+          )}
+        </section>
+      )}
+      {zoneMode && zona && !changingZone && candidates.length === 0 && (
+        <p className="text-[11px] text-gray-500">Aún no hay candidatos publicados en esta zona. Prueba con otra.</p>
+      )}
+
+      {(candidates.length >= 2 || (pollEnabled && candidateSlug)) && !(zoneMode && (!zona || changingZone)) && (
+        <section className="space-y-2">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">Herramientas</p>
+          {candidates.length >= 2 && (
+            <button
+              type="button"
+              onClick={() => { cerrarMenu(); setCompareOpen(true); }}
+              className="flex w-full items-center gap-2 rounded-xl border border-brand-600/40 bg-brand-50 px-3 py-2.5 text-[13px] font-bold text-brand-600 hover:bg-brand-100"
+            >
+              <Scale size={16} aria-hidden /> Comparar 1 vs 1
+            </button>
+          )}
+          {pollEnabled && candidateSlug && (
+            <SupportPoll name={activeCandidate?.name ?? ""} vote={votes[candidateSlug]} busy={voteBusy} onVote={vote} />
+          )}
+        </section>
+      )}
+
+      <section>
+        <button
+          type="button"
+          onClick={() => { cerrarMenu(); setFeedbackOpen(true); }}
+          className="flex w-full items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 text-[13px] font-bold text-amber-700 hover:bg-amber-100"
+        >
+          <Star size={16} className="fill-amber-400 text-amber-500" aria-hidden /> Calificar PoliticOS
+        </button>
+      </section>
+
+      <ThreadsPanel threads={threadList} activeKey={threadKey} now={now} onOpen={(k) => { openThread(k); if (enMenu) cerrarMenu(); }} />
+    </div>
+  );
+
   // ── Render ────────────────────────────────────────────────────────────────────
 
   return (
@@ -1982,8 +2097,18 @@ export default function ChatPage() {
 
       {/* Header: fijo arriba; el chat hace scroll por dentro, nunca queda tapado */}
       <header className="shrink-0 z-30 bg-white/95 backdrop-blur border-b border-gray-200 px-3 sm:px-4 py-2">
-        <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              className="lg:hidden relative -ml-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-gray-700 hover:bg-gray-100"
+              aria-label="Abrir menú: candidatos, comparar y conversaciones"
+              aria-expanded={pickerOpen}
+            >
+              <Menu size={20} aria-hidden />
+              {threadList.length > 0 && <span className="absolute right-0.5 top-0.5 h-2 w-2 rounded-full bg-brand-600" aria-hidden />}
+            </button>
             {profile.photo_url || profile.logo_url ? (
               <img
                 src={profile.photo_url ?? profile.logo_url ?? undefined}
@@ -2007,152 +2132,26 @@ export default function ChatPage() {
             <TenantLink href="/" className="shrink-0 rounded-full border border-gray-200 px-3 py-1.5 text-[13px] font-semibold text-gray-600 hover:border-brand-600/40 hover:text-brand-600 transition-colors">Inicio</TenantLink>
           )}
         </div>
-        {/* Barra compacta: con quién conversas + cambiar + (móvil) historial */}
-        {!(zoneMode && (!zona || changingZone)) && (candidates.length > 0 || (zoneMode && !!zona)) && !showSelector && (
-          <div className="max-w-3xl mx-auto mt-2 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setPickerOpen(true)}
-              aria-expanded={false}
-              className="group flex min-w-0 flex-1 items-center gap-2 rounded-full border border-gray-200 bg-white py-1.5 pl-3 pr-2 text-left shadow-sm hover:border-brand-600/40"
-            >
-              <span className="hidden sm:inline shrink-0 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Consultando</span>
-              <PartySymbol src={candidates.find((c) => c.slug === candidateSlug)?.logo_url} party={candidates.find((c) => c.slug === candidateSlug)?.party} size={22} />
-              <span className="min-w-0 truncate text-[13px] font-semibold text-gray-800">
-                {activeName ?? "Todos los candidatos"}
-              </span>
-              {zoneMode && zona && (
-                <span className="hidden sm:inline shrink-0 truncate text-[11px] text-gray-400">
-                  · {prettyPlace(String(zona.distrito ?? zona.provincia ?? zona.departamento))}
-                </span>
-              )}
-              <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 text-[11px] font-semibold text-brand-600">
-                Cambiar <ChevronDown size={14} aria-hidden />
-              </span>
-            </button>
-            {pollEnabled && candidateSlug && (
-              <div className="flex shrink-0 items-center gap-1" role="group" aria-label={`¿Apoyas a ${activeName ?? "este candidato"}?`}
-                title={`¿Apoyas a ${activeName ?? "este candidato"}? Encuesta no oficial: no publicamos resultados.`}>
-                <button type="button" disabled={voteBusy} onClick={() => vote(true)} aria-pressed={votes[candidateSlug] === true}
-                  aria-label="Sí lo apoyo"
-                  className={`flex h-8 w-8 items-center justify-center rounded-full border transition-colors disabled:opacity-50 ${votes[candidateSlug] === true ? "border-green-600 bg-green-600 text-white" : "border-gray-300 bg-white text-gray-500 hover:border-gray-400"}`}>
-                  <ThumbsUp size={14} aria-hidden />
-                </button>
-                <button type="button" disabled={voteBusy} onClick={() => vote(false)} aria-pressed={votes[candidateSlug] === false}
-                  aria-label="No lo apoyo"
-                  className={`flex h-8 w-8 items-center justify-center rounded-full border transition-colors disabled:opacity-50 ${votes[candidateSlug] === false ? "border-red-600 bg-red-600 text-white" : "border-gray-300 bg-white text-gray-500 hover:border-gray-400"}`}>
-                  <ThumbsDown size={14} aria-hidden />
-                </button>
-              </div>
-            )}
-            {candidates.length >= 2 && (
-              <button
-                type="button"
-                onClick={() => setCompareOpen(true)}
-                className="flex h-8 shrink-0 items-center gap-1 rounded-full border border-brand-600/40 bg-brand-50 px-2.5 text-[12px] font-bold text-brand-600 hover:bg-brand-100"
-                aria-label="Comparar dos candidatos"
-              >
-                <Scale size={14} aria-hidden /> <span className="hidden sm:inline">Comparar</span>
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setHistoryOpen(true)}
-              className="lg:hidden relative flex h-8 shrink-0 items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 text-[12px] font-semibold text-gray-600"
-              aria-label={`Tus conversaciones (${threadList.length})`}
-            >
-              <History size={14} aria-hidden />
-              {threadList.length > 0 && <span className="rounded-full bg-brand-600 px-1.5 text-[10px] leading-4 text-white">{threadList.length}</span>}
-            </button>
-            <button
-              type="button"
-              onClick={() => setFeedbackOpen(true)}
-              className="flex h-8 shrink-0 items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2.5 text-[12px] font-bold text-amber-600 hover:bg-amber-100"
-              aria-label="Califica la plataforma"
-            >
-              <Star size={14} className="fill-amber-400 text-amber-500" aria-hidden /> <span className="hidden sm:inline">Calificar</span>
-            </button>
-          </div>
-        )}
-
-        {!(zoneMode && (!zona || changingZone)) && (candidates.length > 0 || (zoneMode && !!zona)) && showSelector && (
-          <div className="max-w-3xl mx-auto mt-2.5 max-h-[55dvh] overflow-y-auto">
-            {pickerOpen && !needsCandidate && (
-              <div className="mb-1 flex justify-end">
-                <button type="button" onClick={() => setPickerOpen(false)} className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-500 hover:text-gray-800">
-                  <X size={13} aria-hidden /> Cerrar
-                </button>
-              </div>
-            )}
-            {zoneMode && zona && <ZoneBadge zona={zona} onChange={() => { setPickerOpen(false); setChangingZone(true); }} />}
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 mb-1.5">
-              Consultar sobre
-            </p>
-            <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1" role="group" aria-label="Elegir candidato">
-              {!zoneMode && (
-              <button
-                type="button"
-                onClick={() => chooseCandidate(null)}
-                aria-pressed={candidateSlug === null}
-                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  candidateSlug === null
-                    ? "border-gray-900 bg-gray-900 text-white"
-                    : "border-gray-300 bg-white text-gray-600 hover:border-gray-400"
-                }`}
-              >
-                Todos
-              </button>
-              )}
-              {candidates.map((c) => (
-                <button
-                  key={c.slug}
-                  type="button"
-                  onClick={() => chooseCandidate(c.slug)}
-                  aria-pressed={candidateSlug === c.slug}
-                  title={c.party ? `${c.name} · ${c.party}` : c.name}
-                  className={`inline-flex shrink-0 max-w-[16rem] items-center gap-1.5 rounded-full border py-1 text-xs font-medium transition-colors ${
-                    c.logo_url ? "pl-1 pr-3" : "px-3"
-                  } ${
-                    candidateSlug === c.slug
-                      ? "border-brand-600 bg-brand-600 text-white"
-                      : "border-gray-300 bg-white text-gray-600 hover:border-gray-400"
-                  }`}
-                >
-                  <PartySymbol src={c.logo_url} party={c.party} size={20} className="rounded-full" />
-                  <span className="truncate">{c.name}</span>
-                </button>
-              ))}
-            </div>
-            {zoneMode && zona && candidates.length === 0 && (
-              <p className="mt-1 text-[11px] text-gray-500">
-                Aún no hay candidatos publicados en esta zona. Prueba con otra o con el departamento completo.
-              </p>
-            )}
-            {needsCandidate && (
-              <p className="mt-1 text-[11px] font-medium text-amber-700">Elige un candidato para empezar a consultar.</p>
-            )}
-            {candidateSlug && (
-              <p className="mt-1 text-[11px] text-gray-500">
-                Las respuestas usan solo los documentos de{" "}
-                <span className="font-semibold">{candidates.find((c) => c.slug === candidateSlug)?.name}</span>.
-              </p>
-            )}
-            {pollEnabled && candidateSlug && (
-              <SupportPoll
-                name={candidates.find((c) => c.slug === candidateSlug)?.name ?? ""}
-                vote={votes[candidateSlug]}
-                busy={voteBusy}
-                onVote={vote}
-              />
-            )}
-          </div>
+        {/* Celular: con quién conversas (toca para abrir el menú) */}
+        {candidateSlug && !(zoneMode && (!zona || changingZone)) && (
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            className="lg:hidden mx-auto mt-2 flex w-full max-w-3xl items-center gap-2 rounded-full border border-gray-200 bg-white py-1.5 pl-2 pr-3 text-left shadow-sm"
+          >
+            <PartySymbol src={candidates.find((c) => c.slug === candidateSlug)?.logo_url} party={candidates.find((c) => c.slug === candidateSlug)?.party} size={22} />
+            <span className="min-w-0 truncate text-[13px] font-semibold text-gray-800">{activeName}</span>
+            <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 text-[11px] font-semibold text-brand-600">
+              Cambiar <ChevronDown size={14} aria-hidden />
+            </span>
+          </button>
         )}
       </header>
 
       <div className="flex-1 min-h-0 w-full max-w-6xl mx-auto flex lg:gap-6 lg:px-4">
         {/* Historial por candidato (escritorio): columna propia con su scroll */}
-        <aside className="hidden lg:block w-64 shrink-0 overflow-y-auto py-5">
-          <ThreadsPanel threads={threadList} activeKey={threadKey} now={now} onOpen={openThread} />
+        <aside className="hidden lg:block w-72 shrink-0 overflow-y-auto py-5 pr-1" aria-label="Candidatos y herramientas">
+          {renderModules(false)}
         </aside>
 
         <div className="flex-1 min-w-0 min-h-0 flex flex-col">
@@ -2298,6 +2297,14 @@ export default function ChatPage() {
                 </motion.div>
               ))}
             </AnimatePresence>
+
+            {/* Celular: sin candidato elegido, la cuadrícula aparece aquí mismo */}
+            {needsCandidate && (
+              <div className="lg:hidden mb-4 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
+                <p className="mb-2 text-[12px] font-bold text-gray-700">Elige un candidato</p>
+                <CandidateGrid candidates={candidates} active={candidateSlug} allowAll={!zoneMode} onPick={(slug) => chooseCandidate(slug)} />
+              </div>
+            )}
 
             {/* Preguntas sugeridas: debajo del último mensaje, siempre listas para tocar */}
             {welcomed && regPhase === "done" && !quota?.blocked && !needsCandidate
@@ -2471,22 +2478,23 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* Historial en móvil: panel lateral */}
+      {/* Celular: menú ☰ con los mismos módulos del panel lateral */}
       <AnimatePresence>
-        {historyOpen && (
+        {(pickerOpen || historyOpen) && (
           <motion.div className="fixed inset-0 z-50 lg:hidden" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <button type="button" aria-label="Cerrar historial" className="absolute inset-0 bg-black/30" onClick={() => setHistoryOpen(false)} />
+            <button type="button" aria-label="Cerrar menú" className="absolute inset-0 bg-black/30" onClick={cerrarMenu} />
             <motion.aside
-              role="dialog" aria-modal="true" aria-label="Tus conversaciones"
+              role="dialog" aria-modal="true" aria-label="Menú del chat"
               initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }} transition={{ type: "tween", duration: 0.22 }}
-              className="absolute inset-y-0 left-0 w-[85vw] max-w-xs overflow-y-auto bg-white p-5 shadow-xl"
+              className="absolute inset-y-0 left-0 w-[88vw] max-w-sm overflow-y-auto bg-white p-5 shadow-xl"
             >
-              <div className="mb-3 flex justify-end">
-                <button type="button" onClick={() => setHistoryOpen(false)} className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500">
+              <div className="mb-4 flex items-center justify-between">
+                <p className="text-[13px] font-bold text-gray-800">Menú</p>
+                <button type="button" onClick={cerrarMenu} className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500">
                   <X size={14} aria-hidden /> Cerrar
                 </button>
               </div>
-              <ThreadsPanel threads={threadList} activeKey={threadKey} now={now} onOpen={openThread} />
+              {renderModules(true)}
             </motion.aside>
           </motion.div>
         )}
