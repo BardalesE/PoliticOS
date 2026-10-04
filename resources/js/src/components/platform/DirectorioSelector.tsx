@@ -329,12 +329,20 @@ export function DirectorioSelector({ ubicaciones }: { ubicaciones: Ubicaciones |
   }, [filtroKey]);
 
   // Del cargo más amplio al más local: región → provincia → distrito.
+  // Solo los cargos que se eligen en el lugar escogido: la provincia muestra a sus
+  // alcaldes provinciales (y la región a sus gobernadores), no a los distritales de
+  // toda la provincia. El distrito sí ve todo por lo que vota (distrito + arriba).
+  const delLugar = useMemo(() => {
+    const permitidos = distId ? null : provId ? ["regional", "provincial"] : ["regional"];
+    return (candidatos ?? []).filter((c) => !permitidos || permitidos.includes(c.ambito ?? "distrital"));
+  }, [candidatos, distId, provId]);
+
   const grupos = useMemo(() => {
     const orden = ["regional", "provincial", "distrital"] as const;
     return orden
-      .map((nivel) => ({ nivel, items: (candidatos ?? []).filter((c) => (c.ambito ?? "distrital") === nivel) }))
+      .map((nivel) => ({ nivel, items: delLugar.filter((c) => (c.ambito ?? "distrital") === nivel) }))
       .filter((g) => g.items.length > 0);
-  }, [candidatos]);
+  }, [delLugar]);
 
   const lugarLabel = [
     distId ? prov?.distritos.find((x) => x.id === distId)?.nombre : null,
@@ -494,7 +502,7 @@ export function DirectorioSelector({ ubicaciones }: { ubicaciones: Ubicaciones |
                     )}
                   </div>
                   <h3 className="mb-3 text-[20px] font-bold leading-tight text-ink-800">
-                    {grupos.length > 1 ? "Votas por " : ""}{candidatos?.length ?? 0} {candidatos?.length === 1 ? "candidato" : "candidatos"} en {lugarLabel}
+                    {grupos.length > 1 ? "Votas por " : ""}{delLugar.length} {delLugar.length === 1 ? "candidato" : "candidatos"} en {lugarLabel}
                   </h3>
                   {grupos.map((g) => (
                     <div key={g.nivel} className="mb-5 last:mb-0">
