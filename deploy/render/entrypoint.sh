@@ -77,6 +77,22 @@ if [ -n "${REFRESH_HV_TENANTS:-}" ]; then
         || echo "[entrypoint] WARN: refresh de hojas de vida falló — no bloquea el arranque"
 fi
 
+# 3c-bis ─ re-ingesta de documentos truncados por el viejo MAX_CHARS=80000 ──
+# Render free no tiene Shell: se dispara con variables de entorno.
+#   REINGEST_TENANTS="politicosperu"   (varios separados por espacio)
+#   REINGEST_ALL=true                  (sin esto solo toca los que parecen
+#                                       truncados — heurística por longitud
+#                                       de content; ver knowledge:reingest)
+# Solo ENCOLA (QUEUE_CONNECTION=database, worker en supervisord) — el trabajo
+# real (extracción completa + MAP/REDUCE + embeddings) lo hace el worker, no
+# el arranque. Cuando termines, borra REINGEST_TENANTS.
+if [ -n "${REINGEST_TENANTS:-}" ]; then
+    REINGEST_FLAG=""
+    [ "${REINGEST_ALL:-false}" = "true" ] && REINGEST_FLAG="--all"
+    php artisan knowledge:reingest ${REINGEST_TENANTS} ${REINGEST_FLAG} \
+        || echo "[entrypoint] WARN: knowledge:reingest falló — no bloquea el arranque"
+fi
+
 # 3d ─ reclasificar temas del chat (panel "Mensajes por tema") ──────────────
 # Render free no tiene Shell: se dispara con variables de entorno.
 #   RECLASSIFY_TOPICS_TENANTS="politicosperu"   (varios separados por espacio)
