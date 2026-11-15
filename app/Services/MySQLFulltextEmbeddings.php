@@ -428,9 +428,9 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
         return $this->toExcerpts($q->get(), $query);
     }
 
-    /** Máximo de fragmentos que llegan al LLM por turno (presupuesto de tokens). */
+    /** Default de fragmentos que llegan al LLM por turno — ver maxExcerpts() (config/ingest.php). */
     private const MAX_EXCERPTS = 4;
-    /** Páginas distintas que puede aportar un mismo documento. */
+    /** Default de páginas distintas que puede aportar un mismo documento — ver pagesPerDoc(). */
     private const PAGES_PER_DOC = 2;
 
     /** Formato Único JNE: 3 páginas; la 2 trae trayectoria, cargos de elección y sentencias. */
@@ -438,10 +438,31 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
 
     /** Menos texto que esto = portada o índice: no sirve para una pregunta general. */
     private const MIN_CONTENT_PAGE_CHARS = 200;
+    /** Default del recorte por excerpt — ver defaultExcerptChars() (config/ingest.php). */
     private const EXCERPT_CHARS = 1200;
 
-    /** Hoja de vida: pagina completa (formulario JNE de ~3.300 caracteres por hoja). */
+    /** Hoja de vida: pagina completa (formulario JNE de ~3.300 caracteres por hoja). NO configurable: caso especial fijo. */
     private const HV_EXCERPT_CHARS = 3600;
+
+    /**
+     * Config-izados (CLAUDE.md "todo límite va en config"), con el mismo
+     * default que antes estaba hardcodeado — cero cambio de comportamiento
+     * salvo que se toque el .env. El caso de hoja de vida (HV_*) no cambia.
+     */
+    private function maxExcerpts(): int
+    {
+        return (int) config('ingest.query.max_excerpts', self::MAX_EXCERPTS);
+    }
+
+    private function pagesPerDoc(): int
+    {
+        return (int) config('ingest.query.pages_per_doc', self::PAGES_PER_DOC);
+    }
+
+    private function defaultExcerptChars(): int
+    {
+        return (int) config('ingest.query.excerpt_chars', self::EXCERPT_CHARS);
+    }
 
     /**
      * Recorte de una página. Si la página empieza con el bloque de casillas de la
@@ -466,7 +487,7 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
     {
         return SensitiveData::isHojaDeVida($d->topic ?? null, isset($d->title) ? (string) $d->title : null)
             ? self::HV_EXCERPT_CHARS
-            : self::EXCERPT_CHARS;
+            : $this->defaultExcerptChars();
     }
 
     /**
@@ -507,8 +528,8 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
             // siguientes mejores. Antes, un plan de 60 páginas aportaba solo 2 aunque
             // sobraran cupos (2026-10-01, Lima).
             $porDoc = $esHv
-                ? ($this->queryTargetsDocument($query, 'hoja_de_vida', '') ? self::HV_PAGES : self::PAGES_PER_DOC)
-                : self::MAX_EXCERPTS;
+                ? ($this->queryTargetsDocument($query, 'hoja_de_vida', '') ? self::HV_PAGES : $this->pagesPerDoc())
+                : $this->maxExcerpts();
             // null = no se puede ordenar (sin páginas, o pregunta sin términos de tema);
             // [] = hay páginas pero ninguna habla del tema → el documento no aporta.
             $ranked = $pages ? $this->rankPages($pages, $query, (string) $d->title) : null;
@@ -580,7 +601,7 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
         usort($extra, fn ($a, $b) => [($b['hv_pedida'] ?? false), $b['page_score']] <=> [($a['hv_pedida'] ?? false), $a['page_score']]);
         usort($primary, fn ($a, $b) => ($b['hv_pedida'] ?? false) <=> ($a['hv_pedida'] ?? false));
 
-        $out = array_slice(array_merge($primary, $extra), 0, self::MAX_EXCERPTS);
+        $out = array_slice(array_merge($primary, $extra), 0, $this->maxExcerpts());
 
         return array_map(function (array $e) {
             unset($e['page_score'], $e['hv_pedida']);
@@ -750,6 +771,8 @@ class MySQLFulltextEmbeddings implements EmbeddingsServiceInterface
         return array_slice($buenas ?: $puntos, 0, $max, true);
     }
 
+    // $max siempre llega explícito desde los dos call sites — self::PAGES_PER_DOC
+    // como default era inalcanzable, pero debe seguir siendo una expresión constante.
     private function paginasConContenido(array $pages, int $max = self::PAGES_PER_DOC): array
     {
         $largos = [];

@@ -65,7 +65,26 @@ return [
     // Fase 2 (consulta): presupuesto de contexto RAG en tokens, no en nº fijo de
     // fragmentos (reemplaza MAX_EXCERPTS=4 × EXCERPT_CHARS=1200 de MySQLFulltextEmbeddings).
     'query' => [
-        'context_token_budget' => (int) env('INGEST_QUERY_CONTEXT_TOKENS', 6000),
+        // Legacy (MySQLFulltextEmbeddings, FULLTEXT/LIKE): mismos valores que
+        // los que estaban hardcodeados — cero cambio de comportamiento por
+        // defecto, solo deja de estar fijo en código (CLAUDE.md "todo límite
+        // va en config"). El caso especial de hoja de vida NO se toca aquí.
+        'max_excerpts'   => (int) env('INGEST_QUERY_MAX_EXCERPTS', 4),
+        'pages_per_doc'  => (int) env('INGEST_QUERY_PAGES_PER_DOC', 2),
+        'excerpt_chars'  => (int) env('INGEST_QUERY_EXCERPT_CHARS', 1200),
+
+        // Tope por fragmento al armar el prompt (CivicAIService::buildDocumentationSection).
+        // 6000 ≈ un chunk completo de document_sections (Fase 1, ~1500 tokens):
+        // para un excerpt legacy (≤1200 chars) esto nunca recorta nada — el
+        // recorte real solo entra en juego con los chunks nuevos, que antes se
+        // volvían a cortar a 1200 de forma redundante (audit: CivicAIService.php:1125).
+        'excerpt_char_cap'    => (int) env('INGEST_QUERY_EXCERPT_CHAR_CAP', 6000),
+        'hv_excerpt_char_cap' => (int) env('INGEST_QUERY_HV_EXCERPT_CHAR_CAP', 3600),
+
+        // Presupuesto total (todos los fragmentos de un turno) para el RAG nuevo
+        // (document_sections + FAQs, Fase 2.1/2.2) — sustituye el conteo fijo de
+        // 4 fragmentos por un tope de tokens real.
+        'context_token_budget'    => (int) env('INGEST_QUERY_CONTEXT_TOKENS', 6000),
         'faq_similarity_threshold' => (float) env('INGEST_FAQ_SIMILARITY_THRESHOLD', 0.85),
         'rag_top_k' => (int) env('INGEST_RAG_TOP_K', 6),
     ],
