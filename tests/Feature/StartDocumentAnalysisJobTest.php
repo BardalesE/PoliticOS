@@ -110,6 +110,36 @@ class StartDocumentAnalysisJobTest extends TestCase
         Bus::assertDispatched(ReduceDocumentJob::class);
     }
 
+    /** Fase 3.2a: un reintento parcial (falló a medias) no vuelve a pagar tokens por lo que ya está listo. */
+    public function test_retrying_after_a_partial_failure_only_re_dispatches_the_pending_chunks(): void
+    {
+        Bus::fake();
+        $doc = $this->doc([
+            'EJE 1: primera pagina con suficiente contenido para ser un chunk.',
+            'EJE 2: segunda pagina con contenido distinto para otro chunk.',
+            'EJE 3: tercera pagina, tambien con su propio contenido.',
+        ]);
+
+        (new StartDocumentAnalysisJob($doc->id))->handle();
+        $sections = DocumentSection::where('document_id', $doc->id)->orderBy('orden')->get();
+        $this->assertGreaterThanOrEqual(3, $sections->count());
+
+        // Simula que el batch anterior mapeó 2 de 3 y el tercero quedó en error.
+        $sections[0]->update(['map_status' => 'listo', 'map_json' => ['resumen' => 'ok', 'propuestas' => [], 'ejes' => [], 'regiones_mencionadas' => [], 'paginas' => [1]]]);
+        $sections[1]->update(['map_status' => 'listo', 'map_json' => ['resumen' => 'ok', 'propuestas' => [], 'ejes' => [], 'regiones_mencionadas' => [], 'paginas' => [2]]]);
+        $sections[2]->update(['map_status' => 'error', 'map_error' => 'fallo anterior']);
+
+        Bus::fake(); // limpia las aserciones del primer handle() antes del reintento
+        (new StartDocumentAnalysisJob($doc->id))->handle();
+
+        Bus::assertBatched(function ($batch) use ($sections) {
+            // Solo el chunk #3 (el que no estaba listo) debe ir en el batch del reintento.
+            return $batch->jobs->count() === 1
+                && $batch->jobs->first() instanceof MapDocumentChunkJob
+                && $batch->jobs->first()->sectionId === $sections[2]->id;
+        });
+    }
+
     public function test_a_document_without_extracted_pages_is_marked_as_an_analysis_error(): void
     {
         $doc = $this->doc([]);
