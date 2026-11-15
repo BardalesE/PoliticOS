@@ -26,7 +26,7 @@ class ChatMessage extends Model
         'session_id', 'role', 'content', 'topic', 'media',
         'sentiment', 'emotion', 'intent', 'concerns',
         'attack_detected', 'attack_category', 'analysis_raw',
-        'pepa_metadata', 'citations', 'is_fallback',
+        'pepa_metadata', 'citations', 'is_fallback', 'response_type',
         'district_mentioned', 'proposals_detected', 'problems_mentioned',
         'candidate_profile_id',
     ];

@@ -277,6 +277,10 @@ export type ChatMessage = {
   content: string;
   topic: string | null;
   created_at: string;
+  // Fase 2 (análisis profundo de documentos): qué produjo la respuesta.
+  // null = sin documentos con análisis profundo listo, o no pasó por el
+  // flujo normal de IA (bienvenida, bloqueo, etc.) — como antes de la Fase 2.
+  response_type?: "menu" | "faq" | "rag" | null;
 };
 
 export type Paginated<T> = {
