@@ -31,7 +31,15 @@ return [
         // los jobs del batch con release()+backoff, no con sleep().
         'requests_per_minute' => (int) env('INGEST_MAP_RPM', 25),
         'tokens_per_minute'   => (int) env('INGEST_MAP_TPM', 18000),
+        // max_retries ahora gobierna $maxExceptions (errores reales: JSON
+        // inválido, 5xx) en MapDocumentChunkJob — NO el conteo de esperas por
+        // throttle/429, que no tiene tope de intentos (ver retry_hours).
         'max_retries'         => (int) env('INGEST_MAP_MAX_RETRIES', 5),
+        // Tope de TIEMPO (no de intentos) para un chunk: un documento de
+        // 180+ chunks puede acumular muchas esperas de throttle legítimas sin
+        // que eso sea un error — $tries=0 en MapDocumentChunkJob, el único
+        // límite real es este plazo de pared.
+        'retry_hours'         => (int) env('INGEST_MAP_RETRY_HOURS', 6),
     ],
 
     'reduce' => [

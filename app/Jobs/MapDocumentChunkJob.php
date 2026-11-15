@@ -20,13 +20,30 @@ use Illuminate\Support\Facades\Log;
  * Un job por chunk dentro del Bus::batch que dispara ProcessKnowledgeDocumentJob.
  * Idempotente (map_status=listo no se reprocesa) para que reintentar el batch
  * o reingerir el documento no vuelva a gastar tokens en lo ya hecho.
+ *
+ * Reintentos por TIEMPO, no por conteo (bug 2026-11: con $tries=20 fijo, un
+ * documento de 180+ chunks agotaba los 20 intentos solo con las esperas del
+ * throttle — cada release() por "todavía no hay cupo" contaba como un
+ * intento, así que los últimos chunks fallaban sin haber llamado a Groq ni
+ * una vez). Ahora:
+ *   - $tries = 0 + retryUntil(): sin tope de INTENTOS; el único límite es el
+ *     tiempo de pared (INGEST_MAP_RETRY_HOURS, default 6h).
+ *   - $maxExceptions: solo cuenta contra este presupuesto una EXCEPCIÓN real
+ *     que Laravel vea propagarse (JSON inválido, 5xx, cualquier Throwable
+ *     salvo 429) — el throttle y el 429 llaman a release() directamente
+ *     dentro del try/catch, nunca lanzan, así que nunca lo consumen.
  */
 class MapDocumentChunkJob implements ShouldQueue
 {
     use Batchable, Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries   = 20; // los release() por throttling/429 cuentan como intento; ver backoff().
+    public int $tries   = 0;
     public int $timeout = 90;
+
+    /** Leído por Laravel como PROPIEDAD pública (no método) al serializar el job — ver Illuminate\Queue\Queue::createObjectPayload(). */
+    public ?int $maxExceptions = null;
+
+    private \DateTimeInterface $retryDeadline;
 
     private const SYSTEM_PROMPT = <<<'TXT'
 Eres un analista de planes de gobierno peruanos. Recibes UN fragmento de un
@@ -47,6 +64,22 @@ TXT;
     public function __construct(public int $sectionId, public ?string $tenantSlug = null)
     {
         $this->tenantSlug ??= TenantContext::currentSlug();
+        $this->maxExceptions = (int) config('ingest.map.max_retries', 5);
+        $this->retryDeadline = now()->addHours((int) config('ingest.map.retry_hours', 6));
+    }
+
+    /** Fijo al construirse (no en cada llamada): si se recalculara con now() en
+     *  cada evaluación, el plazo se correría para adelante indefinidamente y
+     *  nunca expiraría. Ver Illuminate\Queue\Worker::markJobAsFailedIfAlreadyExceedsMaxAttempts. */
+    public function retryUntil(): \DateTimeInterface
+    {
+        return $this->retryDeadline;
+    }
+
+    /** Backoff exponencial para una excepción real (JSON inválido, 5xx) — el throttle y el 429 ya liberan con su propio delay, sin pasar por aquí. */
+    public function backoff(): array
+    {
+        return [2, 4, 8, 16, 32, 60];
     }
 
     public function handle(): void
@@ -72,6 +105,8 @@ TXT;
         $estimatedTokens = $section->tokens + 400; // + overhead del prompt/respuesta.
         $acquire = $throttler->tryAcquire(TenantContext::cacheKey('groq_map'), $estimatedTokens);
         if (!$acquire['allowed']) {
+            // Esperar cupo no es un error: release() directo, nunca una excepción
+            // (no debe consumir el presupuesto de maxExceptions).
             $this->release($acquire['retry_after']);
             return;
         }
@@ -89,17 +124,19 @@ TXT;
 
             $section->update(['map_json' => $data, 'map_status' => 'listo', 'map_error' => null]);
         } catch (GroqRateLimitException $e) {
+            // 429: tampoco es un error real — release() directo, sin relanzar.
             $section->update(['map_status' => 'pendiente']);
             $this->release($e->retryAfter);
         } catch (\Throwable $e) {
+            // Error real (JSON inválido, 5xx, red): se relanza para que Laravel
+            // lo cuente contra maxExceptions y lo reintente con backoff() —
+            // ver la nota de la clase. map_status queda en 'error' mientras
+            // tanto, visible en el admin, y el reintento (idempotente por
+            // map_status=listo) lo corrige si tiene éxito.
             Log::warning('MapDocumentChunkJob failed', ['section_id' => $this->sectionId, 'error' => $e->getMessage()]);
             $section->update(['map_status' => 'error', 'map_error' => mb_substr($e->getMessage(), 0, 500)]);
 
-            if ($this->attempts() < (int) config('ingest.map.max_retries')) {
-                $this->release(min(60, 2 ** $this->attempts()));
-            } else {
-                $this->fail($e);
-            }
+            throw $e;
         }
     }
 

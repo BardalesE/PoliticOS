@@ -97,6 +97,10 @@ agregar esto a mano:
 ```env
 # Cola (ya no sync)
 QUEUE_CONNECTION=database
+# DEBE ser mayor que el timeout más largo de un job de ingesta (300s hoy,
+# ProcessKnowledgeDocumentJob/EmbedDocumentSectionsJob) — si no, el worker
+# puede re-tomar un job que todavía está corriendo. Ver config/queue.php.
+DB_QUEUE_RETRY_AFTER=360
 
 # Extracción / chunking (Fase 1)
 INGEST_MAX_CHARS=3000000
@@ -109,6 +113,10 @@ INGEST_MAP_MODEL=openai/gpt-oss-20b
 INGEST_MAP_RPM=25
 INGEST_MAP_TPM=18000
 INGEST_MAP_MAX_RETRIES=5
+# Tope de TIEMPO (no de intentos) para un chunk — MapDocumentChunkJob usa
+# $tries=0 + retryUntil(): las esperas por throttle/429 no tienen límite de
+# conteo, solo este plazo de pared (corrige el bug de 2026-11, ver §6).
+INGEST_MAP_RETRY_HOURS=6
 
 # REDUCE (Groq, modelo grande)
 INGEST_REDUCE_MODEL=openai/gpt-oss-120b
@@ -184,6 +192,31 @@ El cuello de botella es `INGEST_MAP_TPM=18000` (conservador a propósito para
 no agotar el tier gratis de Groq). Si se paga un tier superior, subir
 `INGEST_MAP_RPM`/`INGEST_MAP_TPM` reduce el tiempo de MAP casi
 proporcionalmente (es el 80-90% del tiempo total).
+
+---
+
+## 5-bis. Correcciones posteriores al reporte (2026-11-15)
+
+Dos bugs encontrados en revisión y ya corregidos en la misma rama:
+
+1. **`config/queue.php`: `retry_after` (90s) menor que jobs de hasta 300s de
+   timeout.** El worker podía re-tomar un job de ingesta que todavía estaba
+   corriendo (doble ejecución). `DB_QUEUE_RETRY_AFTER` sube a 360 por default
+   — mayor que el timeout más largo actual (300s). Test que falla si algún
+   job de ingesta tiene `$timeout >= retry_after`
+   (`tests/Unit/QueueRetryAfterSafetyTest.php`).
+2. **`MapDocumentChunkJob`: `$tries=20` se agotaba con las esperas por
+   throttle.** Cada `release()` por "todavía no hay cupo" contaba como un
+   intento — en un documento de 180+ chunks, los últimos podían fallar por
+   "intentos agotados" sin haber llamado a Groq ni una vez. Ahora `$tries=0`
+   + `retryUntil()` (tope por TIEMPO, `INGEST_MAP_RETRY_HOURS`, default 6h) +
+   `$maxExceptions = config('ingest.map.max_retries')` (tope de ERRORES
+   reales — JSON inválido, 5xx — que Laravel cuenta automáticamente cuando
+   una excepción real se relanza; el throttle y el 429 siguen resolviéndose
+   con `release()` directo, sin relanzar, así que nunca consumen ese
+   presupuesto). Test con 250 chunks y un throttle agresivo simulado
+   (`tests/Feature/MapDocumentChunkJobRetryTest.php`) que termina con los
+   250 en `listo` y cero fallos por conteo de intentos.
 
 ---
 
