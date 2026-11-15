@@ -73,6 +73,24 @@ class CivicAIService
      */
     private array $retrievedCitations = [];
 
+    /**
+     * Fase 2 (análisis profundo de documentos, ver DeepAnalysisQueryService):
+     * 'menu' | 'faq' | 'rag' | null. null = el candidato no tiene documentos
+     * con análisis profundo listo (is_public) — comportamiento idéntico al de
+     * antes de la Fase 2. Se persiste en chat_messages.response_type (2.5).
+     */
+    private ?string $responseType = null;
+
+    /**
+     * Fragmentos de document_sections (+ léxico existente + propuestas_por_región)
+     * que tryDeepAnalysisShortCircuit() ya armó para el turno 'rag'; buildContext()
+     * los usa EN VEZ DE (no además de) su propia llamada a $this->embeddings->search(),
+     * que DeepAnalysisQueryService ya hizo internamente — evita pedir el mismo
+     * fragmento dos veces. [] = sin análisis profundo: buildContext() sigue igual que
+     * antes de la Fase 2.
+     */
+    private array $deepAnalysisRagDocs = [];
+
     public function __construct(EmbeddingsServiceInterface $embeddings)
     {
         // DB queries are intentionally deferred to ensureInitialized().
@@ -205,6 +223,24 @@ class CivicAIService
         $district = $this->detectDistrict($userMessage);
         $attack   = $this->detectAttack($userMessage);
 
+        // Fase 2: menú/FAQ cacheada sin LLM, o fragmentos de document_sections
+        // listos para buildContext() (bucket 'rag'). Solo si no hay ataque —
+        // un ataque siempre sigue el flujo de defensa existente, sin tocar.
+        if (!$attack) {
+            $shortCircuit = $this->tryDeepAnalysisShortCircuit($userMessage);
+            if ($shortCircuit) {
+                return array_merge($shortCircuit, [
+                    'attack_detected' => false,
+                    'attack_category' => null,
+                    'pepa_metadata'   => null,
+                    'nonsense'        => false,
+                    'blocked'         => false,
+                    'quickReplies'    => [],
+                    'response_type'   => $this->responseType,
+                ]);
+            }
+        }
+
         $context  = $this->buildContext($topic, $district, $userMessage, $attack);
         $history  = $this->getConversationHistory($session);
         $segment  = $this->resolveSegment($session);
@@ -250,6 +286,7 @@ class CivicAIService
             'nonsense'        => false,
             'blocked'         => false,
             'quickReplies'    => [],
+            'response_type'   => $this->responseType,
         ];
     }
 
@@ -286,6 +323,31 @@ class CivicAIService
         $topic    = $this->detectTopic($userMessage);
         $district = $this->detectDistrict($userMessage);
         $attack   = $this->detectAttack($userMessage);
+
+        // Fase 2: igual que en respond() — menú/FAQ cacheada sin LLM (streameada
+        // en trozos, como el resto de respuestas bufferizadas) o 'rag' ya
+        // guardado para buildContext(). Ver tryDeepAnalysisShortCircuit().
+        if (!$attack) {
+            $shortCircuit = $this->tryDeepAnalysisShortCircuit($userMessage);
+            if ($shortCircuit) {
+                foreach (mb_str_split($shortCircuit['reply'], 30) as $chunk) {
+                    $onChunk($chunk);
+                }
+                return [
+                    'topic'           => $shortCircuit['topic'],
+                    'citations'       => $shortCircuit['citations'],
+                    'media'           => [],
+                    'attack_detected' => false,
+                    'attack_category' => null,
+                    'pepa_metadata'   => null,
+                    'nonsense'        => false,
+                    'blocked'         => false,
+                    'quickReplies'    => [],
+                    'response_type'   => $this->responseType,
+                ];
+            }
+        }
+
         $context  = $this->buildContext($topic, $district, $userMessage, $attack);
         $history  = $this->getConversationHistory($session);
         $segment  = $this->resolveSegment($session);
@@ -466,6 +528,7 @@ class CivicAIService
             'nonsense'        => false,
             'blocked'         => false,
             'quickReplies'    => [],
+            'response_type'   => $this->responseType,
         ];
     }
 
@@ -571,6 +634,60 @@ class CivicAIService
             }
         }
         return null;
+    }
+
+    // ─── FASE 2: CLASIFICACIÓN SOBRE EL ANÁLISIS PROFUNDO (document_sections/
+    // document_analysis/document_faqs — ver DeepAnalysisQueryService) ─────
+    /**
+     * Se llama desde respond()/respondStream() cuando NO hay ataque detectado,
+     * ANTES de construir el contexto. Aditivo a propósito (CLAUDE.md: no
+     * modificar CivicAIService sin validar el flujo completo): si el
+     * candidato no tiene ningún documento con análisis profundo listo
+     * (is_public), DeepAnalysisQueryService devuelve null y este método no
+     * cambia nada del comportamiento anterior a la Fase 2. Solo en modo
+     * campaña — PEPA (comparador multi-candidato) no se toca.
+     *
+     * @return array{reply:string, topic:?string, media:array, citations:array}|null
+     *         Array ⇒ respuesta final (menú o FAQ), el caller debe retornar
+     *         SIN llamar al LLM. null ⇒ sigue el flujo normal (bucket 'rag',
+     *         ya guardado en $this->deepAnalysisRagDocs, o sin análisis profundo).
+     */
+    private function tryDeepAnalysisShortCircuit(string $userMessage): ?array
+    {
+        $this->deepAnalysisRagDocs = [];
+        $this->responseType       = null;
+
+        if (($this->config->mode ?? 'campaign') === 'pepa') {
+            return null;
+        }
+
+        $name = $this->scopeCandidateName ?? $this->candidate->name;
+
+        try {
+            $classification = app(DeepAnalysisQueryService::class)->classify($userMessage, $this->scopeCandidateId, $name);
+        } catch (\Throwable $e) {
+            Log::warning('tryDeepAnalysisShortCircuit falló; se sigue sin análisis profundo', ['error' => $e->getMessage()]);
+            return null;
+        }
+
+        if (!$classification) {
+            return null;
+        }
+
+        $this->responseType = $classification['type'];
+
+        if ($classification['type'] === 'rag') {
+            $this->deepAnalysisRagDocs = $classification['docs'];
+            return null;
+        }
+
+        // 'menu' | 'faq': respuesta final determinística, sin LLM.
+        return [
+            'reply'     => $classification['reply'],
+            'topic'     => $this->detectTopic($userMessage),
+            'media'     => [],
+            'citations' => $classification['citations'] ?? [],
+        ];
     }
 
     /**
@@ -787,7 +904,17 @@ class CivicAIService
                     . ". Para detalles de cada uno usa solo su Hoja de Vida en los documentos.";
             }
         }
-        $docs = $this->embeddings->search($userMessage, 3, $filter);
+        // Fase 2: si tryDeepAnalysisShortCircuit() ya armó fragmentos de
+        // document_sections (bucket 'rag' — ya combina semántico + léxico +
+        // propuestas_por_región), se usan EN VEZ del RAG léxico de toda la
+        // vida, no además: DeepAnalysisQueryService ya hizo su propia llamada
+        // a $this->embeddings->search() internamente, y pedir lo mismo dos
+        // veces solo duplicaría fragmentos en el prompt. Sin análisis
+        // profundo (deepAnalysisRagDocs=[]), este `if` nunca entra — cero
+        // cambio de comportamiento respecto a antes de la Fase 2.
+        $docs = $this->deepAnalysisRagDocs
+            ? $this->deepAnalysisRagDocs
+            : $this->embeddings->search($userMessage, 3, $filter);
         // Datos clave de SU hoja de vida siempre presentes y citables (auditoría Monzón
         // 2026-09-30: según qué página traía el RAG decía "no declara cargos de elección"
         // en una respuesta y "fue regidor 2022-2026" en otra).
@@ -946,9 +1073,17 @@ class CivicAIService
         }
 
         // Etiqueta S1..Sn por fragmento. El texto citable se guarda tal como se le
-        // muestra al modelo (recortado al mismo largo).
+        // muestra al modelo (recortado al mismo largo). Tope configurable (Fase
+        // 2.2, config/ingest.php): para un excerpt legacy (≤1200 chars) nunca
+        // recorta nada; el chunk nuevo de document_sections (hasta ~1500
+        // tokens, Fase 1) sí necesitaba este tope más alto para no quedar
+        // truncado — antes era 1200 fijo para ambos casos. Caso especial de
+        // hoja de vida sin cambios (HV_EXCERPT_CHARS en MySQLFulltextEmbeddings).
         foreach ($docs as $i => &$d) {
-            $d['excerpt'] = mb_substr($d['excerpt'], 0, ! empty($d['is_hoja_de_vida']) ? 3600 : 1200);
+            $cap = !empty($d['is_hoja_de_vida'])
+                ? (int) config('ingest.query.hv_excerpt_char_cap', 3600)
+                : (int) config('ingest.query.excerpt_char_cap', 6000);
+            $d['excerpt'] = mb_substr($d['excerpt'], 0, $cap);
             $d['cite']    = 'S' . ($i + 1);
 
             $this->retrievedCitations[] = [
@@ -1122,7 +1257,10 @@ class CivicAIService
                 $title    = $d['title'] ?: 'Documento';
                 $type     = $typeLabels[$d['metadata']['source_type'] ?? 'pdf'] ?? 'documento';
                 $source   = ! empty($d['is_hoja_de_vida']) ? '' : ($d['metadata']['source_url'] ?? $d['metadata']['file_url'] ?? '');
-                $excerpt  = mb_substr($d['excerpt'], 0, 1200);
+                // Sin recorte aquí (audit 2026-11: antes re-cortaba a 1200 fijo,
+                // redundante con buildDocumentationSection() — y ahí es donde
+                // pisaba el tope de 3600 de hoja de vida, dejándola en 1200 en PEPA).
+                $excerpt  = $d['excerpt'];
                 $sourceTag = $source !== '' ? " [Fuente: {$source}]" : ' [Fuente: sin fuente pública — no cites URL]';
                 $cite     = isset($d['cite']) ? "[{$d['cite']}] " : '';
                 $page     = ! empty($d['page']) ? " (pág. {$d['page']})" : '';
