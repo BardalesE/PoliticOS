@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\KnowledgeDocument;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Smalot\PdfParser\Parser;
 
@@ -25,8 +26,16 @@ class PdfPageExtractor
     /** Cierra el bloque de casillas: el RAG lo separa del texto para no recortarlo nunca. */
     public const FIN_CASILLAS = '[FIN CASILLAS]';
 
-    /** Tope de caracteres por documento. */
-    public const MAX_CHARS = 80000;
+    /**
+     * Tope de SEGURIDAD por documento (no de negocio): protege memoria ante un
+     * PDF anómalo. Configurable — ver config/ingest.php (`INGEST_MAX_CHARS`).
+     * Antes era 80 000 y cortaba el bucle de páginas (bug: un plan de 200+
+     * páginas quedaba truncado a ~26 páginas, ~13% del documento).
+     */
+    public static function maxChars(): int
+    {
+        return (int) config('ingest.extraction.max_chars', 3_000_000);
+    }
 
     /**
      * @return array{content: string, pages: array<int, string>}
@@ -56,21 +65,32 @@ class PdfPageExtractor
             }
         }
 
+        $maxChars = self::maxChars();
         $pages = [];
         $used  = 0;
+        $capped = false;
         foreach ($rawPages as $pageText) {
             $text = $this->normalize($pageText);
 
-            if ($used + mb_strlen($text) > self::MAX_CHARS) {
-                $text = mb_substr($text, 0, max(0, self::MAX_CHARS - $used));
+            if ($used + mb_strlen($text) > $maxChars) {
+                $text   = mb_substr($text, 0, max(0, $maxChars - $used));
+                $capped = true;
             }
 
             $pages[] = $text;
             $used   += mb_strlen($text);
 
-            if ($used >= self::MAX_CHARS) {
+            if ($used >= $maxChars) {
                 break;
             }
+        }
+
+        if ($capped) {
+            Log::warning('PdfPageExtractor: tope de seguridad alcanzado, documento truncado', [
+                'max_chars'    => $maxChars,
+                'pages_leidas' => count($pages),
+                'pages_totales' => count($rawPages),
+            ]);
         }
 
         $content = trim(implode(' ', array_filter($pages, fn (string $t) => $t !== '')));
@@ -78,7 +98,7 @@ class PdfPageExtractor
         if ($content === '') {
             // Ultimo recurso: texto global de smalot, sin paginas.
             $pdf ??= (new Parser())->parseContent($raw);
-            $content = mb_substr($this->normalize($pdf->getText()), 0, self::MAX_CHARS);
+            $content = mb_substr($this->normalize($pdf->getText()), 0, $maxChars);
             $pages   = [];
         }
 
