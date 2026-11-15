@@ -7,6 +7,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class DocumentAnalysis extends Model
 {
+    // Convención de Eloquent pluraliza a "document_analyses"; la tabla real
+    // (y el nombre que pide la Fase 1.4) es "document_analysis".
+    protected $table = 'document_analysis';
+
     protected $fillable = [
         'document_id', 'indice_estructurado', 'resumen_ejecutivo',
         'propuestas_por_eje', 'propuestas_por_region',

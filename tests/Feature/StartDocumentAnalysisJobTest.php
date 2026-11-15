@@ -1,0 +1,123 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Jobs\MapDocumentChunkJob;
+use App\Jobs\ReduceDocumentJob;
+use App\Jobs\StartDocumentAnalysisJob;
+use App\Models\DocumentSection;
+use App\Models\KnowledgeDocument;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Tests\TestCase;
+
+/**
+ * Antes, un plan de 200+ páginas se "analizaba" en ~13%: este job es el punto
+ * donde se garantiza que TODAS las páginas terminan en algún chunk (vía
+ * DocumentChunker, ya probado aparte) y que reintentar no vuelve a pagar
+ * tokens por lo que ya se mapeó (idempotencia).
+ */
+class StartDocumentAnalysisJobTest extends TestCase
+{
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config([
+            'app.tenant_slug' => null,
+            'database.default' => 'sqlite',
+            'database.connections.sqlite' => [
+                'driver' => 'sqlite', 'database' => ':memory:', 'prefix' => '', 'foreign_key_constraints' => true,
+            ],
+            'ingest.chunking.fallback_tokens' => 1500,
+            'ingest.chunking.overlap_tokens' => 200,
+        ]);
+        DB::purge('sqlite');
+
+        Schema::create('knowledge_documents', function (Blueprint $t) {
+            $t->id();
+            $t->string('title');
+            $t->longText('content')->nullable();
+            $t->json('pages')->nullable();
+            $t->unsignedBigInteger('candidate_id')->nullable();
+            $t->boolean('is_active')->default(true);
+            $t->string('status', 20)->default('ready');
+            $t->text('error_message')->nullable();
+            $t->string('analysis_status', 20)->default('pendiente');
+            $t->unsignedTinyInteger('analysis_progress')->default(0);
+            $t->text('analysis_error')->nullable();
+            $t->boolean('is_public')->default(false);
+            $t->timestamps();
+        });
+
+        (require database_path('migrations/2026_11_14_000002_create_document_sections_table.php'))->up();
+    }
+
+    private function doc(array $pages): KnowledgeDocument
+    {
+        return KnowledgeDocument::create(['title' => 'Plan', 'pages' => $pages, 'candidate_id' => 7]);
+    }
+
+    public function test_creates_one_chunk_per_detected_section_and_dispatches_a_map_batch(): void
+    {
+        Bus::fake();
+        $doc = $this->doc([
+            'PLAN DE GOBIERNO Presentacion.',
+            'EJE 1 Agricultura y riego para la zona alta.',
+            'CAPITULO II Diagnostico de salud.',
+        ]);
+
+        (new StartDocumentAnalysisJob($doc->id))->handle();
+
+        $this->assertGreaterThan(0, DocumentSection::where('document_id', $doc->id)->count());
+        $this->assertSame('procesando', $doc->fresh()->analysis_status);
+
+        Bus::assertBatched(function ($batch) {
+            return $batch->jobs->count() === DocumentSection::count()
+                && $batch->jobs->first() instanceof MapDocumentChunkJob;
+        });
+    }
+
+    public function test_running_it_twice_does_not_duplicate_chunks(): void
+    {
+        Bus::fake();
+        $doc = $this->doc(['Texto de la unica pagina del documento.']);
+
+        (new StartDocumentAnalysisJob($doc->id))->handle();
+        $firstCount = DocumentSection::where('document_id', $doc->id)->count();
+
+        (new StartDocumentAnalysisJob($doc->id))->handle();
+        $secondCount = DocumentSection::where('document_id', $doc->id)->count();
+
+        $this->assertSame($firstCount, $secondCount);
+    }
+
+    public function test_when_every_chunk_is_already_mapped_it_skips_straight_to_reduce(): void
+    {
+        Bus::fake();
+        $doc = $this->doc(['Texto de la unica pagina del documento.']);
+
+        DocumentSection::create([
+            'document_id' => $doc->id, 'orden' => 0, 'titulo' => null, 'texto' => 'x',
+            'page_start' => 1, 'page_end' => 1, 'tokens' => 5, 'map_status' => 'listo',
+            'map_json' => ['resumen' => 'ok', 'propuestas' => [], 'ejes' => [], 'regiones_mencionadas' => [], 'paginas' => [1]],
+        ]);
+
+        (new StartDocumentAnalysisJob($doc->id))->handle();
+
+        Bus::assertDispatched(ReduceDocumentJob::class);
+    }
+
+    public function test_a_document_without_extracted_pages_is_marked_as_an_analysis_error(): void
+    {
+        $doc = $this->doc([]);
+
+        (new StartDocumentAnalysisJob($doc->id))->handle();
+
+        $doc->refresh();
+        $this->assertSame('error', $doc->analysis_status);
+        $this->assertNotNull($doc->analysis_error);
+    }
+}
