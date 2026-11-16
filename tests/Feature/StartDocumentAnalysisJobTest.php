@@ -39,6 +39,7 @@ class StartDocumentAnalysisJobTest extends TestCase
         Schema::create('knowledge_documents', function (Blueprint $t) {
             $t->id();
             $t->string('title');
+            $t->string('topic', 40)->nullable();
             $t->longText('content')->nullable();
             $t->json('pages')->nullable();
             $t->unsignedBigInteger('candidate_id')->nullable();
@@ -55,9 +56,9 @@ class StartDocumentAnalysisJobTest extends TestCase
         (require database_path('migrations/2026_11_14_000002_create_document_sections_table.php'))->up();
     }
 
-    private function doc(array $pages): KnowledgeDocument
+    private function doc(array $pages, array $over = []): KnowledgeDocument
     {
-        return KnowledgeDocument::create(['title' => 'Plan', 'pages' => $pages, 'candidate_id' => 7]);
+        return KnowledgeDocument::create($over + ['title' => 'Plan', 'pages' => $pages, 'candidate_id' => 7]);
     }
 
     public function test_creates_one_chunk_per_detected_section_and_dispatches_a_map_batch(): void
@@ -149,5 +150,20 @@ class StartDocumentAnalysisJobTest extends TestCase
         $doc->refresh();
         $this->assertSame('error', $doc->analysis_status);
         $this->assertNotNull($doc->analysis_error);
+    }
+
+    /** Punto 5: la hoja de vida (formulario JNE) nunca entra al análisis profundo. */
+    public function test_a_hoja_de_vida_is_never_analyzed(): void
+    {
+        Bus::fake();
+        $doc = $this->doc(['Datos personales: Juan Perez. Sentencias: ninguna.'], ['topic' => 'hoja_de_vida']);
+
+        (new StartDocumentAnalysisJob($doc->id))->handle();
+
+        $doc->refresh();
+        $this->assertSame('no_aplica', $doc->analysis_status);
+        $this->assertSame(0, DocumentSection::where('document_id', $doc->id)->count());
+        Bus::assertNothingBatched();
+        Bus::assertNotDispatched(ReduceDocumentJob::class);
     }
 }

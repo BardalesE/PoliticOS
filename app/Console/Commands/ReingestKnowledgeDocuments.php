@@ -16,11 +16,13 @@ use Illuminate\Console\Command;
  *
  * Por defecto solo toca documentos cuyo contenido roza el tope viejo (80 000
  * caracteres, señal casi segura de truncamiento); --all fuerza todos los PDF
- * activos (p. ej. tras cambiar de driver de embeddings).
+ * activos (p. ej. tras cambiar de driver de embeddings); --only restringe a
+ * IDs de documento específicos (ignora --all/--min-chars).
  *
  * Uso:
  *   php artisan knowledge:reingest politicosperu
  *   php artisan knowledge:reingest --here --all
+ *   php artisan knowledge:reingest politicosperu --only=12,45
  */
 class ReingestKnowledgeDocuments extends Command
 {
@@ -28,6 +30,7 @@ class ReingestKnowledgeDocuments extends Command
         {slugs?* : Slugs de los tenants a procesar}
         {--here : Procesar la BD por defecto en vez de un tenant}
         {--all : Re-ingerir todos los PDF activos, no solo los que parecen truncados}
+        {--only= : IDs de documento específicos a re-ingerir, separados por coma (ignora --all/--min-chars)}
         {--min-chars=79000 : Umbral de caracteres para considerar un documento truncado}
         {--limit=100 : Máximo de documentos por tenant en esta corrida}';
 
@@ -79,7 +82,10 @@ class ReingestKnowledgeDocuments extends Command
             ->orderBy('id')
             ->limit(max(1, (int) $this->option('limit')));
 
-        if (!$this->option('all')) {
+        $onlyIds = $this->onlyIds();
+        if ($onlyIds !== null) {
+            $query->whereIn('id', $onlyIds);
+        } elseif (!$this->option('all')) {
             $minChars = max(1, (int) $this->option('min-chars'));
             $query->whereRaw('LENGTH(content) >= ?', [$minChars]);
         }
@@ -99,5 +105,18 @@ class ReingestKnowledgeDocuments extends Command
         $this->info("{$label}: {$docs->count()} documento(s) encolado(s).");
 
         return true;
+    }
+
+    /** IDs de --only (coma-separados) o null si no se pasó. */
+    private function onlyIds(): ?array
+    {
+        $raw = $this->option('only');
+        if ($raw === null || $raw === '') {
+            return null;
+        }
+
+        $ids = array_values(array_filter(array_map('intval', explode(',', $raw))));
+
+        return $ids ?: null;
     }
 }

@@ -45,7 +45,7 @@ function KnowledgePageInner() {
   useEffect(() => {
     const hasPending = docs.some(d =>
       d.status === "pending" || d.status === "processing" ||
-      d.analysis_status === "pendiente" || d.analysis_status === "procesando"
+      (d.status === "ready" && !["listo", "no_aplica", "error"].includes(d.analysis_status ?? ""))
     );
     if (!hasPending) return;
     const t = setTimeout(load, 3000);
@@ -197,10 +197,11 @@ function KnowledgePageInner() {
                       </div>
 
                       {/* Análisis profundo: solo tiene sentido mostrarlo una vez que el
-                          texto se extrajo (status=ready) — antes de eso no hay chunks. */}
-                      {doc.status === "ready" && doc.analysis_status && doc.analysis_status !== "listo" && (
+                          texto se extrajo (status=ready) — antes de eso no hay chunks.
+                          'no_aplica' (hojas de vida, que nunca se analizan) no muestra nada. */}
+                      {doc.status === "ready" && doc.analysis_status !== "listo" && doc.analysis_status !== "no_aplica" && (
                         <div className="mt-1.5 flex items-center gap-2 text-[10px]">
-                          {(doc.analysis_status === "pendiente" || doc.analysis_status === "procesando") && (
+                          {doc.analysis_status === "procesando" && (
                             <>
                               <div className="h-1.5 w-28 rounded-full bg-gray-100 overflow-hidden">
                                 <div
@@ -210,6 +211,9 @@ function KnowledgePageInner() {
                               </div>
                               <span className="text-gray-400">Analizando… {doc.analysis_progress ?? 0}%</span>
                             </>
+                          )}
+                          {(doc.analysis_status === "pendiente" || !doc.analysis_status) && (
+                            <span className="text-gray-400">En cola para análisis…</span>
                           )}
                           {doc.analysis_status === "error" && (
                             <>

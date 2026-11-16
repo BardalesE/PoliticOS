@@ -75,6 +75,12 @@ return [
             'prefix'    => '',
             'strict'    => true,
             'engine'    => null,
+            // Mismas opciones SSL que 'mysql': la cola/batching/failed_jobs vive
+            // siempre en esta conexión (ver config/queue.php) y debe poder
+            // conectar igual que cualquier otra conexión MySQL administrada.
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
         ],
 
         'mariadb' => [

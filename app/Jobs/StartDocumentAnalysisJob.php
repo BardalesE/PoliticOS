@@ -49,6 +49,17 @@ class StartDocumentAnalysisJob implements ShouldQueue
             return;
         }
 
+        // La hoja de vida es un formulario JNE (datos personales, sentencias,
+        // bienes), no un documento de propuestas: no tiene nada que un
+        // resumen/FAQs/búsqueda por página deba analizar, y correrlo gasta
+        // chunks/tokens de Groq/Gemini sin ningún beneficio. 'no_aplica' es un
+        // estado terminal fuera de pendiente/procesando/error/listo para que
+        // el panel admin no lo muestre como si estuviera en cola.
+        if ($doc->topic === 'hoja_de_vida') {
+            $doc->update(['analysis_status' => 'no_aplica']);
+            return;
+        }
+
         $pages = $doc->pages ?: [];
         if (empty($pages)) {
             $doc->update([

@@ -36,7 +36,14 @@ return [
 
         'database' => [
             'driver' => 'database',
-            'connection' => env('DB_QUEUE_CONNECTION'),
+            // SIEMPRE 'central', nunca 'mysql': TenantContext::run/ResolveTenant
+            // reapuntan la conexión 'mysql' a la BD del tenant en curso, así que
+            // un job despachado dentro de un tenant terminaría insertado en la
+            // tabla `jobs` de ESA BD en vez de en la tabla `jobs` que el worker
+            // (que no corre dentro de ningún tenant) efectivamente lee — los
+            // jobs quedan huérfanos y nunca se procesan. 'central' es la única
+            // conexión que ResolveTenant/TenantContext no tocan nunca.
+            'connection' => env('DB_QUEUE_CONNECTION', 'central'),
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => env('DB_QUEUE', 'default'),
             // DEBE ser mayor que el $timeout más largo de cualquier job que corra en
@@ -92,7 +99,9 @@ return [
     */
 
     'batching' => [
-        'database' => env('DB_CONNECTION', 'sqlite'),
+        // Mismo motivo que 'connections.database.connection' arriba: siempre
+        // 'central', nunca la conexión 'mysql' reescribible por tenant.
+        'database' => env('DB_QUEUE_CONNECTION', 'central'),
         'table' => 'job_batches',
     ],
 
@@ -111,7 +120,8 @@ return [
 
     'failed' => [
         'driver' => env('QUEUE_FAILED_DRIVER', 'database-uuids'),
-        'database' => env('DB_CONNECTION', 'sqlite'),
+        // Mismo motivo que arriba: siempre 'central'.
+        'database' => env('DB_QUEUE_CONNECTION', 'central'),
         'table' => 'failed_jobs',
     ],
 

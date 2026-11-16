@@ -659,14 +659,16 @@ export type KnowledgeDocument = {
   error_message?: string | null;
   // Análisis profundo (chunking + MAP/REDUCE + embeddings, Fase 1) — corre
   // DESPUÉS de status=ready y puede tardar minutos en un plan de 200+ páginas.
-  analysis_status?: "pendiente" | "procesando" | "listo" | "error";
+  // "no_aplica": documentos que nunca se analizan (hojas de vida, ver
+  // StartDocumentAnalysisJob).
+  analysis_status?: "pendiente" | "procesando" | "listo" | "error" | "no_aplica";
   analysis_progress?: number;
   analysis_error?: string | null;
   is_public?: boolean;
 };
 
 export type KnowledgeAnalysisStatus = {
-  analysis_status: "pendiente" | "procesando" | "listo" | "error";
+  analysis_status: "pendiente" | "procesando" | "listo" | "error" | "no_aplica";
   analysis_progress: number;
   analysis_error: string | null;
   is_public: boolean;

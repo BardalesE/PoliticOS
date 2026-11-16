@@ -51,6 +51,14 @@ if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
         || echo "[entrypoint] WARN: tenant:migrate falló — revisa la tabla tenants / credenciales por tenant"
 fi
 
+# 3a ─ limpieza de jobs huérfanos en BDs de tenant ──────────────────────────
+# Antes del fix de config/queue.php, la cola 'database' usaba la conexión
+# 'mysql' (reapuntada por tenant) en vez de 'central' fija: los jobs quedaban
+# guardados en la BD del tenant y el worker nunca los veía. Idempotente — con
+# el fix ya desplegado no debería encontrar nada en los arranques siguientes.
+php artisan queue:clean-tenant-orphans \
+    || echo "[entrypoint] WARN: queue:clean-tenant-orphans falló — no bloquea el arranque"
+
 # 3b ─ ubigeo (INEI) en los tenants listados en UBIGEO_SEED_TENANTS ─────────
 # Necesario para el selector departamento→provincia→distrito de
 # /admin/directorio. Idempotente: si ya está cargado no hace nada.
@@ -83,13 +91,17 @@ fi
 #   REINGEST_ALL=true                  (sin esto solo toca los que parecen
 #                                       truncados — heurística por longitud
 #                                       de content; ver knowledge:reingest)
+#   REINGEST_ONLY="12,45"              (restringe a esos IDs de documento,
+#                                       ignora REINGEST_ALL/min-chars)
 # Solo ENCOLA (QUEUE_CONNECTION=database, worker en supervisord) — el trabajo
 # real (extracción completa + MAP/REDUCE + embeddings) lo hace el worker, no
 # el arranque. Cuando termines, borra REINGEST_TENANTS.
 if [ -n "${REINGEST_TENANTS:-}" ]; then
     REINGEST_FLAG=""
     [ "${REINGEST_ALL:-false}" = "true" ] && REINGEST_FLAG="--all"
-    php artisan knowledge:reingest ${REINGEST_TENANTS} ${REINGEST_FLAG} \
+    REINGEST_ONLY_FLAG=""
+    [ -n "${REINGEST_ONLY:-}" ] && REINGEST_ONLY_FLAG="--only=${REINGEST_ONLY}"
+    php artisan knowledge:reingest ${REINGEST_TENANTS} ${REINGEST_FLAG} ${REINGEST_ONLY_FLAG} \
         || echo "[entrypoint] WARN: knowledge:reingest falló — no bloquea el arranque"
 fi
 

@@ -86,4 +86,35 @@ class ReingestKnowledgeDocumentsTest extends TestCase
     {
         $this->artisan('knowledge:reingest')->assertExitCode(1);
     }
+
+    /** Punto 4: --only restringe a IDs específicos, ignorando el umbral de truncamiento. */
+    public function test_the_only_flag_restricts_to_the_given_ids_ignoring_the_truncation_heuristic(): void
+    {
+        Bus::fake();
+        $picked   = $this->doc(500); // normalmente no calificaría (no "truncado")
+        $notAsked = $this->doc(80000);
+
+        $this->artisan('knowledge:reingest', ['--here' => true, '--only' => (string) $picked->id])
+            ->assertExitCode(0);
+
+        Bus::assertDispatchedTimes(ProcessKnowledgeDocumentJob::class, 1);
+        Bus::assertDispatched(ProcessKnowledgeDocumentJob::class, fn ($job) => $job->documentId === $picked->id);
+        Bus::assertNotDispatched(ProcessKnowledgeDocumentJob::class, fn ($job) => $job->documentId === $notAsked->id);
+    }
+
+    public function test_the_only_flag_accepts_several_comma_separated_ids(): void
+    {
+        Bus::fake();
+        $a = $this->doc(100);
+        $b = $this->doc(200);
+        $c = $this->doc(300);
+
+        $this->artisan('knowledge:reingest', ['--here' => true, '--only' => "{$a->id},{$c->id}"])
+            ->assertExitCode(0);
+
+        Bus::assertDispatchedTimes(ProcessKnowledgeDocumentJob::class, 2);
+        Bus::assertDispatched(ProcessKnowledgeDocumentJob::class, fn ($job) => $job->documentId === $a->id);
+        Bus::assertDispatched(ProcessKnowledgeDocumentJob::class, fn ($job) => $job->documentId === $c->id);
+        Bus::assertNotDispatched(ProcessKnowledgeDocumentJob::class, fn ($job) => $job->documentId === $b->id);
+    }
 }
