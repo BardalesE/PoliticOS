@@ -42,6 +42,9 @@ class ReduceDocumentJobTest extends TestCase
             $t->unsignedTinyInteger('analysis_progress')->default(0);
             $t->text('analysis_error')->nullable();
             $t->string('analysis_batch_id')->nullable();
+            $t->string('analysis_stage', 30)->nullable();
+            $t->timestamp('analysis_started_at')->nullable();
+            $t->timestamp('analysis_finished_at')->nullable();
             $t->boolean('is_public')->default(false);
             $t->timestamps();
         });
@@ -115,6 +118,9 @@ class ReduceDocumentJobTest extends TestCase
         $this->assertSame(1, $analysis->version);
 
         Bus::assertDispatched(EmbedDocumentSectionsJob::class);
+        // El REDUCE pasa por consolidando → generando_faqs y deja el documento
+        // listo para que EmbedDocumentSectionsJob lo encuentre en 'embeddings'.
+        $this->assertSame('embeddings', $doc->fresh()->analysis_stage);
     }
 
     public function test_normalizes_region_mentions_against_ubigeo(): void
@@ -162,5 +168,20 @@ class ReduceDocumentJobTest extends TestCase
         $analysis = DocumentAnalysis::where('document_id', $doc->id)->first();
         $this->assertSame(2, $analysis->version);
         $this->assertSame('v2', $analysis->resumen_ejecutivo);
+    }
+
+    public function test_when_every_chunk_failed_to_map_it_marks_analysis_finished_at(): void
+    {
+        $doc = KnowledgeDocument::create(['title' => 'Plan', 'candidate_id' => 1]);
+        DocumentSection::create([
+            'document_id' => $doc->id, 'orden' => 0, 'titulo' => null, 'texto' => 'x',
+            'page_start' => 1, 'page_end' => 1, 'tokens' => 10, 'map_status' => 'error',
+        ]);
+
+        (new ReduceDocumentJob($doc->id))->handle();
+
+        $doc->refresh();
+        $this->assertSame('error', $doc->analysis_status);
+        $this->assertNotNull($doc->analysis_finished_at);
     }
 }

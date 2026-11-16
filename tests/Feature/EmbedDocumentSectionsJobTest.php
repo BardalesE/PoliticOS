@@ -41,6 +41,9 @@ class EmbedDocumentSectionsJobTest extends TestCase
             $t->unsignedTinyInteger('analysis_progress')->default(0);
             $t->text('analysis_error')->nullable();
             $t->string('analysis_batch_id')->nullable();
+            $t->string('analysis_stage', 30)->nullable();
+            $t->timestamp('analysis_started_at')->nullable();
+            $t->timestamp('analysis_finished_at')->nullable();
             $t->timestamp('analyzed_at')->nullable();
             $t->boolean('is_public')->default(false);
             $t->timestamps();
@@ -78,7 +81,10 @@ class EmbedDocumentSectionsJobTest extends TestCase
         $doc->refresh();
         $this->assertTrue((bool) $doc->is_public);
         $this->assertSame('listo', $doc->analysis_status);
+        $this->assertSame('listo', $doc->analysis_stage);
         $this->assertSame(100, $doc->analysis_progress);
+        $this->assertNotNull($doc->analysis_finished_at);
+        $this->assertNotNull($doc->analyzed_at);
     }
 
     public function test_sections_already_embedded_are_not_sent_again(): void
@@ -116,5 +122,6 @@ class EmbedDocumentSectionsJobTest extends TestCase
         $doc->refresh();
         $this->assertSame('error', $doc->analysis_status);
         $this->assertFalse((bool) $doc->is_public);
+        $this->assertNotNull($doc->analysis_finished_at);
     }
 }

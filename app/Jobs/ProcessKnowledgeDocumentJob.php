@@ -56,6 +56,16 @@ class ProcessKnowledgeDocumentJob implements ShouldQueue
 
         $doc->update(['status' => 'processing', 'error_message' => null]);
 
+        // analysis_status ya quedó en 'pendiente' (lo puso el controller al
+        // encolar) solo cuando este job corre como el primer eslabón de la
+        // cadena de analyze() — una subida/reindex plano nunca lo deja así.
+        // Reflejar la etapa aquí evita que el admin muestre "En cola" fijo
+        // mientras en realidad ya se está extrayendo el PDF completo.
+        $isPartOfAnalysis = $doc->analysis_status === 'pendiente';
+        if ($isPartOfAnalysis) {
+            $doc->update(['analysis_status' => 'procesando', 'analysis_stage' => 'extrayendo', 'analysis_progress' => 5]);
+        }
+
         try {
             $extracted = (new PdfPageExtractor())->fromDocument($doc);
             $content   = $extracted['content'];
@@ -83,6 +93,17 @@ class ProcessKnowledgeDocumentJob implements ShouldQueue
                 'status'        => 'failed',
                 'error_message' => mb_substr($e->getMessage(), 0, 500),
             ]);
+            // Si la extracción fallida era el primer paso de analyze(), la
+            // cadena se detiene acá (Bus::chain no sigue tras un job
+            // fallido) — StartDocumentAnalysisJob nunca corre, así que el
+            // error del análisis hay que dejarlo marcado aquí mismo.
+            if ($isPartOfAnalysis) {
+                $doc->update([
+                    'analysis_status'      => 'error',
+                    'analysis_error'       => 'Falló la extracción del PDF: ' . mb_substr($e->getMessage(), 0, 450),
+                    'analysis_finished_at' => now(),
+                ]);
+            }
             // Re-lanzar para que el mecanismo de reintentos/failed_jobs de la
             // cola lo registre; si era el intento final, el status ya quedó
             // en 'failed' arriba (visible aunque el job termine descartado).

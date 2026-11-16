@@ -15,20 +15,23 @@ class KnowledgeDocument extends Model
         'file_size', 'is_active', 'status', 'error_message',
         'chunks', 'embeddings_meta', 'embeddings_indexed',
         'analysis_status', 'analysis_progress', 'analysis_error', 'analysis_batch_id',
+        'analysis_stage', 'analysis_started_at', 'analysis_finished_at',
         'analyzed_at', 'is_public',
     ];
 
     protected $casts = [
-        'is_active'          => 'boolean',
-        'candidate_id'       => 'integer',
-        'file_size'          => 'integer',
-        'pages'              => 'array',
-        'chunks'             => 'array',
-        'embeddings_meta'    => 'array',
-        'embeddings_indexed' => 'boolean',
-        'analysis_progress'  => 'integer',
-        'analyzed_at'        => 'datetime',
-        'is_public'          => 'boolean',
+        'is_active'            => 'boolean',
+        'candidate_id'         => 'integer',
+        'file_size'            => 'integer',
+        'pages'                => 'array',
+        'chunks'               => 'array',
+        'embeddings_meta'      => 'array',
+        'embeddings_indexed'   => 'boolean',
+        'analysis_progress'    => 'integer',
+        'analysis_started_at'  => 'datetime',
+        'analysis_finished_at' => 'datetime',
+        'analyzed_at'          => 'datetime',
+        'is_public'            => 'boolean',
     ];
 
     /** Candidato al que pertenece el documento (null = material general del tenant). */

@@ -56,6 +56,69 @@ function docStatusBadge(doc: KnowledgeDocument): { label: string; className: str
   }
 }
 
+const STAGE_LABELS: Record<string, string> = {
+  extrayendo: "Extrayendo el PDF",
+  dividiendo: "Dividiendo en secciones",
+  resumiendo_secciones: "Resumiendo secciones",
+  consolidando: "Consolidando por eje",
+  generando_faqs: "Generando preguntas frecuentes",
+  embeddings: "Generando embeddings",
+  listo: "Listo",
+};
+
+/** "Resumiendo secciones 34 de 150" cuando hay conteo; si no, la etiqueta genérica de la etapa. */
+function stageLabel(doc: KnowledgeDocument): string {
+  if (doc.analysis_stage === "resumiendo_secciones" && doc.sections_total) {
+    return `Resumiendo secciones ${doc.sections_done ?? 0} de ${doc.sections_total}`;
+  }
+  return (doc.analysis_stage && STAGE_LABELS[doc.analysis_stage]) || "Procesando";
+}
+
+function minutesSince(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const ms = Date.now() - new Date(iso).getTime();
+  return ms > 0 ? ms / 60000 : 0;
+}
+
+function fmtMinutes(mins: number): string {
+  const m = Math.round(mins);
+  return m <= 0 ? "menos de 1 min" : `${m} min`;
+}
+
+/** "lleva 12 min" desde que se encoló/empezó el análisis real. */
+function elapsedLabel(doc: KnowledgeDocument): string | null {
+  const mins = minutesSince(doc.analysis_started_at);
+  return mins === null ? null : `lleva ${fmtMinutes(mins)}`;
+}
+
+/** ETA por ritmo real de secciones procesadas — solo tiene sentido mientras se resumen secciones. */
+function etaLabel(doc: KnowledgeDocument): string | null {
+  if (doc.analysis_stage !== "resumiendo_secciones") return null;
+  const elapsed = minutesSince(doc.analysis_started_at);
+  const done = doc.sections_done ?? 0;
+  const total = doc.sections_total ?? 0;
+  if (!elapsed || elapsed <= 0 || done <= 0 || total <= done) return null;
+  const rate = done / elapsed; // secciones por minuto
+  if (rate <= 0) return null;
+  const remaining = (total - done) / rate;
+  return `faltan ~${fmtMinutes(remaining)}`;
+}
+
+/** "Analizado en 27 min · 214 páginas · 148 secciones · 42 FAQs" */
+function listoSummary(doc: KnowledgeDocument): string {
+  const parts: string[] = [];
+  if (doc.analysis_started_at && doc.analysis_finished_at) {
+    const mins = (new Date(doc.analysis_finished_at).getTime() - new Date(doc.analysis_started_at).getTime()) / 60000;
+    parts.push(`Analizado en ${fmtMinutes(mins)}`);
+  } else {
+    parts.push("Analizado");
+  }
+  if (doc.pages?.length) parts.push(`${doc.pages.length} páginas`);
+  if (doc.sections_total) parts.push(`${doc.sections_total} secciones`);
+  if (doc.faqs_count) parts.push(`${doc.faqs_count} FAQs`);
+  return parts.join(" · ");
+}
+
 type CandidateGroup = {
   key: string;
   name: string;
@@ -218,6 +281,18 @@ function KnowledgePageInner() {
       sinAnalizar: analyzable.filter((d) => !d.analysis_status || d.analysis_status === "sin_analizar").length,
     };
   }, [docs, groups]);
+
+  // Punto 4: posición en cola — cuántos documentos "en cola/analizando" se
+  // encolaron antes (analysis_started_at más temprano). Un solo worker
+  // procesa en orden de llegada, así que es una buena aproximación de FIFO.
+  const queueAhead = useMemo(() => {
+    const active = docs
+      .filter((d) => (d.analysis_status === "pendiente" || d.analysis_status === "procesando") && d.analysis_started_at)
+      .sort((a, b) => new Date(a.analysis_started_at!).getTime() - new Date(b.analysis_started_at!).getTime());
+    const map = new Map<number, number>();
+    active.forEach((d, i) => map.set(d.id, i));
+    return map;
+  }, [docs]);
 
   const filteredGroups = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -413,70 +488,105 @@ function KnowledgePageInner() {
                           {/* Análisis profundo: NUNCA para hojas de vida (requisito explícito) —
                               solo tiene sentido una vez extraído el texto (status=ready). */}
                           {!hojaDeVida && doc.status === "ready" && (
-                            <div className="mt-2 flex items-center gap-2 text-[10px] flex-wrap">
-                              <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full border font-medium", badge.className)}>
-                                {badge.label}
-                              </span>
+                            <div className="mt-2 flex flex-col gap-1.5 text-[10px]">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full border font-medium", badge.className)}>
+                                  {badge.label}
+                                </span>
 
-                              {doc.analysis_status === "procesando" && (
-                                <div className="h-1.5 w-28 rounded-full bg-gray-100 overflow-hidden">
-                                  <div className="h-full bg-brand-400 transition-all" style={{ width: `${doc.analysis_progress ?? 0}%` }} />
-                                </div>
-                              )}
+                                {doc.analysis_status === "procesando" && (
+                                  <div className="h-1.5 w-28 rounded-full bg-gray-100 overflow-hidden">
+                                    <div className="h-full bg-brand-400 transition-all" style={{ width: `${doc.analysis_progress ?? 0}%` }} />
+                                  </div>
+                                )}
+                                {doc.analysis_status === "pendiente" && (
+                                  <div className="h-1.5 w-28 rounded-full bg-gray-100 overflow-hidden" />
+                                )}
 
-                              {(!doc.analysis_status || doc.analysis_status === "sin_analizar") && (
-                                <button
-                                  onClick={() => analyze(doc.id)}
-                                  disabled={analyzing === doc.id}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-brand-200 text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-50"
-                                >
-                                  {analyzing === doc.id ? <Loader2 size={9} className="animate-spin" /> : <Sparkles size={9} />}
-                                  Analizar plan completo
-                                </button>
-                              )}
-
-                              {(doc.analysis_status === "pendiente" || doc.analysis_status === "procesando") && (
-                                <button
-                                  onClick={() => cancelAnalysis(doc.id)}
-                                  disabled={cancelling === doc.id}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-50"
-                                >
-                                  {cancelling === doc.id ? <Loader2 size={9} className="animate-spin" /> : <X size={9} />}
-                                  Cancelar
-                                </button>
-                              )}
-
-                              {doc.analysis_status === "listo" && (
-                                <>
-                                  <span className="text-gray-400">
-                                    {doc.analyzed_at ? new Date(doc.analyzed_at).toLocaleDateString("es-PE") : ""}
-                                  </span>
+                                {(!doc.analysis_status || doc.analysis_status === "sin_analizar") && (
                                   <button
-                                    onClick={() => setAnalysisDoc({ id: doc.id, title: doc.title })}
-                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-green-200 text-green-700 hover:bg-green-50 transition-colors"
+                                    onClick={() => analyze(doc.id)}
+                                    disabled={analyzing === doc.id}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-brand-200 text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-50"
                                   >
-                                    <FileSearch size={9} /> Ver análisis
+                                    {analyzing === doc.id ? <Loader2 size={9} className="animate-spin" /> : <Sparkles size={9} />}
+                                    Analizar plan completo
                                   </button>
+                                )}
+
+                                {(doc.analysis_status === "pendiente" || doc.analysis_status === "procesando") && (
+                                  <button
+                                    onClick={() => cancelAnalysis(doc.id)}
+                                    disabled={cancelling === doc.id}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                                  >
+                                    {cancelling === doc.id ? <Loader2 size={9} className="animate-spin" /> : <X size={9} />}
+                                    Cancelar
+                                  </button>
+                                )}
+
+                                {doc.analysis_status === "listo" && (
+                                  <>
+                                    <span className="text-gray-400">
+                                      {doc.analyzed_at ? new Date(doc.analyzed_at).toLocaleDateString("es-PE") : ""}
+                                    </span>
+                                    <button
+                                      onClick={() => setAnalysisDoc({ id: doc.id, title: doc.title })}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-green-200 text-green-700 hover:bg-green-50 transition-colors"
+                                    >
+                                      <FileSearch size={9} /> Ver análisis
+                                    </button>
+                                    <button
+                                      onClick={() => retryAnalysis(doc.id)}
+                                      disabled={retrying === doc.id}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                                    >
+                                      {retrying === doc.id ? <Loader2 size={9} className="animate-spin" /> : <RefreshCw size={9} />}
+                                      Volver a analizar
+                                    </button>
+                                  </>
+                                )}
+
+                                {doc.analysis_status === "error" && (
                                   <button
                                     onClick={() => retryAnalysis(doc.id)}
                                     disabled={retrying === doc.id}
-                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-red-200 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
                                   >
                                     {retrying === doc.id ? <Loader2 size={9} className="animate-spin" /> : <RefreshCw size={9} />}
-                                    Volver a analizar
+                                    Reintentar
                                   </button>
-                                </>
-                              )}
+                                )}
+                              </div>
 
+                              {/* Punto 3: etapa + tiempo transcurrido/restante mientras procesa. */}
+                              {doc.analysis_status === "procesando" && (
+                                <p className="text-gray-400">
+                                  {stageLabel(doc)}
+                                  {elapsedLabel(doc) ? ` · ${elapsedLabel(doc)}` : ""}
+                                  {etaLabel(doc) ? ` · ${etaLabel(doc)}` : ""}
+                                </p>
+                              )}
+                              {/* Punto 4: posición en cola mientras espera a que el worker la tome. */}
+                              {doc.analysis_status === "pendiente" && (
+                                <p className="text-gray-400">
+                                  {(queueAhead.get(doc.id) ?? 0) > 0
+                                    ? `En cola — ${queueAhead.get(doc.id)} documento${(queueAhead.get(doc.id) ?? 0) > 1 ? "s" : ""} por delante`
+                                    : "En cola — es el siguiente"}
+                                </p>
+                              )}
+                              {/* Punto 5: resumen al terminar. */}
+                              {doc.analysis_status === "listo" && (
+                                <p className="text-gray-400">{listoSummary(doc)}</p>
+                              )}
+                              {/* Punto 6: en qué etapa falló y cuánto llevaba. */}
                               {doc.analysis_status === "error" && (
-                                <button
-                                  onClick={() => retryAnalysis(doc.id)}
-                                  disabled={retrying === doc.id}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-red-200 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-                                >
-                                  {retrying === doc.id ? <Loader2 size={9} className="animate-spin" /> : <RefreshCw size={9} />}
-                                  Reintentar
-                                </button>
+                                <p className="text-gray-400">
+                                  {doc.analysis_stage ? `Falló en «${STAGE_LABELS[doc.analysis_stage] ?? doc.analysis_stage}»` : "Falló el análisis"}
+                                  {doc.analysis_started_at && doc.analysis_finished_at
+                                    ? ` · llevaba ${fmtMinutes((new Date(doc.analysis_finished_at).getTime() - new Date(doc.analysis_started_at).getTime()) / 60000)}`
+                                    : ""}
+                                </p>
                               )}
                             </div>
                           )}

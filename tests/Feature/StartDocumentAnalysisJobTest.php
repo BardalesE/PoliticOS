@@ -50,6 +50,9 @@ class StartDocumentAnalysisJobTest extends TestCase
             $t->unsignedTinyInteger('analysis_progress')->default(0);
             $t->text('analysis_error')->nullable();
             $t->string('analysis_batch_id')->nullable();
+            $t->string('analysis_stage', 30)->nullable();
+            $t->timestamp('analysis_started_at')->nullable();
+            $t->timestamp('analysis_finished_at')->nullable();
             $t->boolean('is_public')->default(false);
             $t->timestamps();
         });
@@ -74,7 +77,11 @@ class StartDocumentAnalysisJobTest extends TestCase
         (new StartDocumentAnalysisJob($doc->id))->handle();
 
         $this->assertGreaterThan(0, DocumentSection::where('document_id', $doc->id)->count());
-        $this->assertSame('procesando', $doc->fresh()->analysis_status);
+        $fresh = $doc->fresh();
+        $this->assertSame('procesando', $fresh->analysis_status);
+        $this->assertSame('resumiendo_secciones', $fresh->analysis_stage);
+        $this->assertNotNull($fresh->analysis_started_at, 'debe marcar cuándo empezó el análisis real');
+        $this->assertNull($fresh->analysis_finished_at);
 
         Bus::assertBatched(function ($batch) {
             return $batch->jobs->count() === DocumentSection::count()
@@ -110,6 +117,7 @@ class StartDocumentAnalysisJobTest extends TestCase
         (new StartDocumentAnalysisJob($doc->id))->handle();
 
         Bus::assertDispatched(ReduceDocumentJob::class);
+        $this->assertSame('consolidando', $doc->fresh()->analysis_stage);
     }
 
     /** Fase 3.2a: un reintento parcial (falló a medias) no vuelve a pagar tokens por lo que ya está listo. */
@@ -151,6 +159,7 @@ class StartDocumentAnalysisJobTest extends TestCase
         $doc->refresh();
         $this->assertSame('error', $doc->analysis_status);
         $this->assertNotNull($doc->analysis_error);
+        $this->assertNotNull($doc->analysis_finished_at);
     }
 
     /** Punto 5: la hoja de vida (formulario JNE) nunca entra al análisis profundo. */

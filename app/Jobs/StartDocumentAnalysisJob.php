@@ -63,11 +63,30 @@ class StartDocumentAnalysisJob implements ShouldQueue
         $pages = $doc->pages ?: [];
         if (empty($pages)) {
             $doc->update([
-                'analysis_status' => 'error',
-                'analysis_error'  => 'No hay texto por página (PDF sin páginas extraídas); no se puede analizar.',
+                'analysis_status'      => 'error',
+                'analysis_error'       => 'No hay texto por página (PDF sin páginas extraídas); no se puede analizar.',
+                'analysis_finished_at' => now(),
             ]);
             return;
         }
+
+        $doc->update([
+            'analysis_status'      => 'procesando',
+            'analysis_stage'       => 'dividiendo',
+            'analysis_progress'    => 10,
+            'analysis_error'       => null,
+            // retryAnalysis() ya puso analysis_started_at al encolar; si esto
+            // corre dentro de la cadena de analyze() (tras ProcessKnowledgeDocumentJob)
+            // también. ?? solo por si algún caller futuro lo olvida.
+            'analysis_started_at'  => $doc->analysis_started_at ?? now(),
+            'analysis_finished_at' => null,
+            // Se rellena abajo si de verdad se crea un batch nuevo; limpiarlo
+            // aquí evita que sobreviva el id de un batch de una corrida previa
+            // (p. ej. si esta vez todos los chunks ya estaban 'listo' y se va
+            // directo a ReduceDocumentJob, sin batch).
+            'analysis_batch_id'    => null,
+            'is_public'            => false,
+        ]);
 
         if (DocumentSection::where('document_id', $doc->id)->count() === 0) {
             $chunks = (new DocumentChunker(
@@ -89,18 +108,6 @@ class StartDocumentAnalysisJob implements ShouldQueue
             }
         }
 
-        $doc->update([
-            'analysis_status'   => 'procesando',
-            'analysis_progress' => 0,
-            'analysis_error'    => null,
-            // Se rellena abajo si de verdad se crea un batch nuevo; limpiarlo
-            // aquí evita que sobreviva el id de un batch de una corrida previa
-            // (p. ej. si esta vez todos los chunks ya estaban 'listo' y se va
-            // directo a ReduceDocumentJob, sin batch).
-            'analysis_batch_id' => null,
-            'is_public'         => false,
-        ]);
-
         $documentId = $doc->id;
         $tenantSlug = $this->tenantSlug;
 
@@ -109,9 +116,12 @@ class StartDocumentAnalysisJob implements ShouldQueue
             ->pluck('id');
 
         if ($pendingIds->isEmpty()) {
+            $doc->update(['analysis_stage' => 'consolidando', 'analysis_progress' => 75]);
             ReduceDocumentJob::dispatch($documentId, $tenantSlug);
             return;
         }
+
+        $doc->update(['analysis_stage' => 'resumiendo_secciones', 'analysis_progress' => 10]);
 
         $batch = Bus::batch($pendingIds->map(fn ($id) => new MapDocumentChunkJob($id, $tenantSlug))->all())
             ->name("map-document-{$documentId}")
@@ -119,7 +129,9 @@ class StartDocumentAnalysisJob implements ShouldQueue
             ->progress(function (Batch $batch) use ($documentId, $tenantSlug) {
                 TenantContext::run($tenantSlug, function () use ($batch, $documentId) {
                     KnowledgeDocument::where('id', $documentId)->update([
-                        'analysis_progress' => (int) round($batch->progress() * 0.7),
+                        // 10-70%: el resto (dividir/consolidar/FAQs/embeddings)
+                        // lo reparten ReduceDocumentJob y EmbedDocumentSectionsJob.
+                        'analysis_progress' => 10 + (int) round($batch->progress() * 0.60),
                     ]);
                 });
             })
@@ -132,9 +144,10 @@ class StartDocumentAnalysisJob implements ShouldQueue
             ->catch(function (Batch $batch, \Throwable $e) use ($documentId, $tenantSlug) {
                 TenantContext::run($tenantSlug, function () use ($documentId, $e) {
                     KnowledgeDocument::where('id', $documentId)->update([
-                        'analysis_status'   => 'error',
-                        'analysis_error'    => mb_substr($e->getMessage(), 0, 500),
-                        'analysis_batch_id' => null,
+                        'analysis_status'      => 'error',
+                        'analysis_error'       => mb_substr($e->getMessage(), 0, 500),
+                        'analysis_batch_id'    => null,
+                        'analysis_finished_at' => now(),
                     ]);
                 });
             })

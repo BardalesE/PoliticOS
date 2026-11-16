@@ -11,9 +11,11 @@ use App\Models\DocumentSection;
 use App\Models\KnowledgeDocument;
 use App\Services\EmbeddingsServiceInterface;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -38,14 +40,24 @@ class KnowledgeDocumentAnalysisEndpointsTest extends TestCase
             ],
         ]);
         DB::purge('sqlite');
+        // store() hace app('tenant') incondicionalmente — fuera de una request
+        // (no pasa por ResolveTenant) el binding no existe y eso revienta;
+        // replica el bind-a-null que hace ResolveTenant en modo single-tenant.
+        app()->bind('tenant', fn () => null);
 
         Schema::create('knowledge_documents', function (Blueprint $t) {
             $t->id();
             $t->string('title');
+            $t->text('description')->nullable();
             $t->string('topic', 40)->nullable();
             $t->longText('content')->nullable();
             $t->json('pages')->nullable();
             $t->string('file_url')->nullable();
+            $t->string('original_name')->nullable();
+            $t->string('source_url', 500)->nullable();
+            $t->string('source_type', 20)->nullable();
+            $t->unsignedBigInteger('file_size')->nullable();
+            $t->boolean('embeddings_indexed')->default(false);
             $t->unsignedBigInteger('candidate_id')->nullable();
             $t->boolean('is_active')->default(true);
             $t->string('status', 20)->default('ready');
@@ -54,6 +66,9 @@ class KnowledgeDocumentAnalysisEndpointsTest extends TestCase
             $t->unsignedTinyInteger('analysis_progress')->default(0);
             $t->text('analysis_error')->nullable();
             $t->string('analysis_batch_id')->nullable();
+            $t->string('analysis_stage', 30)->nullable();
+            $t->timestamp('analysis_started_at')->nullable();
+            $t->timestamp('analysis_finished_at')->nullable();
             $t->timestamp('analyzed_at')->nullable();
             $t->boolean('is_public')->default(false);
             $t->timestamps();
@@ -279,5 +294,134 @@ class KnowledgeDocumentAnalysisEndpointsTest extends TestCase
 
         $this->assertSame(3, $json['total']);
         $this->assertCount(3, $json['data']);
+    }
+
+    public function test_index_exposes_section_and_faq_counts_for_the_progress_card(): void
+    {
+        $doc = KnowledgeDocument::create(['title' => 'Plan']);
+        DocumentSection::create(['document_id' => $doc->id, 'orden' => 0, 'texto' => 'a', 'page_start' => 1, 'page_end' => 1, 'tokens' => 1, 'map_status' => 'listo']);
+        DocumentSection::create(['document_id' => $doc->id, 'orden' => 1, 'texto' => 'b', 'page_start' => 2, 'page_end' => 2, 'tokens' => 1, 'map_status' => 'pendiente']);
+        DocumentFaq::create(['document_id' => $doc->id, 'pregunta' => '¿?', 'respuesta' => '.', 'paginas' => [1]]);
+
+        $json = $this->controller()->index(new \Illuminate\Http\Request())->getData(true);
+        $row = $json['data'][0];
+
+        $this->assertSame(2, $row['sections_total']);
+        $this->assertSame(1, $row['sections_done']);
+        $this->assertSame(1, $row['faqs_count']);
+    }
+
+    // ── Puntos 1/2/8: tiempos, etapa y los mismos en analysis-status ──────
+
+    public function test_analyze_marks_when_the_real_analysis_started_and_the_stage(): void
+    {
+        Bus::fake();
+        $doc = KnowledgeDocument::create(['title' => 'Plan', 'file_url' => 'https://cdn.test/plan.pdf']);
+
+        $this->controller()->analyze($doc->id);
+
+        $doc->refresh();
+        $this->assertNotNull($doc->analysis_started_at);
+        $this->assertNull($doc->analysis_finished_at);
+        $this->assertSame('extrayendo', $doc->analysis_stage);
+    }
+
+    public function test_retry_analysis_marks_when_the_real_analysis_started(): void
+    {
+        Bus::fake();
+        $doc = KnowledgeDocument::create(['title' => 'Plan', 'pages' => ['p1'], 'analysis_status' => 'error']);
+
+        $this->controller()->retryAnalysis($doc->id);
+
+        $this->assertNotNull($doc->fresh()->analysis_started_at);
+    }
+
+    public function test_cancel_analysis_clears_stage_and_timestamps(): void
+    {
+        $doc = KnowledgeDocument::create([
+            'title' => 'Plan', 'analysis_status' => 'procesando', 'analysis_stage' => 'resumiendo_secciones',
+            'analysis_started_at' => now()->subMinutes(5),
+        ]);
+
+        $this->controller()->cancelAnalysis($doc->id);
+
+        $doc->refresh();
+        $this->assertNull($doc->analysis_stage);
+        $this->assertNull($doc->analysis_started_at);
+        $this->assertNull($doc->analysis_finished_at);
+    }
+
+    public function test_analysis_status_endpoint_exposes_stage_timestamps_and_section_counts(): void
+    {
+        $doc = KnowledgeDocument::create([
+            'title' => 'Plan', 'analysis_status' => 'procesando', 'analysis_stage' => 'resumiendo_secciones',
+            'analysis_started_at' => now()->subMinutes(3),
+        ]);
+        DocumentSection::create(['document_id' => $doc->id, 'orden' => 0, 'texto' => 'a', 'page_start' => 1, 'page_end' => 1, 'tokens' => 1, 'map_status' => 'listo']);
+        DocumentSection::create(['document_id' => $doc->id, 'orden' => 1, 'texto' => 'b', 'page_start' => 2, 'page_end' => 2, 'tokens' => 1, 'map_status' => 'pendiente']);
+
+        $json = $this->controller()->analysisStatus($doc->id)->getData(true);
+
+        $this->assertSame('resumiendo_secciones', $json['analysis_stage']);
+        $this->assertNotNull($json['analysis_started_at']);
+        $this->assertNull($json['analysis_finished_at']);
+        $this->assertSame(2, $json['sections_total']);
+        $this->assertSame(1, $json['sections_done']);
+    }
+
+    // ── Punto 7: una hoja de vida nunca debe contarse como "sin analizar" ──
+
+    public function test_uploading_a_hoja_de_vida_never_leaves_it_in_sin_analizar(): void
+    {
+        Bus::fake();
+        Storage::fake('public');
+        config(['filesystems.media' => 'public']);
+        app()->bind('tenant', fn () => null);
+
+        $request = \Illuminate\Http\Request::create('/api/admin/knowledge', 'POST', [
+            'title' => 'HV', 'topic' => 'hoja_de_vida',
+        ], [], ['file' => UploadedFile::fake()->create('hv.pdf', 10, 'application/pdf')]);
+
+        $response = $this->controller()->store($request);
+        $doc = KnowledgeDocument::find($response->getData(true)['id']);
+
+        $this->assertSame('no_aplica', $doc->analysis_status);
+    }
+
+    public function test_uploading_a_plan_de_gobierno_starts_at_sin_analizar_not_pendiente(): void
+    {
+        Bus::fake();
+        Storage::fake('public');
+        config(['filesystems.media' => 'public']);
+        app()->bind('tenant', fn () => null);
+
+        $request = \Illuminate\Http\Request::create('/api/admin/knowledge', 'POST', [
+            'title' => 'Plan', 'topic' => 'plan_de_gobierno',
+        ], [], ['file' => UploadedFile::fake()->create('plan.pdf', 10, 'application/pdf')]);
+
+        $response = $this->controller()->store($request);
+        $doc = KnowledgeDocument::find($response->getData(true)['id']);
+
+        $this->assertSame('sin_analizar', $doc->analysis_status);
+    }
+
+    public function test_changing_topic_to_hoja_de_vida_switches_analysis_status_to_no_aplica(): void
+    {
+        $doc = KnowledgeDocument::create(['title' => 'Plan', 'topic' => 'plan_de_gobierno', 'analysis_status' => 'sin_analizar']);
+
+        $request = \Illuminate\Http\Request::create('/x', 'PUT', ['topic' => 'hoja_de_vida']);
+        $this->controller()->update($request, $doc->id);
+
+        $this->assertSame('no_aplica', $doc->fresh()->analysis_status);
+    }
+
+    public function test_changing_topic_away_from_hoja_de_vida_switches_analysis_status_to_sin_analizar(): void
+    {
+        $doc = KnowledgeDocument::create(['title' => 'HV', 'topic' => 'hoja_de_vida', 'analysis_status' => 'no_aplica']);
+
+        $request = \Illuminate\Http\Request::create('/x', 'PUT', ['topic' => 'plan_de_gobierno']);
+        $this->controller()->update($request, $doc->id);
+
+        $this->assertSame('sin_analizar', $doc->fresh()->analysis_status);
     }
 }

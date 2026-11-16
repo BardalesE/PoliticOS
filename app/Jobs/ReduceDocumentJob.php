@@ -80,14 +80,21 @@ TXT;
         $okSections = $sections->where('map_status', 'listo');
 
         if ($okSections->isEmpty()) {
-            $doc->update(['analysis_status' => 'error', 'analysis_error' => 'Ningún chunk se pudo mapear (MAP falló por completo).', 'analysis_batch_id' => null]);
+            $doc->update([
+                'analysis_status'      => 'error',
+                'analysis_error'       => 'Ningún chunk se pudo mapear (MAP falló por completo).',
+                'analysis_batch_id'    => null,
+                'analysis_finished_at' => now(),
+            ]);
             return;
         }
 
-        $doc->update(['analysis_progress' => 75]);
+        $doc->update(['analysis_progress' => 75, 'analysis_stage' => 'consolidando']);
 
         try {
-            $porEje     = $this->reduceByEje($okSections);
+            $porEje = $this->reduceByEje($okSections);
+
+            $doc->update(['analysis_progress' => 85, 'analysis_stage' => 'generando_faqs']);
             $global     = $this->reduceGlobal($porEje);
             $porRegion  = $this->buildPropuestasPorRegion($okSections);
 
@@ -108,12 +115,17 @@ TXT;
 
             $this->saveFaqs($doc, $global['faqs']);
 
-            $doc->update(['analysis_progress' => 90]);
+            $doc->update(['analysis_progress' => 90, 'analysis_stage' => 'embeddings']);
 
             EmbedDocumentSectionsJob::dispatch($doc->id, $this->tenantSlug);
         } catch (\Throwable $e) {
             Log::warning('ReduceDocumentJob failed', ['doc_id' => $doc->id, 'error' => $e->getMessage()]);
-            $doc->update(['analysis_status' => 'error', 'analysis_error' => mb_substr($e->getMessage(), 0, 500), 'analysis_batch_id' => null]);
+            $doc->update([
+                'analysis_status'      => 'error',
+                'analysis_error'       => mb_substr($e->getMessage(), 0, 500),
+                'analysis_batch_id'    => null,
+                'analysis_finished_at' => now(),
+            ]);
             throw $e;
         }
     }

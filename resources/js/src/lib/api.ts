@@ -659,6 +659,7 @@ export type KnowledgeDocument = {
   // (GET /api/knowledge) nunca los devuelve.
   original_name?: string | null;
   content?: string | null;
+  pages?: string[] | null;
   candidate_id?: number | null;
   // Pipeline de extracción (subida → cola → procesamiento → listo). pending/
   // processing = ProcessKnowledgeDocumentJob todavía trabajando el PDF.
@@ -672,14 +673,31 @@ export type KnowledgeDocument = {
   analysis_status?: "sin_analizar" | "pendiente" | "procesando" | "listo" | "error" | "no_aplica";
   analysis_progress?: number;
   analysis_error?: string | null;
+  // extrayendo → dividiendo → resumiendo_secciones → consolidando →
+  // generando_faqs → embeddings → listo. Se queda en la última etapa
+  // alcanzada si terminó en error (para poder mostrar "falló en X").
+  analysis_stage?: "extrayendo" | "dividiendo" | "resumiendo_secciones" | "consolidando" | "generando_faqs" | "embeddings" | "listo" | null;
+  analysis_started_at?: string | null;
+  analysis_finished_at?: string | null;
   analyzed_at?: string | null;
   is_public?: boolean;
+  // withCount en index()/analysisStatus(): para "Resumiendo secciones 34 de
+  // 150" y el ETA por ritmo real de secciones procesadas.
+  sections_total?: number;
+  sections_done?: number;
+  faqs_count?: number;
 };
 
 export type KnowledgeAnalysisStatus = {
   analysis_status: "sin_analizar" | "pendiente" | "procesando" | "listo" | "error" | "no_aplica";
   analysis_progress: number;
   analysis_error: string | null;
+  analysis_stage?: string | null;
+  analysis_started_at?: string | null;
+  analysis_finished_at?: string | null;
+  sections_total?: number;
+  sections_done?: number;
+  faqs_count?: number;
   is_public: boolean;
 };
 

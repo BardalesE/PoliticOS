@@ -46,22 +46,30 @@ class EmbedDocumentSectionsJob implements ShouldQueue
         }
 
         $embedder = TextEmbedderFactory::make();
+        $doc->update(['analysis_stage' => 'embeddings']);
 
         try {
             $this->embedSections($doc, $embedder);
             $this->embedFaqs($doc, $embedder);
 
             $doc->update([
-                'analysis_status'   => 'listo',
-                'analysis_progress' => 100,
-                'analysis_error'    => null,
-                'analysis_batch_id' => null,
-                'analyzed_at'       => now(),
-                'is_public'         => true,
+                'analysis_status'      => 'listo',
+                'analysis_stage'       => 'listo',
+                'analysis_progress'    => 100,
+                'analysis_error'       => null,
+                'analysis_batch_id'    => null,
+                'analyzed_at'          => now(),
+                'analysis_finished_at' => now(),
+                'is_public'            => true,
             ]);
         } catch (\Throwable $e) {
             Log::warning('EmbedDocumentSectionsJob failed', ['doc_id' => $doc->id, 'error' => $e->getMessage()]);
-            $doc->update(['analysis_status' => 'error', 'analysis_error' => mb_substr($e->getMessage(), 0, 500), 'analysis_batch_id' => null]);
+            $doc->update([
+                'analysis_status'      => 'error',
+                'analysis_error'       => mb_substr($e->getMessage(), 0, 500),
+                'analysis_batch_id'    => null,
+                'analysis_finished_at' => now(),
+            ]);
             throw $e;
         }
     }

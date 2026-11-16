@@ -23,11 +23,18 @@ class KnowledgeDocumentController extends Controller
     // El panel admin agrupa por candidato (ver resources/js/.../admin/knowledge),
     // así que necesita TODOS los documentos en una sola carga, no 20 a la vez
     // — per_page lo permite sin romper la forma Paginated<T> que ya consume
-    // el frontend.
+    // el frontend. withCount trae, sin N+1, lo que la tarjeta necesita para
+    // mostrar progreso real ("Resumiendo secciones 34 de 150") y el resumen
+    // final ("148 secciones · 42 FAQs").
     public function index(Request $request): JsonResponse
     {
         return response()->json(
-            KnowledgeDocument::orderByDesc('created_at')
+            KnowledgeDocument::withCount([
+                'sections as sections_total',
+                'sections as sections_done' => fn ($q) => $q->where('map_status', 'listo'),
+                'faqs',
+            ])
+                ->orderByDesc('created_at')
                 ->paginate(max(1, (int) $request->integer('per_page', 20)))
         );
     }
@@ -91,6 +98,12 @@ class KnowledgeDocumentController extends Controller
             'file_size'     => $file->getSize(),
             'is_active'     => true,
             'status'        => 'pending',
+            // Sin esto, una hoja de vida recién subida quedaba en 'sin_analizar'
+            // (el default de la columna) para siempre: el análisis profundo ya
+            // no arranca solo (StartDocumentAnalysisJob, el único lugar que
+            // antes la pasaba a 'no_aplica', nunca corre para una subida
+            // plana) — y el resumen del admin la contaba como "sin analizar".
+            'analysis_status' => $request->input('topic') === 'hoja_de_vida' ? 'no_aplica' : 'sin_analizar',
         ]);
 
         // Extracción + indexado en background (ProcessKnowledgeDocumentJob):
@@ -121,6 +134,19 @@ class KnowledgeDocumentController extends Controller
             'source_type'  => ['sometimes','in:pdf,interview,debate,news'],
             'is_active'    => ['nullable','boolean'],
         ]);
+
+        // Si el tema cambia de/hacia 'hoja_de_vida', analysis_status debe
+        // seguirlo: entrando, pasa a 'no_aplica' (nunca se analiza);
+        // saliendo, vuelve a 'sin_analizar' (ahora sí es analizable y antes
+        // no tenía ningún análisis que preservar).
+        if (array_key_exists('topic', $data) && $data['topic'] !== $doc->topic) {
+            if ($data['topic'] === 'hoja_de_vida') {
+                $data['analysis_status'] = 'no_aplica';
+            } elseif ($doc->topic === 'hoja_de_vida') {
+                $data['analysis_status'] = 'sin_analizar';
+            }
+        }
+
         $doc->update($data);
         return response()->json($doc);
     }
@@ -156,12 +182,15 @@ class KnowledgeDocumentController extends Controller
     {
         $doc = KnowledgeDocument::findOrFail($id);
         $doc->update([
-            'status'             => 'pending',
-            'error_message'      => null,
-            'analysis_status'    => $doc->topic === 'hoja_de_vida' ? 'no_aplica' : 'sin_analizar',
-            'analysis_progress'  => 0,
-            'analysis_error'     => null,
-            'analysis_batch_id'  => null,
+            'status'               => 'pending',
+            'error_message'        => null,
+            'analysis_status'      => $doc->topic === 'hoja_de_vida' ? 'no_aplica' : 'sin_analizar',
+            'analysis_progress'    => 0,
+            'analysis_error'       => null,
+            'analysis_batch_id'    => null,
+            'analysis_stage'       => null,
+            'analysis_started_at'  => null,
+            'analysis_finished_at' => null,
         ]);
 
         try {
@@ -176,13 +205,23 @@ class KnowledgeDocumentController extends Controller
     /** GET /api/admin/knowledge/{id}/analysis-status — polling del admin. */
     public function analysisStatus(int $id): JsonResponse
     {
-        $doc = KnowledgeDocument::findOrFail($id);
+        $doc = KnowledgeDocument::withCount([
+            'sections as sections_total',
+            'sections as sections_done' => fn ($q) => $q->where('map_status', 'listo'),
+            'faqs',
+        ])->findOrFail($id);
 
         return response()->json([
-            'analysis_status'   => $doc->analysis_status,
-            'analysis_progress' => $doc->analysis_progress,
-            'analysis_error'    => $doc->analysis_error,
-            'is_public'         => $doc->is_public,
+            'analysis_status'      => $doc->analysis_status,
+            'analysis_progress'    => $doc->analysis_progress,
+            'analysis_error'       => $doc->analysis_error,
+            'analysis_stage'       => $doc->analysis_stage,
+            'analysis_started_at'  => $doc->analysis_started_at,
+            'analysis_finished_at' => $doc->analysis_finished_at,
+            'sections_total'       => $doc->sections_total,
+            'sections_done'        => $doc->sections_done,
+            'faqs_count'           => $doc->faqs_count,
+            'is_public'            => $doc->is_public,
         ]);
     }
 
@@ -250,7 +289,14 @@ class KnowledgeDocumentController extends Controller
             ], 422);
         }
 
-        $doc->update(['analysis_status' => 'pendiente', 'analysis_error' => null, 'analysis_batch_id' => null]);
+        $doc->update([
+            'analysis_status'      => 'pendiente',
+            'analysis_error'       => null,
+            'analysis_batch_id'    => null,
+            'analysis_stage'       => null,
+            'analysis_started_at'  => now(),
+            'analysis_finished_at' => null,
+        ]);
 
         try {
             StartDocumentAnalysisJob::dispatch($doc->id);
@@ -279,12 +325,15 @@ class KnowledgeDocumentController extends Controller
         }
 
         $doc->update([
-            'status'             => 'pending',
-            'error_message'      => null,
-            'analysis_status'    => 'pendiente',
-            'analysis_progress'  => 0,
-            'analysis_error'     => null,
-            'analysis_batch_id'  => null,
+            'status'               => 'pending',
+            'error_message'        => null,
+            'analysis_status'      => 'pendiente',
+            'analysis_progress'    => 0,
+            'analysis_error'       => null,
+            'analysis_batch_id'    => null,
+            'analysis_stage'       => 'extrayendo',
+            'analysis_started_at'  => now(),
+            'analysis_finished_at' => null,
         ]);
 
         $tenantSlug = TenantContext::currentSlug();
@@ -328,10 +377,13 @@ class KnowledgeDocumentController extends Controller
         }
 
         $doc->update([
-            'analysis_status'   => 'sin_analizar',
-            'analysis_progress' => 0,
-            'analysis_error'    => null,
-            'analysis_batch_id' => null,
+            'analysis_status'      => 'sin_analizar',
+            'analysis_progress'    => 0,
+            'analysis_error'       => null,
+            'analysis_batch_id'    => null,
+            'analysis_stage'       => null,
+            'analysis_started_at'  => null,
+            'analysis_finished_at' => null,
         ]);
 
         return response()->json(['ok' => true, 'doc' => $doc->fresh()]);

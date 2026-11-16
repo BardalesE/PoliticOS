@@ -64,6 +64,9 @@ class CancelAnalysisBatchTest extends TestCase
             $t->unsignedTinyInteger('analysis_progress')->default(0);
             $t->text('analysis_error')->nullable();
             $t->string('analysis_batch_id')->nullable();
+            $t->string('analysis_stage', 30)->nullable();
+            $t->timestamp('analysis_started_at')->nullable();
+            $t->timestamp('analysis_finished_at')->nullable();
             $t->boolean('is_public')->default(false);
             $t->timestamps();
         });
