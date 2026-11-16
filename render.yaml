@@ -71,8 +71,11 @@ services:
         value: /var/www/html/ca.pem
 
       # ── Sin Redis (demo) ────────────────────────────────────────────────
+      # database (no sync): la ingesta completa de un plan de gobierno de
+      # 200+ páginas (MAP+REDUCE+embeddings) excede el timeout de un request
+      # HTTP; el worker real corre vía supervisord (ver deploy/render/).
       - key: QUEUE_CONNECTION
-        value: sync               # jobs inline; sin worker de colas
+        value: database
       - key: CACHE_STORE
         value: file
       - key: SESSION_DRIVER

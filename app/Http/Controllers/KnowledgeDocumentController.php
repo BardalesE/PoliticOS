@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\ProcessKnowledgeDocumentJob;
+use App\Jobs\StartDocumentAnalysisJob;
 use App\Models\KnowledgeDocument;
 use App\Services\EmbeddingsServiceInterface;
 use App\Services\PlanService;
@@ -150,4 +151,43 @@ class KnowledgeDocumentController extends Controller
         return response()->json(['ok' => true, 'doc' => $doc->fresh()]);
     }
 
+    /** GET /api/admin/knowledge/{id}/analysis-status — polling del admin. */
+    public function analysisStatus(int $id): JsonResponse
+    {
+        $doc = KnowledgeDocument::findOrFail($id);
+
+        return response()->json([
+            'analysis_status'   => $doc->analysis_status,
+            'analysis_progress' => $doc->analysis_progress,
+            'analysis_error'    => $doc->analysis_error,
+            'is_public'         => $doc->is_public,
+        ]);
+    }
+
+    /**
+     * POST /api/admin/knowledge/{id}/retry-analysis — botón "Reprocesar".
+     * A diferencia de reindex(), NO vuelve a extraer el PDF: retoma el
+     * análisis (chunking/MAP/REDUCE/embeddings) desde donde quedó, usando
+     * `pages` ya guardado (StartDocumentAnalysisJob es idempotente por chunk).
+     */
+    public function retryAnalysis(int $id): JsonResponse
+    {
+        $doc = KnowledgeDocument::findOrFail($id);
+
+        if (empty($doc->pages)) {
+            return response()->json([
+                'message' => 'Este documento no tiene texto por página todavía — usa "Reindexar" primero.',
+            ], 422);
+        }
+
+        $doc->update(['analysis_status' => 'pendiente', 'analysis_error' => null]);
+
+        try {
+            StartDocumentAnalysisJob::dispatch($doc->id);
+        } catch (\Throwable $e) {
+            Log::warning('StartDocumentAnalysisJob dispatch (sync) failed', ['doc_id' => $doc->id, 'error' => $e->getMessage()]);
+        }
+
+        return response()->json(['ok' => true, 'doc' => $doc->fresh()]);
+    }
 }

@@ -39,7 +39,13 @@ return [
             'connection' => env('DB_QUEUE_CONNECTION'),
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => env('DB_QUEUE', 'default'),
-            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90),
+            // DEBE ser mayor que el $timeout más largo de cualquier job que corra en
+            // esta cola — si no, el worker todavía está procesando un job válido
+            // (p. ej. EmbedDocumentSectionsJob/ProcessKnowledgeDocumentJob, timeout=300s,
+            // o ReduceDocumentJob, timeout=180s — ver app/Jobs/*.php) cuando retry_after
+            // ya pasó, y OTRO worker lo toma y lo corre en paralelo (doble ejecución).
+            // 360 deja margen sobre el timeout más largo actual (300s).
+            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 360),
             'after_commit' => false,
         ],
 

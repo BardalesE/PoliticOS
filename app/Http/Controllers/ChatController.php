@@ -159,6 +159,7 @@ class ChatController extends Controller
             'pepa_metadata'   => $response['pepa_metadata'] ?? null,
             'citations'       => ($response['citations'] ?? null) ?: null,
             'is_fallback'     => $response['ai_resting'] ?? false,
+            'response_type'   => $response['response_type'] ?? null,
         ]);
 
         $this->applyPepaMetaToSession($session, $response['pepa_metadata'] ?? null);
@@ -328,6 +329,7 @@ class ChatController extends Controller
                             'pepa_metadata'   => $meta['pepa_metadata'] ?? null,
                             'citations'       => ($meta['citations'] ?? null) ?: null,
                             'is_fallback'     => $meta['ai_resting'] ?? false,
+                            'response_type'   => $meta['response_type'] ?? null,
                         ]);
                         $this->applyPepaMetaToSession($session, $meta['pepa_metadata'] ?? null);
                         // Ver comentario equivalente en send() — afterResponse()

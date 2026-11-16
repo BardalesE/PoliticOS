@@ -277,6 +277,10 @@ export type ChatMessage = {
   content: string;
   topic: string | null;
   created_at: string;
+  // Fase 2 (análisis profundo de documentos): qué produjo la respuesta.
+  // null = sin documentos con análisis profundo listo, o no pasó por el
+  // flujo normal de IA (bienvenida, bloqueo, etc.) — como antes de la Fase 2.
+  response_type?: "menu" | "faq" | "rag" | null;
 };
 
 export type Paginated<T> = {
@@ -511,6 +515,10 @@ export const adminApi = {
       request<{ deleted: boolean }>(`/admin/knowledge/${id}`, { method: "DELETE" }, token),
     reindex: (token: string, id: number) =>
       request<{ ok: boolean }>(`/admin/knowledge/${id}/reindex`, { method: "POST" }, token),
+    analysisStatus: (token: string, id: number) =>
+      request<KnowledgeAnalysisStatus>(`/admin/knowledge/${id}/analysis-status`, {}, token),
+    retryAnalysis: (token: string, id: number) =>
+      request<{ ok: boolean; doc: KnowledgeDocument }>(`/admin/knowledge/${id}/retry-analysis`, { method: "POST" }, token),
   },
 };
 
@@ -649,6 +657,19 @@ export type KnowledgeDocument = {
   // Admin-only, igual que los campos de arriba.
   status?: "pending" | "processing" | "ready" | "failed";
   error_message?: string | null;
+  // Análisis profundo (chunking + MAP/REDUCE + embeddings, Fase 1) — corre
+  // DESPUÉS de status=ready y puede tardar minutos en un plan de 200+ páginas.
+  analysis_status?: "pendiente" | "procesando" | "listo" | "error";
+  analysis_progress?: number;
+  analysis_error?: string | null;
+  is_public?: boolean;
+};
+
+export type KnowledgeAnalysisStatus = {
+  analysis_status: "pendiente" | "procesando" | "listo" | "error";
+  analysis_progress: number;
+  analysis_error: string | null;
+  is_public: boolean;
 };
 
 export type AdminAnalytics = {

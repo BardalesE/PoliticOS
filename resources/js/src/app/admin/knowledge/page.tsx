@@ -39,15 +39,29 @@ function KnowledgePageInner() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Pipeline de extracción es async (subida → cola → procesamiento → listo):
-  // mientras haya documentos pending/processing, refresca la lista cada 3s
-  // para que el admin vea el cambio a "listo" sin recargar la página.
+  // Pipeline de extracción (subida → cola → procesamiento → listo) Y análisis
+  // profundo (chunking → MAP/REDUCE → embeddings, puede tardar minutos en un
+  // plan de 200+ páginas): mientras alguno siga en curso, refresca cada 3s.
   useEffect(() => {
-    const hasPending = docs.some(d => d.status === "pending" || d.status === "processing");
+    const hasPending = docs.some(d =>
+      d.status === "pending" || d.status === "processing" ||
+      d.analysis_status === "pendiente" || d.analysis_status === "procesando"
+    );
     if (!hasPending) return;
     const t = setTimeout(load, 3000);
     return () => clearTimeout(t);
   }, [docs, load]);
+
+  const [retrying, setRetrying] = useState<number | null>(null);
+  async function retryAnalysis(id: number) {
+    if (!token) return;
+    setRetrying(id);
+    try {
+      const { doc } = await adminApi.knowledge.retryAnalysis(token, id);
+      setDocs(prev => prev.map(d => d.id === id ? doc : d));
+    } catch {}
+    finally { setRetrying(null); }
+  }
 
   async function toggleActive(doc: KnowledgeDocument) {
     if (!token) return;
@@ -181,6 +195,44 @@ function KnowledgePageInner() {
                           </>
                         )}
                       </div>
+
+                      {/* Análisis profundo: solo tiene sentido mostrarlo una vez que el
+                          texto se extrajo (status=ready) — antes de eso no hay chunks. */}
+                      {doc.status === "ready" && doc.analysis_status && doc.analysis_status !== "listo" && (
+                        <div className="mt-1.5 flex items-center gap-2 text-[10px]">
+                          {(doc.analysis_status === "pendiente" || doc.analysis_status === "procesando") && (
+                            <>
+                              <div className="h-1.5 w-28 rounded-full bg-gray-100 overflow-hidden">
+                                <div
+                                  className="h-full bg-brand-400 transition-all"
+                                  style={{ width: `${doc.analysis_progress ?? 0}%` }}
+                                />
+                              </div>
+                              <span className="text-gray-400">Analizando… {doc.analysis_progress ?? 0}%</span>
+                            </>
+                          )}
+                          {doc.analysis_status === "error" && (
+                            <>
+                              <span className="text-red-600" title={doc.analysis_error ?? undefined}>
+                                ⚠ Análisis incompleto
+                              </span>
+                              <button
+                                onClick={() => retryAnalysis(doc.id)}
+                                disabled={retrying === doc.id}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-red-200 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
+                              >
+                                {retrying === doc.id
+                                  ? <Loader2 size={9} className="animate-spin" />
+                                  : <RefreshCw size={9} />}
+                                Reprocesar
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                      {doc.status === "ready" && doc.analysis_status === "listo" && (
+                        <div className="mt-1.5 text-[10px] text-green-600">✓ Análisis completo (resumen, FAQs, búsqueda por página)</div>
+                      )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <button

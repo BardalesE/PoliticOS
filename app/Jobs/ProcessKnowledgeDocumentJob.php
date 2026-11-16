@@ -16,17 +16,22 @@ use Illuminate\Support\Facades\Log;
 /**
  * Pipeline de extracción de documentos: subida (KnowledgeDocumentController::store,
  * síncrono y rápido) → cola (este job) → procesamiento (extrae texto + indexa
- * embeddings) → estado listo (status=ready en knowledge_documents).
+ * embeddings léxicos, igual que antes — `status`) → dispara el análisis
+ * profundo (chunking + MAP/REDUCE + embeddings reales, `analysis_status`,
+ * minutos, ver MapDocumentChunkJob/ReduceDocumentJob/EmbedDocumentSectionsJob).
  *
- * También se redespacha desde reindex() para reprocesar un documento existente
- * (falla previa, cambio de driver de embeddings, etc.).
+ * Los dos pipelines son independientes a propósito: el chat no debe esperar al
+ * análisis profundo para poder buscar por FULLTEXT como ya hacía.
+ *
+ * También se redespacha desde reindex()/ReingestKnowledgeDocuments para
+ * reprocesar un documento existente (falla previa, truncado a 80k, etc.).
  */
 class ProcessKnowledgeDocumentJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries   = 3;
-    public int $timeout = 120;
+    public int $timeout = 300;
 
     public function __construct(public int $documentId, public ?string $tenantSlug = null)
     {
@@ -65,6 +70,8 @@ class ProcessKnowledgeDocumentJob implements ShouldQueue
                 'status'             => 'ready',
                 'embeddings_indexed' => true,
             ]);
+
+            StartDocumentAnalysisJob::dispatch($doc->id, $this->tenantSlug);
         } catch (\Throwable $e) {
             Log::warning('ProcessKnowledgeDocumentJob failed', [
                 'doc_id' => $doc->id,

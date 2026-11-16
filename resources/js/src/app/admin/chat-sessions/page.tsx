@@ -175,6 +175,9 @@ export default function ChatSessionsPage() {
                       <p className="text-[10px] text-gray-400 mt-1">
                         {new Date(msg.created_at).toLocaleTimeString("es-PE", { timeStyle: "short" })}
                         {msg.topic && <span className="ml-2 capitalize">· {msg.topic}</span>}
+                        {msg.response_type && (
+                          <span className="ml-2 uppercase font-semibold text-brand-500">· {msg.response_type}</span>
+                        )}
                       </p>
                     </div>
                   </div>
