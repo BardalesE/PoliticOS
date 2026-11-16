@@ -375,6 +375,7 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
         // Análisis profundo (MAP/REDUCE/embeddings): ya no arranca solo al
         // subir/reindexar — el admin lo controla a mano con estos botones.
         Route::get   ('/knowledge/{id}/analysis-status',  [KnowledgeDocumentController::class, 'analysisStatus']);
+        Route::get   ('/knowledge/{id}/analysis',         [KnowledgeDocumentController::class, 'analysisDetail']);
         Route::post  ('/knowledge/{id}/analyze',          [KnowledgeDocumentController::class, 'analyze']);
         Route::post  ('/knowledge/{id}/retry-analysis',   [KnowledgeDocumentController::class, 'retryAnalysis']);
         Route::post  ('/knowledge/{id}/cancel-analysis',  [KnowledgeDocumentController::class, 'cancelAnalysis']);

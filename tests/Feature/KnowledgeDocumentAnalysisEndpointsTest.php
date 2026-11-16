@@ -5,6 +5,9 @@ namespace Tests\Feature;
 use App\Http\Controllers\KnowledgeDocumentController;
 use App\Jobs\ProcessKnowledgeDocumentJob;
 use App\Jobs\StartDocumentAnalysisJob;
+use App\Models\DocumentAnalysis;
+use App\Models\DocumentFaq;
+use App\Models\DocumentSection;
 use App\Models\KnowledgeDocument;
 use App\Services\EmbeddingsServiceInterface;
 use Illuminate\Database\Schema\Blueprint;
@@ -43,6 +46,7 @@ class KnowledgeDocumentAnalysisEndpointsTest extends TestCase
             $t->longText('content')->nullable();
             $t->json('pages')->nullable();
             $t->string('file_url')->nullable();
+            $t->unsignedBigInteger('candidate_id')->nullable();
             $t->boolean('is_active')->default(true);
             $t->string('status', 20)->default('ready');
             $t->text('error_message')->nullable();
@@ -50,9 +54,18 @@ class KnowledgeDocumentAnalysisEndpointsTest extends TestCase
             $t->unsignedTinyInteger('analysis_progress')->default(0);
             $t->text('analysis_error')->nullable();
             $t->string('analysis_batch_id')->nullable();
+            $t->timestamp('analyzed_at')->nullable();
             $t->boolean('is_public')->default(false);
             $t->timestamps();
         });
+
+        foreach ([
+            '2026_11_14_000002_create_document_sections_table',
+            '2026_11_14_000003_create_document_analysis_table',
+            '2026_11_14_000004_create_document_faqs_table',
+        ] as $migration) {
+            (require database_path("migrations/{$migration}.php"))->up();
+        }
     }
 
     private function controller(): KnowledgeDocumentController
@@ -199,5 +212,72 @@ class KnowledgeDocumentAnalysisEndpointsTest extends TestCase
         $doc->refresh();
         $this->assertSame('sin_analizar', $doc->analysis_status);
         $this->assertNull($doc->analysis_batch_id);
+    }
+
+    // ── Botón "Ver análisis" ────────────────────────────────────────────
+
+    public function test_analysis_detail_exposes_summary_proposals_faqs_and_coverage(): void
+    {
+        $doc = KnowledgeDocument::create([
+            'title' => 'Plan', 'analysis_status' => 'listo',
+            'pages' => array_fill(0, 10, 'texto'),
+        ]);
+
+        DocumentAnalysis::create([
+            'document_id'           => $doc->id,
+            'indice_estructurado'   => [['titulo' => 'Eje 1', 'orden' => 1]],
+            'resumen_ejecutivo'     => 'Resumen del plan.',
+            'propuestas_por_eje'    => ['Eje 1' => ['eje' => 'Eje 1', 'resumen' => 'r', 'propuestas' => []]],
+            'propuestas_por_region' => [['nombre' => 'San Miguel', 'propuestas' => []]],
+        ]);
+
+        DocumentFaq::create([
+            'document_id' => $doc->id, 'pregunta' => '¿Qué propone?', 'respuesta' => 'Esto.', 'paginas' => [3],
+        ]);
+
+        DocumentSection::create([
+            'document_id' => $doc->id, 'orden' => 0, 'titulo' => 'Eje 1', 'texto' => 'texto 1',
+            'page_start' => 1, 'page_end' => 4, 'tokens' => 100,
+        ]);
+        DocumentSection::create([
+            'document_id' => $doc->id, 'orden' => 1, 'titulo' => 'Eje 2', 'texto' => 'texto 2',
+            'page_start' => 4, 'page_end' => 6, 'tokens' => 100,
+        ]);
+
+        $json = $this->controller()->analysisDetail($doc->id)->getData(true);
+
+        $this->assertSame('Resumen del plan.', $json['resumen_ejecutivo']);
+        $this->assertSame([['titulo' => 'Eje 1', 'orden' => 1]], $json['indice_estructurado']);
+        $this->assertArrayHasKey('Eje 1', $json['propuestas_por_eje']);
+        $this->assertCount(1, $json['propuestas_por_region']);
+        $this->assertCount(1, $json['faqs']);
+        $this->assertSame('¿Qué propone?', $json['faqs'][0]['pregunta']);
+        $this->assertSame(10, $json['pages_total']);
+        $this->assertSame(6, $json['pages_covered']); // paginas 1-6 (1-4 ∪ 4-6)
+        $this->assertSame(2, $json['sections_count']);
+    }
+
+    public function test_analysis_detail_refuses_a_document_that_is_not_ready(): void
+    {
+        $doc = KnowledgeDocument::create(['title' => 'Plan', 'analysis_status' => 'procesando']);
+
+        $response = $this->controller()->analysisDetail($doc->id);
+
+        $this->assertSame(422, $response->getStatusCode());
+    }
+
+    // ── index() con per_page (lista completa para agrupar por candidato) ──
+
+    public function test_index_accepts_a_per_page_override_to_fetch_every_document(): void
+    {
+        foreach (range(1, 3) as $i) {
+            KnowledgeDocument::create(['title' => "Doc {$i}"]);
+        }
+
+        $response = $this->controller()->index(new \Illuminate\Http\Request(['per_page' => 100]));
+        $json = $response->getData(true);
+
+        $this->assertSame(3, $json['total']);
+        $this->assertCount(3, $json['data']);
     }
 }

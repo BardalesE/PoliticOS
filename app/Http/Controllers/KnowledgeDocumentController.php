@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Jobs\ProcessKnowledgeDocumentJob;
 use App\Jobs\StartDocumentAnalysisJob;
+use App\Models\DocumentSection;
 use App\Models\KnowledgeDocument;
 use App\Services\EmbeddingsServiceInterface;
 use App\Services\PlanService;
@@ -19,10 +20,15 @@ class KnowledgeDocumentController extends Controller
 {
     public function __construct(private EmbeddingsServiceInterface $embeddings) {}
 
-    public function index(): JsonResponse
+    // El panel admin agrupa por candidato (ver resources/js/.../admin/knowledge),
+    // así que necesita TODOS los documentos en una sola carga, no 20 a la vez
+    // — per_page lo permite sin romper la forma Paginated<T> que ya consume
+    // el frontend.
+    public function index(Request $request): JsonResponse
     {
         return response()->json(
-            KnowledgeDocument::orderByDesc('created_at')->paginate(20)
+            KnowledgeDocument::orderByDesc('created_at')
+                ->paginate(max(1, (int) $request->integer('per_page', 20)))
         );
     }
 
@@ -177,6 +183,49 @@ class KnowledgeDocumentController extends Controller
             'analysis_progress' => $doc->analysis_progress,
             'analysis_error'    => $doc->analysis_error,
             'is_public'         => $doc->is_public,
+        ]);
+    }
+
+    /**
+     * GET /api/admin/knowledge/{id}/analysis — solo lectura, botón "Ver
+     * análisis": resumen ejecutivo, índice, propuestas por eje/región, FAQs,
+     * y cobertura (páginas del PDF vs páginas cubiertas por secciones).
+     */
+    public function analysisDetail(int $id): JsonResponse
+    {
+        $doc = KnowledgeDocument::with('analysis', 'faqs')->findOrFail($id);
+
+        if ($doc->analysis_status !== 'listo') {
+            return response()->json([
+                'message' => 'Este documento todavía no tiene un análisis completo.',
+            ], 422);
+        }
+
+        $sections = DocumentSection::where('document_id', $doc->id)->get(['page_start', 'page_end']);
+
+        $coveredPages = [];
+        foreach ($sections as $section) {
+            for ($page = $section->page_start; $page <= $section->page_end; $page++) {
+                $coveredPages[$page] = true;
+            }
+        }
+
+        $analysis = $doc->analysis;
+
+        return response()->json([
+            'resumen_ejecutivo'     => $analysis?->resumen_ejecutivo,
+            'indice_estructurado'   => $analysis?->indice_estructurado ?? [],
+            'propuestas_por_eje'    => $analysis?->propuestas_por_eje ?? [],
+            'propuestas_por_region' => $analysis?->propuestas_por_region ?? [],
+            'faqs'                  => $doc->faqs->map(fn ($faq) => [
+                'pregunta'  => $faq->pregunta,
+                'respuesta' => $faq->respuesta,
+                'paginas'   => $faq->paginas,
+            ])->values(),
+            'pages_total'    => is_array($doc->pages) ? count($doc->pages) : null,
+            'pages_covered'  => count($coveredPages),
+            'sections_count' => $sections->count(),
+            'analyzed_at'    => $doc->analyzed_at,
         ]);
     }
 

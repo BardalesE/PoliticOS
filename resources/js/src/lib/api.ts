@@ -505,8 +505,10 @@ export const adminApi = {
   },
 
   knowledge: {
-    list: (token: string, page = 1) =>
-      request<Paginated<KnowledgeDocument>>(`/admin/knowledge?page=${page}`, {}, token),
+    // per_page alto: el panel agrupa por candidato y necesita todos los
+    // documentos en una sola carga, no paginados de a 20.
+    list: (token: string, page = 1, perPage = 500) =>
+      request<Paginated<KnowledgeDocument>>(`/admin/knowledge?page=${page}&per_page=${perPage}`, {}, token),
     upload: (token: string, formData: FormData) =>
       upload<KnowledgeDocument>("/admin/knowledge", formData, token),
     update: (token: string, id: number, data: { title?: string; description?: string; topic?: string; candidate_id?: number | null; is_active?: boolean }) =>
@@ -517,6 +519,8 @@ export const adminApi = {
       request<{ ok: boolean }>(`/admin/knowledge/${id}/reindex`, { method: "POST" }, token),
     analysisStatus: (token: string, id: number) =>
       request<KnowledgeAnalysisStatus>(`/admin/knowledge/${id}/analysis-status`, {}, token),
+    analysisDetail: (token: string, id: number) =>
+      request<KnowledgeAnalysisDetail>(`/admin/knowledge/${id}/analysis`, {}, token),
     analyze: (token: string, id: number) =>
       request<{ ok: boolean; doc: KnowledgeDocument }>(`/admin/knowledge/${id}/analyze`, { method: "POST" }, token),
     retryAnalysis: (token: string, id: number) =>
@@ -677,6 +681,18 @@ export type KnowledgeAnalysisStatus = {
   analysis_progress: number;
   analysis_error: string | null;
   is_public: boolean;
+};
+
+export type KnowledgeAnalysisDetail = {
+  resumen_ejecutivo: string | null;
+  indice_estructurado: { titulo: string; orden: number }[];
+  propuestas_por_eje: Record<string, { eje: string; resumen: string; propuestas: { texto: string; paginas: number[] }[] }>;
+  propuestas_por_region: { nombre: string; nivel?: string | null; propuestas: { texto: string; paginas: number[] }[] }[];
+  faqs: { pregunta: string; respuesta: string; paginas: number[] }[];
+  pages_total: number | null;
+  pages_covered: number;
+  sections_count: number;
+  analyzed_at: string | null;
 };
 
 export type AdminAnalytics = {
