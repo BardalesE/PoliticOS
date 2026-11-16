@@ -7,8 +7,11 @@ use App\Jobs\StartDocumentAnalysisJob;
 use App\Models\KnowledgeDocument;
 use App\Services\EmbeddingsServiceInterface;
 use App\Services\PlanService;
+use App\Services\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
@@ -136,11 +139,24 @@ class KnowledgeDocumentController extends Controller
         return response()->json(['deleted' => true]);
     }
 
-    /** POST /api/admin/knowledge/{id}/reindex */
+    /**
+     * POST /api/admin/knowledge/{id}/reindex — solo re-extrae texto/embeddings
+     * léxicos (igual que antes). Ya NO dispara el análisis profundo: si el
+     * documento tenía uno vigente (sections/analysis de un `content` viejo),
+     * re-extraer invalida esos datos, así que vuelve a 'sin_analizar' (o
+     * 'no_aplica' si es hoja de vida) — el botón "Analizar" lo retoma.
+     */
     public function reindex(int $id): JsonResponse
     {
         $doc = KnowledgeDocument::findOrFail($id);
-        $doc->update(['status' => 'pending', 'error_message' => null]);
+        $doc->update([
+            'status'             => 'pending',
+            'error_message'      => null,
+            'analysis_status'    => $doc->topic === 'hoja_de_vida' ? 'no_aplica' : 'sin_analizar',
+            'analysis_progress'  => 0,
+            'analysis_error'     => null,
+            'analysis_batch_id'  => null,
+        ]);
 
         try {
             ProcessKnowledgeDocumentJob::dispatch($doc->id);
@@ -165,28 +181,109 @@ class KnowledgeDocumentController extends Controller
     }
 
     /**
-     * POST /api/admin/knowledge/{id}/retry-analysis — botón "Reprocesar".
-     * A diferencia de reindex(), NO vuelve a extraer el PDF: retoma el
-     * análisis (chunking/MAP/REDUCE/embeddings) desde donde quedó, usando
-     * `pages` ya guardado (StartDocumentAnalysisJob es idempotente por chunk).
+     * POST /api/admin/knowledge/{id}/retry-analysis — botones "Volver a
+     * analizar" (listo) y "Reintentar" (error). A diferencia de analyze(),
+     * NO vuelve a extraer el PDF: retoma el análisis (chunking/MAP/REDUCE/
+     * embeddings) desde donde quedó, usando `pages` ya guardado
+     * (StartDocumentAnalysisJob es idempotente por chunk).
      */
     public function retryAnalysis(int $id): JsonResponse
     {
         $doc = KnowledgeDocument::findOrFail($id);
 
+        if ($doc->topic === 'hoja_de_vida') {
+            return response()->json(['message' => 'Las hojas de vida no se analizan.'], 422);
+        }
+
         if (empty($doc->pages)) {
             return response()->json([
-                'message' => 'Este documento no tiene texto por página todavía — usa "Reindexar" primero.',
+                'message' => 'Este documento no tiene texto por página todavía — usa "Analizar plan completo" primero.',
             ], 422);
         }
 
-        $doc->update(['analysis_status' => 'pendiente', 'analysis_error' => null]);
+        $doc->update(['analysis_status' => 'pendiente', 'analysis_error' => null, 'analysis_batch_id' => null]);
 
         try {
             StartDocumentAnalysisJob::dispatch($doc->id);
         } catch (\Throwable $e) {
             Log::warning('StartDocumentAnalysisJob dispatch (sync) failed', ['doc_id' => $doc->id, 'error' => $e->getMessage()]);
         }
+
+        return response()->json(['ok' => true, 'doc' => $doc->fresh()]);
+    }
+
+    /**
+     * POST /api/admin/knowledge/{id}/analyze — botón "Analizar plan completo".
+     * Único punto de entrada que arranca el análisis profundo desde cero: re-
+     * extrae el PDF COMPLETO (ProcessKnowledgeDocumentJob) porque documentos
+     * subidos antes del fix de truncamiento a 80 000 caracteres todavía
+     * tienen `content`/`pages` incompletos, y recién entonces encadena
+     * StartDocumentAnalysisJob — si la extracción falla, el análisis nunca
+     * se dispara (Bus::chain no sigue tras un job fallido).
+     */
+    public function analyze(int $id): JsonResponse
+    {
+        $doc = KnowledgeDocument::findOrFail($id);
+
+        if ($doc->topic === 'hoja_de_vida') {
+            return response()->json(['message' => 'Las hojas de vida no se analizan.'], 422);
+        }
+
+        $doc->update([
+            'status'             => 'pending',
+            'error_message'      => null,
+            'analysis_status'    => 'pendiente',
+            'analysis_progress'  => 0,
+            'analysis_error'     => null,
+            'analysis_batch_id'  => null,
+        ]);
+
+        $tenantSlug = TenantContext::currentSlug();
+        try {
+            Bus::chain([
+                new ProcessKnowledgeDocumentJob($doc->id, $tenantSlug),
+                new StartDocumentAnalysisJob($doc->id, $tenantSlug),
+            ])->dispatch();
+        } catch (\Throwable $e) {
+            Log::warning('analyze chain dispatch (sync) failed', ['doc_id' => $doc->id, 'error' => $e->getMessage()]);
+        }
+
+        return response()->json(['ok' => true, 'doc' => $doc->fresh()]);
+    }
+
+    /**
+     * POST /api/admin/knowledge/{id}/cancel-analysis — botón "Cancelar",
+     * visible mientras analysis_status es 'pendiente' o 'procesando'.
+     * Cancela el Bus::batch en curso (si lo hay — con todos los chunks ya
+     * mapeados se va directo a Reduce, sin batch) y borra del encabezado de
+     * la cola ('jobs', conexión fija de config/queue.php) los jobs MAP que
+     * todavía no corrieron: no basta con esperar a que el worker los tome y
+     * se auto-descarten (MapDocumentChunkJob::process() ya chequea
+     * batch()->cancelled()) — "cancelar" debe vaciar la cola ya.
+     */
+    public function cancelAnalysis(int $id): JsonResponse
+    {
+        $doc = KnowledgeDocument::findOrFail($id);
+
+        if (!in_array($doc->analysis_status, ['pendiente', 'procesando'], true)) {
+            return response()->json(['message' => 'Este documento no tiene un análisis en curso.'], 422);
+        }
+
+        if ($doc->analysis_batch_id) {
+            Bus::findBatch($doc->analysis_batch_id)?->cancel();
+
+            DB::connection(config('queue.connections.database.connection', 'central'))
+                ->table(config('queue.connections.database.table', 'jobs'))
+                ->where('payload', 'like', '%"batchId":"' . $doc->analysis_batch_id . '"%')
+                ->delete();
+        }
+
+        $doc->update([
+            'analysis_status'   => 'sin_analizar',
+            'analysis_progress' => 0,
+            'analysis_error'    => null,
+            'analysis_batch_id' => null,
+        ]);
 
         return response()->json(['ok' => true, 'doc' => $doc->fresh()]);
     }

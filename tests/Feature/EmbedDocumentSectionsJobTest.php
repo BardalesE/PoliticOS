@@ -40,6 +40,8 @@ class EmbedDocumentSectionsJobTest extends TestCase
             $t->string('analysis_status', 20)->default('procesando');
             $t->unsignedTinyInteger('analysis_progress')->default(0);
             $t->text('analysis_error')->nullable();
+            $t->string('analysis_batch_id')->nullable();
+            $t->timestamp('analyzed_at')->nullable();
             $t->boolean('is_public')->default(false);
             $t->timestamps();
         });

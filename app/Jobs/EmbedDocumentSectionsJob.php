@@ -55,11 +55,13 @@ class EmbedDocumentSectionsJob implements ShouldQueue
                 'analysis_status'   => 'listo',
                 'analysis_progress' => 100,
                 'analysis_error'    => null,
+                'analysis_batch_id' => null,
+                'analyzed_at'       => now(),
                 'is_public'         => true,
             ]);
         } catch (\Throwable $e) {
             Log::warning('EmbedDocumentSectionsJob failed', ['doc_id' => $doc->id, 'error' => $e->getMessage()]);
-            $doc->update(['analysis_status' => 'error', 'analysis_error' => mb_substr($e->getMessage(), 0, 500)]);
+            $doc->update(['analysis_status' => 'error', 'analysis_error' => mb_substr($e->getMessage(), 0, 500), 'analysis_batch_id' => null]);
             throw $e;
         }
     }

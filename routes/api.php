@@ -372,10 +372,12 @@ Route::group([], function () { // ResolveTenant is in the global 'api' group (bo
         Route::put   ('/knowledge/{id}', [KnowledgeDocumentController::class, 'update']);
         Route::delete('/knowledge/{id}', [KnowledgeDocumentController::class, 'destroy']);
         Route::post  ('/knowledge/{id}/reindex', [KnowledgeDocumentController::class, 'reindex']);
-        // Análisis profundo (MAP/REDUCE/embeddings, Fase 1): estado para el
-        // polling del admin + botón "Reprocesar" que retoma sin re-pagar lo ya hecho.
-        Route::get   ('/knowledge/{id}/analysis-status', [KnowledgeDocumentController::class, 'analysisStatus']);
-        Route::post  ('/knowledge/{id}/retry-analysis',  [KnowledgeDocumentController::class, 'retryAnalysis']);
+        // Análisis profundo (MAP/REDUCE/embeddings): ya no arranca solo al
+        // subir/reindexar — el admin lo controla a mano con estos botones.
+        Route::get   ('/knowledge/{id}/analysis-status',  [KnowledgeDocumentController::class, 'analysisStatus']);
+        Route::post  ('/knowledge/{id}/analyze',          [KnowledgeDocumentController::class, 'analyze']);
+        Route::post  ('/knowledge/{id}/retry-analysis',   [KnowledgeDocumentController::class, 'retryAnalysis']);
+        Route::post  ('/knowledge/{id}/cancel-analysis',  [KnowledgeDocumentController::class, 'cancelAnalysis']);
 
         // Directorio público: alta manual de candidatos y publicación.
         // (Los PDF se suben por /knowledge con candidate_id.)

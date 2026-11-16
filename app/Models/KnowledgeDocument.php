@@ -14,7 +14,8 @@ class KnowledgeDocument extends Model
         'content', 'pages', 'topic', 'candidate_id', 'source_url', 'source_type',
         'file_size', 'is_active', 'status', 'error_message',
         'chunks', 'embeddings_meta', 'embeddings_indexed',
-        'analysis_status', 'analysis_progress', 'analysis_error', 'is_public',
+        'analysis_status', 'analysis_progress', 'analysis_error', 'analysis_batch_id',
+        'analyzed_at', 'is_public',
     ];
 
     protected $casts = [
@@ -26,6 +27,7 @@ class KnowledgeDocument extends Model
         'embeddings_meta'    => 'array',
         'embeddings_indexed' => 'boolean',
         'analysis_progress'  => 'integer',
+        'analyzed_at'        => 'datetime',
         'is_public'          => 'boolean',
     ];
 

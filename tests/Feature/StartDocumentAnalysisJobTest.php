@@ -49,6 +49,7 @@ class StartDocumentAnalysisJobTest extends TestCase
             $t->string('analysis_status', 20)->default('pendiente');
             $t->unsignedTinyInteger('analysis_progress')->default(0);
             $t->text('analysis_error')->nullable();
+            $t->string('analysis_batch_id')->nullable();
             $t->boolean('is_public')->default(false);
             $t->timestamps();
         });

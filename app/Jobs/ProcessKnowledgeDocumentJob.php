@@ -16,15 +16,19 @@ use Illuminate\Support\Facades\Log;
 /**
  * Pipeline de extracción de documentos: subida (KnowledgeDocumentController::store,
  * síncrono y rápido) → cola (este job) → procesamiento (extrae texto + indexa
- * embeddings léxicos, igual que antes — `status`) → dispara el análisis
- * profundo (chunking + MAP/REDUCE + embeddings reales, `analysis_status`,
- * minutos, ver MapDocumentChunkJob/ReduceDocumentJob/EmbedDocumentSectionsJob).
+ * embeddings léxicos, igual que antes — `status`).
  *
- * Los dos pipelines son independientes a propósito: el chat no debe esperar al
- * análisis profundo para poder buscar por FULLTEXT como ya hacía.
+ * YA NO dispara el análisis profundo (chunking + MAP/REDUCE + embeddings,
+ * `analysis_status`) automáticamente: ese pipeline es caro (minutos, tokens
+ * de Groq/Gemini) y ahora lo arranca solo el botón "Analizar plan completo"
+ * del admin (KnowledgeDocumentController::analyze, que encadena este job con
+ * StartDocumentAnalysisJob vía Bus::chain). Los dos pipelines son
+ * independientes a propósito: el chat no debe esperar al análisis profundo
+ * para poder buscar por FULLTEXT como ya hacía.
  *
  * También se redespacha desde reindex()/ReingestKnowledgeDocuments para
- * reprocesar un documento existente (falla previa, truncado a 80k, etc.).
+ * reprocesar un documento existente (falla previa, truncado a 80k, etc.) —
+ * ninguno de los dos arranca el análisis tampoco.
  */
 class ProcessKnowledgeDocumentJob implements ShouldQueue
 {
@@ -70,8 +74,6 @@ class ProcessKnowledgeDocumentJob implements ShouldQueue
                 'status'             => 'ready',
                 'embeddings_indexed' => true,
             ]);
-
-            StartDocumentAnalysisJob::dispatch($doc->id, $this->tenantSlug);
         } catch (\Throwable $e) {
             Log::warning('ProcessKnowledgeDocumentJob failed', [
                 'doc_id' => $doc->id,

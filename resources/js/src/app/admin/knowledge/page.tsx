@@ -3,7 +3,7 @@ import { PlanGate } from "@/components/admin/PlanGate";
 import { useCallback, useEffect, useState } from "react";
 import {
   FileText, Trash2, Loader2,
-  Eye, EyeOff, BookOpen, Tag, RefreshCw,
+  Eye, EyeOff, BookOpen, Tag, RefreshCw, Sparkles, X,
 } from "lucide-react";
 import { FilePreviewModal } from "@/components/admin/FilePreviewModal";
 import { KnowledgeUploadPanel } from "@/components/admin/KnowledgeUploadPanel";
@@ -40,17 +40,30 @@ function KnowledgePageInner() {
   useEffect(() => { load(); }, [load]);
 
   // Pipeline de extracción (subida → cola → procesamiento → listo) Y análisis
-  // profundo (chunking → MAP/REDUCE → embeddings, puede tardar minutos en un
-  // plan de 200+ páginas): mientras alguno siga en curso, refresca cada 3s.
+  // profundo (en cola/analizando, disparado a mano con el botón "Analizar"):
+  // mientras alguno siga en curso, refresca cada 3s. 'sin_analizar' es un
+  // estado de reposo (la mayoría de los documentos viven ahí) — nunca debe
+  // disparar polling por sí solo.
   useEffect(() => {
     const hasPending = docs.some(d =>
       d.status === "pending" || d.status === "processing" ||
-      (d.status === "ready" && !["listo", "no_aplica", "error"].includes(d.analysis_status ?? ""))
+      d.analysis_status === "pendiente" || d.analysis_status === "procesando"
     );
     if (!hasPending) return;
     const t = setTimeout(load, 3000);
     return () => clearTimeout(t);
   }, [docs, load]);
+
+  const [analyzing, setAnalyzing] = useState<number | null>(null);
+  async function analyze(id: number) {
+    if (!token) return;
+    setAnalyzing(id);
+    try {
+      const { doc } = await adminApi.knowledge.analyze(token, id);
+      setDocs(prev => prev.map(d => d.id === id ? doc : d));
+    } catch {}
+    finally { setAnalyzing(null); }
+  }
 
   const [retrying, setRetrying] = useState<number | null>(null);
   async function retryAnalysis(id: number) {
@@ -61,6 +74,17 @@ function KnowledgePageInner() {
       setDocs(prev => prev.map(d => d.id === id ? doc : d));
     } catch {}
     finally { setRetrying(null); }
+  }
+
+  const [cancelling, setCancelling] = useState<number | null>(null);
+  async function cancelAnalysis(id: number) {
+    if (!token) return;
+    setCancelling(id);
+    try {
+      const { doc } = await adminApi.knowledge.cancelAnalysis(token, id);
+      setDocs(prev => prev.map(d => d.id === id ? doc : d));
+    } catch {}
+    finally { setCancelling(null); }
   }
 
   async function toggleActive(doc: KnowledgeDocument) {
@@ -199,8 +223,38 @@ function KnowledgePageInner() {
                       {/* Análisis profundo: solo tiene sentido mostrarlo una vez que el
                           texto se extrajo (status=ready) — antes de eso no hay chunks.
                           'no_aplica' (hojas de vida, que nunca se analizan) no muestra nada. */}
-                      {doc.status === "ready" && doc.analysis_status !== "listo" && doc.analysis_status !== "no_aplica" && (
+                      {doc.status === "ready" && doc.analysis_status !== "no_aplica" && (
                         <div className="mt-1.5 flex items-center gap-2 text-[10px]">
+                          {(!doc.analysis_status || doc.analysis_status === "sin_analizar") && (
+                            <>
+                              <span className="text-gray-400">Sin analizar</span>
+                              <button
+                                onClick={() => analyze(doc.id)}
+                                disabled={analyzing === doc.id}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-brand-200 text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-50"
+                              >
+                                {analyzing === doc.id
+                                  ? <Loader2 size={9} className="animate-spin" />
+                                  : <Sparkles size={9} />}
+                                Analizar plan completo
+                              </button>
+                            </>
+                          )}
+                          {doc.analysis_status === "pendiente" && (
+                            <>
+                              <span className="text-gray-400">En cola para análisis…</span>
+                              <button
+                                onClick={() => cancelAnalysis(doc.id)}
+                                disabled={cancelling === doc.id}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                              >
+                                {cancelling === doc.id
+                                  ? <Loader2 size={9} className="animate-spin" />
+                                  : <X size={9} />}
+                                Cancelar
+                              </button>
+                            </>
+                          )}
                           {doc.analysis_status === "procesando" && (
                             <>
                               <div className="h-1.5 w-28 rounded-full bg-gray-100 overflow-hidden">
@@ -210,15 +264,39 @@ function KnowledgePageInner() {
                                 />
                               </div>
                               <span className="text-gray-400">Analizando… {doc.analysis_progress ?? 0}%</span>
+                              <button
+                                onClick={() => cancelAnalysis(doc.id)}
+                                disabled={cancelling === doc.id}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                              >
+                                {cancelling === doc.id
+                                  ? <Loader2 size={9} className="animate-spin" />
+                                  : <X size={9} />}
+                                Cancelar
+                              </button>
                             </>
                           )}
-                          {(doc.analysis_status === "pendiente" || !doc.analysis_status) && (
-                            <span className="text-gray-400">En cola para análisis…</span>
+                          {doc.analysis_status === "listo" && (
+                            <>
+                              <span className="text-green-600">
+                                ✓ Listo{doc.analyzed_at ? ` (${new Date(doc.analyzed_at).toLocaleDateString("es-PE")})` : ""}
+                              </span>
+                              <button
+                                onClick={() => retryAnalysis(doc.id)}
+                                disabled={retrying === doc.id}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                              >
+                                {retrying === doc.id
+                                  ? <Loader2 size={9} className="animate-spin" />
+                                  : <RefreshCw size={9} />}
+                                Volver a analizar
+                              </button>
+                            </>
                           )}
                           {doc.analysis_status === "error" && (
                             <>
                               <span className="text-red-600" title={doc.analysis_error ?? undefined}>
-                                ⚠ Análisis incompleto
+                                ⚠ {doc.analysis_error ?? "Error al analizar"}
                               </span>
                               <button
                                 onClick={() => retryAnalysis(doc.id)}
@@ -228,14 +306,11 @@ function KnowledgePageInner() {
                                 {retrying === doc.id
                                   ? <Loader2 size={9} className="animate-spin" />
                                   : <RefreshCw size={9} />}
-                                Reprocesar
+                                Reintentar
                               </button>
                             </>
                           )}
                         </div>
-                      )}
-                      {doc.status === "ready" && doc.analysis_status === "listo" && (
-                        <div className="mt-1.5 text-[10px] text-green-600">✓ Análisis completo (resumen, FAQs, búsqueda por página)</div>
                       )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">

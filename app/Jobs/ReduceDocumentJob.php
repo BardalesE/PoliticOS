@@ -80,7 +80,7 @@ TXT;
         $okSections = $sections->where('map_status', 'listo');
 
         if ($okSections->isEmpty()) {
-            $doc->update(['analysis_status' => 'error', 'analysis_error' => 'Ningún chunk se pudo mapear (MAP falló por completo).']);
+            $doc->update(['analysis_status' => 'error', 'analysis_error' => 'Ningún chunk se pudo mapear (MAP falló por completo).', 'analysis_batch_id' => null]);
             return;
         }
 
@@ -113,7 +113,7 @@ TXT;
             EmbedDocumentSectionsJob::dispatch($doc->id, $this->tenantSlug);
         } catch (\Throwable $e) {
             Log::warning('ReduceDocumentJob failed', ['doc_id' => $doc->id, 'error' => $e->getMessage()]);
-            $doc->update(['analysis_status' => 'error', 'analysis_error' => mb_substr($e->getMessage(), 0, 500)]);
+            $doc->update(['analysis_status' => 'error', 'analysis_error' => mb_substr($e->getMessage(), 0, 500), 'analysis_batch_id' => null]);
             throw $e;
         }
     }

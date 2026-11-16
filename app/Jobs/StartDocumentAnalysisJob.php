@@ -93,6 +93,11 @@ class StartDocumentAnalysisJob implements ShouldQueue
             'analysis_status'   => 'procesando',
             'analysis_progress' => 0,
             'analysis_error'    => null,
+            // Se rellena abajo si de verdad se crea un batch nuevo; limpiarlo
+            // aquí evita que sobreviva el id de un batch de una corrida previa
+            // (p. ej. si esta vez todos los chunks ya estaban 'listo' y se va
+            // directo a ReduceDocumentJob, sin batch).
+            'analysis_batch_id' => null,
             'is_public'         => false,
         ]);
 
@@ -108,7 +113,7 @@ class StartDocumentAnalysisJob implements ShouldQueue
             return;
         }
 
-        Bus::batch($pendingIds->map(fn ($id) => new MapDocumentChunkJob($id, $tenantSlug))->all())
+        $batch = Bus::batch($pendingIds->map(fn ($id) => new MapDocumentChunkJob($id, $tenantSlug))->all())
             ->name("map-document-{$documentId}")
             ->allowFailures()
             ->progress(function (Batch $batch) use ($documentId, $tenantSlug) {
@@ -119,16 +124,25 @@ class StartDocumentAnalysisJob implements ShouldQueue
                 });
             })
             ->then(function () use ($documentId, $tenantSlug) {
+                TenantContext::run($tenantSlug, function () use ($documentId) {
+                    KnowledgeDocument::where('id', $documentId)->update(['analysis_batch_id' => null]);
+                });
                 ReduceDocumentJob::dispatch($documentId, $tenantSlug);
             })
             ->catch(function (Batch $batch, \Throwable $e) use ($documentId, $tenantSlug) {
                 TenantContext::run($tenantSlug, function () use ($documentId, $e) {
                     KnowledgeDocument::where('id', $documentId)->update([
-                        'analysis_status' => 'error',
-                        'analysis_error'  => mb_substr($e->getMessage(), 0, 500),
+                        'analysis_status'   => 'error',
+                        'analysis_error'    => mb_substr($e->getMessage(), 0, 500),
+                        'analysis_batch_id' => null,
                     ]);
                 });
             })
             ->dispatch();
+
+        // Después del dispatch (no antes): recién ahí Bus::batch() devuelve el
+        // Batch real con su id — es lo que el botón "Cancelar" del admin
+        // necesita para cancelarlo y vaciar sus jobs pendientes de la cola.
+        $doc->update(['analysis_batch_id' => $batch->id]);
     }
 }

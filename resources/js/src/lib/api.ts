@@ -517,8 +517,12 @@ export const adminApi = {
       request<{ ok: boolean }>(`/admin/knowledge/${id}/reindex`, { method: "POST" }, token),
     analysisStatus: (token: string, id: number) =>
       request<KnowledgeAnalysisStatus>(`/admin/knowledge/${id}/analysis-status`, {}, token),
+    analyze: (token: string, id: number) =>
+      request<{ ok: boolean; doc: KnowledgeDocument }>(`/admin/knowledge/${id}/analyze`, { method: "POST" }, token),
     retryAnalysis: (token: string, id: number) =>
       request<{ ok: boolean; doc: KnowledgeDocument }>(`/admin/knowledge/${id}/retry-analysis`, { method: "POST" }, token),
+    cancelAnalysis: (token: string, id: number) =>
+      request<{ ok: boolean; doc: KnowledgeDocument }>(`/admin/knowledge/${id}/cancel-analysis`, { method: "POST" }, token),
   },
 };
 
@@ -657,18 +661,19 @@ export type KnowledgeDocument = {
   // Admin-only, igual que los campos de arriba.
   status?: "pending" | "processing" | "ready" | "failed";
   error_message?: string | null;
-  // Análisis profundo (chunking + MAP/REDUCE + embeddings, Fase 1) — corre
-  // DESPUÉS de status=ready y puede tardar minutos en un plan de 200+ páginas.
-  // "no_aplica": documentos que nunca se analizan (hojas de vida, ver
-  // StartDocumentAnalysisJob).
-  analysis_status?: "pendiente" | "procesando" | "listo" | "error" | "no_aplica";
+  // Análisis profundo (chunking + MAP/REDUCE + embeddings) — ya no arranca
+  // solo: lo dispara el botón "Analizar plan completo" del admin.
+  // "sin_analizar": estado inicial (o tras reindexar/cancelar). "no_aplica":
+  // documentos que nunca se analizan (hojas de vida, ver StartDocumentAnalysisJob).
+  analysis_status?: "sin_analizar" | "pendiente" | "procesando" | "listo" | "error" | "no_aplica";
   analysis_progress?: number;
   analysis_error?: string | null;
+  analyzed_at?: string | null;
   is_public?: boolean;
 };
 
 export type KnowledgeAnalysisStatus = {
-  analysis_status: "pendiente" | "procesando" | "listo" | "error" | "no_aplica";
+  analysis_status: "sin_analizar" | "pendiente" | "procesando" | "listo" | "error" | "no_aplica";
   analysis_progress: number;
   analysis_error: string | null;
   is_public: boolean;
