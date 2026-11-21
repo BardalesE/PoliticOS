@@ -16,14 +16,19 @@ use Illuminate\Support\Facades\Bus;
 
 /**
  * Arranca (o retoma) el análisis profundo de un documento: chunking (si no
- * existía ya — idempotente) + batch de MAP → ReduceDocumentJob →
- * EmbedDocumentSectionsJob. Lo dispara ProcessKnowledgeDocumentJob tras
- * extraer el texto, y también el botón "Reprocesar análisis" del admin
- * (KnowledgeDocumentController::retryAnalysis) SIN re-extraer el PDF — usa
- * `knowledge_documents.pages`, ya guardado.
+ * existía ya — idempotente) y luego, según INGEST_ANALYSIS_MODE (ver
+ * config/ingest.php "analysis"):
+ *   - 'single_pass_gemini' (default): SinglePassAnalyzeDocumentJob, que le
+ *     manda el plan COMPLETO a Gemini en 1-4 llamadas.
+ *   - 'map_reduce_groq' (legacy, se conserva intacto): batch de MAP →
+ *     ReduceDocumentJob → EmbedDocumentSectionsJob, igual que siempre.
+ * Lo dispara ProcessKnowledgeDocumentJob tras extraer el texto, y también el
+ * botón "Reprocesar análisis" del admin (KnowledgeDocumentController::retryAnalysis)
+ * SIN re-extraer el PDF — usa `knowledge_documents.pages`, ya guardado.
  *
- * Retomar es gratis: MapDocumentChunkJob no reprocesa chunks con
- * map_status=listo, así que un reintento solo paga los que quedaron a medias.
+ * Retomar es gratis en el modo Groq: MapDocumentChunkJob no reprocesa chunks
+ * con map_status=listo, así que un reintento solo paga los que quedaron a
+ * medias.
  */
 class StartDocumentAnalysisJob implements ShouldQueue
 {
@@ -110,6 +115,19 @@ class StartDocumentAnalysisJob implements ShouldQueue
 
         $documentId = $doc->id;
         $tenantSlug = $this->tenantSlug;
+
+        if (config('ingest.analysis.mode', 'single_pass_gemini') === 'single_pass_gemini') {
+            // Sin paso MAP: document_sections solo sirve para RAG (chunking +
+            // embeddings de la Fase 2), el resumen/índice/propuestas/FAQs
+            // salen directo de Gemini sobre el plan completo.
+            DocumentSection::where('document_id', $documentId)
+                ->where('map_status', '!=', 'listo')
+                ->update(['map_status' => 'listo']);
+
+            $doc->update(['analysis_stage' => 'analizando_ia', 'analysis_progress' => 20]);
+            SinglePassAnalyzeDocumentJob::dispatch($documentId, $tenantSlug);
+            return;
+        }
 
         $pendingIds = DocumentSection::where('document_id', $documentId)
             ->where('map_status', '!=', 'listo')

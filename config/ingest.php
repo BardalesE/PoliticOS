@@ -49,6 +49,38 @@ return [
         'max_faqs' => (int) env('INGEST_REDUCE_MAX_FAQS', 50),
     ],
 
+    // Selector del pipeline de análisis profundo (resumen/índice/propuestas/FAQs):
+    // 'single_pass_gemini' (nuevo default) manda el plan COMPLETO a Gemini en
+    // 1 llamada (o 2-3 + consolidación, si no entra en el presupuesto de
+    // tokens) en vez del MAP/REDUCE por chunk contra Groq — demasiado lento
+    // con el límite gratuito de Groq (cientos de llamadas por documento).
+    // 'map_reduce_groq' conserva el pipeline anterior intacto (ver
+    // StartDocumentAnalysisJob, MapDocumentChunkJob, ReduceDocumentJob).
+    'analysis' => [
+        'mode' => env('INGEST_ANALYSIS_MODE', 'single_pass_gemini'),
+    ],
+
+    'single_pass' => [
+        'api_key'  => env('GEMINI_API_KEY'),
+        'model'    => env('INGEST_SINGLE_PASS_MODEL', 'gemini-2.5-flash'),
+        'base_url' => env('GEMINI_SINGLE_PASS_BASE_URL', env('GEMINI_EMBEDDINGS_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta')),
+        // Presupuesto de tokens (estimado con chars_per_token, no hay
+        // tokenizer real disponible) del plan COMPLETO con marcas
+        // "[Página N]". Un plan de gobierno real (200-400 páginas) casi
+        // siempre entra en una sola llamada; por encima de esto se divide
+        // en 2-3 partes por páginas (max_parts) y se consolida con una
+        // llamada final.
+        'max_tokens'        => (int) env('INGEST_SINGLE_PASS_MAX_TOKENS', 400000),
+        'max_output_tokens' => (int) env('INGEST_SINGLE_PASS_MAX_OUTPUT_TOKENS', 8192),
+        'max_parts'         => (int) env('INGEST_SINGLE_PASS_MAX_PARTS', 3),
+        // 429 de Gemini: reintento con backoff respetando Retry-After (header
+        // o, si Gemini no lo manda, el RetryInfo.retryDelay del body).
+        'max_retries'       => (int) env('INGEST_SINGLE_PASS_MAX_RETRIES', 5),
+        // JSON sintácticamente inválido o sin las claves requeridas: no es un
+        // 429, se reintenta la llamada completa hasta esto muchas veces.
+        'json_retries'      => (int) env('INGEST_SINGLE_PASS_JSON_RETRIES', 3),
+    ],
+
     'embeddings' => [
         // Swap de driver sin tocar código (misma idea que ai.embeddings_driver
         // en config/services.php, pero este es el motor de embeddings REALES

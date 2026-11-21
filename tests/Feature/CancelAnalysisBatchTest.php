@@ -46,6 +46,10 @@ class CancelAnalysisBatchTest extends TestCase
             'queue.failed.table'                       => 'failed_jobs',
             'ingest.chunking.fallback_tokens'          => 1500,
             'ingest.chunking.overlap_tokens'           => 200,
+            // Este test cancela un batch REAL de MapDocumentChunkJob — es
+            // específico del modo legacy; single_pass_gemini (nuevo default)
+            // no crea batch (ver SinglePassAnalyzeDocumentJobTest).
+            'ingest.analysis.mode'                      => 'map_reduce_groq',
         ]);
         DB::purge('sqlite');
         DB::purge('central');

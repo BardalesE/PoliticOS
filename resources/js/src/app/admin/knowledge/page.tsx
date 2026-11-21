@@ -62,7 +62,8 @@ const STAGE_LABELS: Record<string, string> = {
   resumiendo_secciones: "Resumiendo secciones",
   consolidando: "Consolidando por eje",
   generando_faqs: "Generando preguntas frecuentes",
-  embeddings: "Generando embeddings",
+  analizando_ia: "Analizando con IA",
+  embeddings: "Indexando",
   listo: "Listo",
 };
 

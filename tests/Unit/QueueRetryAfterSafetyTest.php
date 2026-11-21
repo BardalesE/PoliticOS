@@ -6,6 +6,7 @@ use App\Jobs\EmbedDocumentSectionsJob;
 use App\Jobs\MapDocumentChunkJob;
 use App\Jobs\ProcessKnowledgeDocumentJob;
 use App\Jobs\ReduceDocumentJob;
+use App\Jobs\SinglePassAnalyzeDocumentJob;
 use App\Jobs\StartDocumentAnalysisJob;
 use Tests\TestCase;
 
@@ -25,6 +26,7 @@ class QueueRetryAfterSafetyTest extends TestCase
         MapDocumentChunkJob::class,
         ReduceDocumentJob::class,
         EmbedDocumentSectionsJob::class,
+        SinglePassAnalyzeDocumentJob::class,
     ];
 
     public function test_no_ingest_job_timeout_reaches_the_database_queue_retry_after(): void

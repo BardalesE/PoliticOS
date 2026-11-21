@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Jobs\MapDocumentChunkJob;
 use App\Jobs\ReduceDocumentJob;
+use App\Jobs\SinglePassAnalyzeDocumentJob;
 use App\Jobs\StartDocumentAnalysisJob;
 use App\Models\DocumentSection;
 use App\Models\KnowledgeDocument;
@@ -33,6 +34,10 @@ class StartDocumentAnalysisJobTest extends TestCase
             ],
             'ingest.chunking.fallback_tokens' => 1500,
             'ingest.chunking.overlap_tokens' => 200,
+            // Estos tests ejercitan el pipeline legacy MAP/REDUCE contra
+            // Groq a propósito; el modo single_pass_gemini (nuevo default)
+            // tiene su propia clase de tests más abajo.
+            'ingest.analysis.mode' => 'map_reduce_groq',
         ]);
         DB::purge('sqlite');
 
@@ -175,5 +180,64 @@ class StartDocumentAnalysisJobTest extends TestCase
         $this->assertSame(0, DocumentSection::where('document_id', $doc->id)->count());
         Bus::assertNothingBatched();
         Bus::assertNotDispatched(ReduceDocumentJob::class);
+    }
+
+    // ─── INGEST_ANALYSIS_MODE=single_pass_gemini (nuevo default) ───────────
+
+    public function test_single_pass_mode_skips_the_map_batch_and_dispatches_the_gemini_job(): void
+    {
+        config(['ingest.analysis.mode' => 'single_pass_gemini']);
+        Bus::fake();
+        $doc = $this->doc([
+            'PLAN DE GOBIERNO Presentacion.',
+            'EJE 1 Agricultura y riego para la zona alta.',
+        ]);
+
+        (new StartDocumentAnalysisJob($doc->id))->handle();
+
+        $this->assertGreaterThan(0, DocumentSection::where('document_id', $doc->id)->count());
+        $this->assertSame(
+            0,
+            DocumentSection::where('document_id', $doc->id)->where('map_status', '!=', 'listo')->count(),
+            'sin paso MAP: los chunks quedan listos para embeddings directamente'
+        );
+
+        $fresh = $doc->fresh();
+        $this->assertSame('procesando', $fresh->analysis_status);
+        $this->assertSame('analizando_ia', $fresh->analysis_stage);
+
+        Bus::assertNothingBatched();
+        Bus::assertNotDispatched(MapDocumentChunkJob::class);
+        Bus::assertNotDispatched(ReduceDocumentJob::class);
+        Bus::assertDispatched(SinglePassAnalyzeDocumentJob::class, fn ($job) => $job->documentId === $doc->id);
+    }
+
+    public function test_single_pass_mode_does_not_duplicate_chunks_on_retry(): void
+    {
+        config(['ingest.analysis.mode' => 'single_pass_gemini']);
+        Bus::fake();
+        $doc = $this->doc(['Texto de la unica pagina del documento.']);
+
+        (new StartDocumentAnalysisJob($doc->id))->handle();
+        $firstCount = DocumentSection::where('document_id', $doc->id)->count();
+
+        (new StartDocumentAnalysisJob($doc->id))->handle();
+        $secondCount = DocumentSection::where('document_id', $doc->id)->count();
+
+        $this->assertSame($firstCount, $secondCount);
+        Bus::assertDispatchedTimes(SinglePassAnalyzeDocumentJob::class, 2);
+    }
+
+    public function test_single_pass_mode_also_skips_the_hoja_de_vida(): void
+    {
+        config(['ingest.analysis.mode' => 'single_pass_gemini']);
+        Bus::fake();
+        $doc = $this->doc(['Datos personales: Juan Perez.'], ['topic' => 'hoja_de_vida']);
+
+        (new StartDocumentAnalysisJob($doc->id))->handle();
+
+        $doc->refresh();
+        $this->assertSame('no_aplica', $doc->analysis_status);
+        Bus::assertNotDispatched(SinglePassAnalyzeDocumentJob::class);
     }
 }
